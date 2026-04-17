@@ -5,6 +5,7 @@ import { z } from "zod";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
+import { createNotification, notifyMentions } from "@/server/notifications";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -98,7 +99,7 @@ export async function createCommentAction(formData: FormData) {
     if (parent.parentId !== null) return { ok: false as const, error: "Cannot reply to a reply" };
   }
 
-  await db.comment.create({
+  const comment = await db.comment.create({
     data: {
       postId: parsed.data.postId,
       authorId: session.user.id,
@@ -107,12 +108,84 @@ export async function createCommentAction(formData: FormData) {
       audioUrl: parsed.data.audioUrl ?? null,
       audioDurationSec: parsed.data.audioDurationSec ?? null,
     },
+    select: { id: true },
   });
 
   const paths = await getPostPaths(parsed.data.postId);
   if (paths) {
     revalidatePath(`/groups/${paths.groupSlug}`);
     revalidatePath(`/groups/${paths.groupSlug}/channels/${paths.channelSlug}`);
+  }
+
+  // Fire notifications (best-effort).
+  try {
+    const ctx = await db.post.findUnique({
+      where: { id: parsed.data.postId },
+      select: {
+        authorId: true,
+        channel: {
+          select: {
+            slug: true,
+            groupId: true,
+            group: { select: { slug: true } },
+          },
+        },
+      },
+    });
+    if (ctx) {
+      const href = `/groups/${ctx.channel.group.slug}/channels/${ctx.channel.slug}#comment-${comment.id}`;
+      const snippet = parsed.data.body ?? "(voice note)";
+
+      if (parsed.data.parentId) {
+        // REPLY → notify parent comment author
+        const parent = await db.comment.findUnique({
+          where: { id: parsed.data.parentId },
+          select: { authorId: true },
+        });
+        if (parent && parent.authorId !== session.user.id) {
+          await createNotification({
+            userId: parent.authorId,
+            actorId: session.user.id,
+            type: "REPLY",
+            groupId: ctx.channel.groupId,
+            postId: parsed.data.postId,
+            commentId: comment.id,
+            snippet,
+            href,
+          });
+        }
+      } else {
+        // COMMENT_ON_POST → notify post author
+        if (ctx.authorId !== session.user.id) {
+          await createNotification({
+            userId: ctx.authorId,
+            actorId: session.user.id,
+            type: "COMMENT_ON_POST",
+            groupId: ctx.channel.groupId,
+            postId: parsed.data.postId,
+            commentId: comment.id,
+            snippet,
+            href,
+          });
+        }
+      }
+
+      // @mention notifications on the comment body
+      if (parsed.data.body) {
+        await notifyMentions({
+          text: parsed.data.body,
+          actorId: session.user.id,
+          groupId: ctx.channel.groupId,
+          href,
+          snippet: parsed.data.body,
+          postId: parsed.data.postId,
+          commentId: comment.id,
+        });
+      }
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("comment notifications failed", e);
   }
 
   return { ok: true as const };

@@ -27,9 +27,10 @@ type Props = {
   viewerCanModerate: boolean;
   /** If true, don't render the reply button (used for reply-level items). */
   isReply?: boolean;
+  groupSlug?: string;
 };
 
-export function CommentItem({ comment, viewerId, viewerCanModerate, isReply = false }: Props) {
+export function CommentItem({ comment, viewerId, viewerCanModerate, isReply = false, groupSlug }: Props) {
   const t = useTranslations("comments");
   const locale = useLocale();
   const [editMode, setEditMode] = useState(false);
@@ -165,6 +166,7 @@ export function CommentItem({ comment, viewerId, viewerCanModerate, isReply = fa
                 parentId={comment.id}
                 onCancel={() => setReplyOpen(false)}
                 onSuccess={() => setReplyOpen(false)}
+                groupSlug={groupSlug}
               />
             </div>
           ) : null}
@@ -179,6 +181,7 @@ export function CommentItem({ comment, viewerId, viewerCanModerate, isReply = fa
                   viewerId={viewerId}
                   viewerCanModerate={viewerCanModerate}
                   isReply
+                  groupSlug={groupSlug}
                 />
               ))}
             </div>

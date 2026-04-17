@@ -7,15 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { createCommentAction } from "@/server/comment-actions";
 import { VoiceRecorder } from "@/components/post/VoiceRecorder";
+import { MentionTextarea } from "@/components/mention/MentionTextarea";
 
 type Props = {
   postId: string;
   parentId?: string;
   onCancel?: () => void;
   onSuccess?: () => void;
+  /** When provided, enables @mention autocomplete scoped to the group's members. */
+  groupSlug?: string;
 };
 
-export function CommentComposer({ postId, parentId, onCancel, onSuccess }: Props) {
+export function CommentComposer({ postId, parentId, onCancel, onSuccess, groupSlug }: Props) {
   const t = useTranslations("comments");
   const [isPending, startTransition] = useTransition();
   const [isUploading, setIsUploading] = useState(false);
@@ -91,16 +94,30 @@ export function CommentComposer({ postId, parentId, onCancel, onSuccess }: Props
       <input type="hidden" name="postId" value={postId} />
       {parentId ? <input type="hidden" name="parentId" value={parentId} /> : null}
 
-      <Textarea
-        name="body"
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder={parentId ? t("writeReply") : t("write")}
-        rows={2}
-        maxLength={2000}
-        className="resize-none text-sm"
-        disabled={disabled}
-      />
+      {groupSlug ? (
+        <MentionTextarea
+          groupSlug={groupSlug}
+          name="body"
+          value={body}
+          onChange={setBody}
+          placeholder={parentId ? t("writeReply") : t("write")}
+          rows={2}
+          maxLength={2000}
+          className="resize-none text-sm"
+          disabled={disabled}
+        />
+      ) : (
+        <Textarea
+          name="body"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder={parentId ? t("writeReply") : t("write")}
+          rows={2}
+          maxLength={2000}
+          className="resize-none text-sm"
+          disabled={disabled}
+        />
+      )}
 
       <div className="flex items-center justify-between gap-2">
         <VoiceRecorder

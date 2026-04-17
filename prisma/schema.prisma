@@ -101,6 +101,11 @@ model User {
   // M6 relations
   invitesSent      Invite[] @relation("InvitesSent")
   invitesAccepted  Invite[] @relation("InvitesAccepted")
+
+  // M7 relations
+  notificationsReceived Notification[]          @relation("NotifRecipient")
+  notificationsActed    Notification[]          @relation("NotifActor")
+  notificationPref      NotificationPreference?
 }
 
 // Single row per user. Updated by a debounced heartbeat (M6).
@@ -420,4 +425,47 @@ model PollVote {
 
   @@unique([optionId, userId])
   @@index([userId])
+}
+
+// ─── Notifications (M7) ─────────────────────────────────────────────────────
+//
+// Polymorphic in-app notifications. `entityRef` is encoded as a set of nullable
+// foreign-key-like strings (not enforced FKs because the referenced rows can be
+// in various models). `href` is precomputed so the Bell click just navigates.
+// `snippet` is a denormalized preview (≤ 140 chars) of the source text.
+
+model Notification {
+  id             String    @id @default(cuid())
+  userId         String    // recipient
+  actorId        String?   // who caused it
+  type           String    // MENTION | COMMENT_ON_POST | REPLY | REACTION_ON_POST | MEMBERSHIP_APPROVED | INVITE_ACCEPTED
+  groupId        String?
+  postId         String?
+  commentId      String?
+  membershipId   String?
+  inviteId       String?
+  snippet        String?
+  href           String
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  user   User  @relation("NotifRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor  User? @relation("NotifActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt])
+  @@index([userId, createdAt])
+}
+
+model NotificationPreference {
+  id       String @id @default(cuid())
+  userId   String @unique
+  // Each field below: "IN_APP" | "EMAIL" | "BOTH" | "OFF"
+  mention              String @default("BOTH")
+  commentOnPost        String @default("BOTH")
+  replyOnComment       String @default("BOTH")
+  reactionOnPost       String @default("IN_APP")
+  membershipApproved   String @default("BOTH")
+  inviteAccepted       String @default("IN_APP")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

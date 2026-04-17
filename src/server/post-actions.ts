@@ -7,6 +7,7 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { encodeMedia } from "@/server/posts";
+import { notifyMentions } from "@/server/notifications";
 
 // ─── Shared: permission & access gate for a channel ────────────────────────
 
@@ -158,6 +159,21 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
   revalidatePath(
     `/groups/${gate.channel.group.slug}/channels/${gate.channel.slug}`,
   );
+
+  // Fire @mention notifications (best-effort; don't block the response).
+  try {
+    await notifyMentions({
+      text: parsed.data.body,
+      actorId: session.user.id,
+      groupId: gate.channel.groupId,
+      href: `/groups/${gate.channel.group.slug}/channels/${gate.channel.slug}#post-${post.id}`,
+      snippet: parsed.data.body,
+      postId: post.id,
+    });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("notifyMentions (post) failed", e);
+  }
 
   // Return ok so the composer can clear.
   return { ok: true as const, postId: post.id };

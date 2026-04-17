@@ -22,6 +22,7 @@ import {
   ROLES,
 } from "@/server/permissions";
 import { syncAllChannelsForGroup } from "@/server/channels";
+import { createNotification } from "@/server/notifications";
 
 // ─── Slug helper ────────────────────────────────────────────────────────────
 
@@ -238,6 +239,26 @@ export async function decidePendingAction(formData: FormData) {
       data: { state: "ACTIVE" },
     });
     await syncAllChannelsForGroup(db, target.groupId);
+    try {
+      const group = await db.group.findUnique({
+        where: { id: target.groupId },
+        select: { slug: true, name: true },
+      });
+      if (group) {
+        await createNotification({
+          userId: target.userId,
+          actorId: session.user.id,
+          type: "MEMBERSHIP_APPROVED",
+          groupId: target.groupId,
+          membershipId: target.id,
+          snippet: `You've been approved to join ${group.name}`,
+          href: `/groups/${group.slug}`,
+        });
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("MEMBERSHIP_APPROVED notification failed", e);
+    }
   } else {
     await db.groupMembership.delete({ where: { id: target.id } });
   }

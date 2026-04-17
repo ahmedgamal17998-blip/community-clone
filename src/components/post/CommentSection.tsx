@@ -13,6 +13,7 @@ type Props = {
   viewerId: string;
   viewerCanModerate: boolean;
   commentCount: number;
+  groupSlug?: string;
 };
 
 export function CommentSection({
@@ -21,6 +22,7 @@ export function CommentSection({
   viewerId,
   viewerCanModerate,
   commentCount,
+  groupSlug,
 }: Props) {
   const t = useTranslations("comments");
   const [open, setOpen] = useState(false);
@@ -56,6 +58,7 @@ export function CommentSection({
                   comment={c}
                   viewerId={viewerId}
                   viewerCanModerate={viewerCanModerate}
+                  groupSlug={groupSlug}
                 />
               ))}
             </div>
@@ -63,7 +66,7 @@ export function CommentSection({
 
           {/* New comment composer */}
           <div className="pt-1">
-            <CommentComposer postId={postId} />
+            <CommentComposer postId={postId} groupSlug={groupSlug} />
           </div>
         </div>
       ) : null}

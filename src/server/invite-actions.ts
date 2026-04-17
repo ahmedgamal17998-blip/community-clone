@@ -20,6 +20,7 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { requireRole } from "@/server/permissions";
 import { syncAllChannelsForGroup } from "@/server/channels";
+import { createNotification } from "@/server/notifications";
 
 const INVITE_ROLES = ["MEMBER", "CONTRIBUTOR", "ADMIN"] as const;
 
@@ -185,6 +186,24 @@ export async function acceptInviteAction(formData: FormData) {
   });
 
   await syncAllChannelsForGroup(db, invite.groupId);
+
+  // Notify the inviter that their invite was accepted.
+  try {
+    if (invite.invitedById !== session.user.id) {
+      await createNotification({
+        userId: invite.invitedById,
+        actorId: session.user.id,
+        type: "INVITE_ACCEPTED",
+        groupId: invite.groupId,
+        inviteId: invite.id,
+        snippet: `Your invite was accepted`,
+        href: `/groups/${invite.group.slug}/members`,
+      });
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("INVITE_ACCEPTED notification failed", e);
+  }
 
   revalidatePath(`/groups/${invite.group.slug}`);
   revalidatePath(`/groups/${invite.group.slug}/members`);

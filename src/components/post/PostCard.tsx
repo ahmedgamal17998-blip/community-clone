@@ -183,6 +183,7 @@ export async function PostCard({ post, viewerId, viewerCanModerate, hideChannelC
         viewerId={viewerId}
         viewerCanModerate={viewerCanModerate}
         commentCount={commentCount}
+        groupSlug={post.channel.group.slug}
       />
     </article>
   );

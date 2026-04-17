@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { createPostAction } from "@/server/post-actions";
 import { cn } from "@/lib/utils";
+import { MentionTextarea } from "@/components/mention/MentionTextarea";
 
 type State = { ok: boolean; error?: string; postId?: string } | null;
 
@@ -20,17 +21,20 @@ type Props = {
   channelId: string;
   /** Compact mode collapses the composer to a single-line trigger until focused. */
   compact?: boolean;
+  /** When provided, the body textarea enables @mention autocomplete. */
+  groupSlug?: string;
 };
 
 const MAX_POLL_OPTIONS = 5;
 
-export function Composer({ channelId, compact = true }: Props) {
+export function Composer({ channelId, compact = true, groupSlug }: Props) {
   const t = useTranslations("posts.composer");
   const tc = useTranslations("composer");
   const [expanded, setExpanded] = useState(!compact);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [pollOpen, setPollOpen] = useState(false);
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
+  const [body, setBody] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
 
   const [state, formAction] = useFormState<State, FormData>(
@@ -41,6 +45,7 @@ export function Composer({ channelId, compact = true }: Props) {
         setMediaOpen(false);
         setPollOpen(false);
         setPollOptions(["", ""]);
+        setBody("");
       }
       return result ?? prev;
     },
@@ -88,14 +93,28 @@ export function Composer({ channelId, compact = true }: Props) {
         className="border-0 bg-transparent px-0 text-base font-medium shadow-none focus-visible:ring-0"
       />
 
-      <Textarea
-        name="body"
-        required
-        placeholder={t("bodyPlaceholder")}
-        rows={4}
-        maxLength={10_000}
-        className="resize-y border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-      />
+      {groupSlug ? (
+        <MentionTextarea
+          groupSlug={groupSlug}
+          name="body"
+          value={body}
+          onChange={setBody}
+          required
+          placeholder={t("bodyPlaceholder")}
+          rows={4}
+          maxLength={10_000}
+          className="resize-y border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+        />
+      ) : (
+        <Textarea
+          name="body"
+          required
+          placeholder={t("bodyPlaceholder")}
+          rows={4}
+          maxLength={10_000}
+          className="resize-y border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+        />
+      )}
 
       {/* Media section */}
       {mediaOpen ? (

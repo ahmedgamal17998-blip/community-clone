@@ -4,7 +4,7 @@
  * Most right-side affordances are stubbed in M1 — they light up in later milestones.
  */
 import Link from "next/link";
-import { Bell, Grid3x3, Home, MessageCircle, Search } from "lucide-react";
+import { Grid3x3, Home, MessageCircle, Search } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/server/auth";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { LocaleToggle } from "@/components/layout/LocaleToggle";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { GroupSwitcher } from "@/components/group/GroupSwitcher";
+import { NotificationBell } from "@/components/nav/NotificationBell";
 
 type TopNavProps = { activeGroupSlug?: string };
 
@@ -43,9 +44,7 @@ export async function TopNav({ activeGroupSlug }: TopNavProps = {}) {
           <LocaleToggle />
           {session?.user ? (
             <>
-              <Button variant="ghost" size="icon" aria-label={t("notifications")} title={t("notifications")}>
-                <Bell className="h-5 w-5" />
-              </Button>
+              <NotificationBell />
               <Button variant="ghost" size="icon" aria-label="Apps" title="Apps">
                 <Grid3x3 className="h-5 w-5" />
               </Button>

@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
+import { createNotification } from "@/server/notifications";
 
 const SUPPORTED_EMOJIS = ["❤️", "👍", "🎉", "😂", "🤔", "👏"] as const;
 
@@ -74,6 +75,37 @@ export async function toggleReactionAction(formData: FormData) {
       await db.reaction.create({
         data: { emoji, authorId, postId },
       });
+      // Notify post author on reaction create (post-level only).
+      try {
+        const post = await db.post.findUnique({
+          where: { id: postId },
+          select: {
+            authorId: true,
+            body: true,
+            channel: {
+              select: {
+                slug: true,
+                groupId: true,
+                group: { select: { slug: true } },
+              },
+            },
+          },
+        });
+        if (post && post.authorId !== authorId) {
+          await createNotification({
+            userId: post.authorId,
+            actorId: authorId,
+            type: "REACTION_ON_POST",
+            groupId: post.channel.groupId,
+            postId,
+            snippet: `${emoji} on your post`,
+            href: `/groups/${post.channel.group.slug}/channels/${post.channel.slug}#post-${postId}`,
+          });
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("reaction notification failed", e);
+      }
     }
   } else if (commentId) {
     const existing = await db.reaction.findUnique({

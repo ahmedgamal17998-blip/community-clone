@@ -44,7 +44,7 @@ export default async function ChannelPostsPage({
 
   return (
     <div className="space-y-4">
-      {canPost ? <Composer channelId={channel.id} /> : null}
+      {canPost ? <Composer channelId={channel.id} groupSlug={params.slug} /> : null}
 
       {isEmpty ? (
         <section className="rounded-xl border border-dashed border-border bg-card/40 p-8 text-center">
