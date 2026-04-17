@@ -1,5 +1,25 @@
 # Changelog
 
+## [Deploy] — Production deployment + GitHub CI — 2026-04-17
+
+First public deployment. The app is live at **https://community-clone.vercel.app** and every `git push` to `main` now triggers an automatic Vercel redeploy.
+
+### Infrastructure shipped
+- **PostgreSQL (Neon)** — migrated Prisma datasource from SQLite to Neon serverless Postgres (`POSTGRES_PRISMA_URL` + `DATABASE_URL_UNPOOLED`). Schema pushed, seed data loaded (6 users, 3 groups, 8 channels, 13 posts).
+- **Vercel project** — created under `ahmedgamal17998-blips-projects`, SSO protection disabled, all env vars set (`DATABASE_URL`, `POSTGRES_PRISMA_URL`, `DATABASE_URL_UNPOOLED`, `AUTH_SECRET`, `AUTH_URL`, `AUTH_TRUST_HOST`, `DEMO_MODE=1`).
+- **GitHub repo** — `github.com/ahmedgamal17998-blip/community-clone` (public, 92 files, initial commit).
+- **Vercel ↔ GitHub integration** — Vercel GitHub App installed; `main` branch connected; future pushes auto-deploy to production.
+
+### Fixes applied during deployment
+- **`__Secure-authjs.session-token` cookie name** — dev one-click login was setting `authjs.session-token` (HTTP name) even on HTTPS. On Vercel (HTTPS), NextAuth looks for `__Secure-authjs.session-token`. Fixed by deriving cookie name from `url.protocol`.
+- **Demo login UI** — when `DEMO_MODE=1`, the `/login` page now renders 6 one-click user buttons (Alex, Mona, Samir, Yara, Chris, Omar) instead of the email form, so testers never see "check your email".
+- **`AUTH_SECRET` hardened** — replaced the placeholder `"replace-me-with-openssl-rand-base64-32"` with a proper 32-byte base64 secret.
+
+### How to test
+Open **https://community-clone.vercel.app** → click any name → you're logged in.
+
+---
+
 ## [M4a] — Posts + feed + composer — 2026-04-17
 
 Fourth milestone, first slice. Channels finally have **posts**: plain-text composer, cursor-paginated feed (pinned first, then newest), author/channel/time header with pin + edit + delete moderation controls, media URL attachments rendered as a responsive image grid, and infinite scroll on both the group Discussion tab and the per-channel Posts tab. TipTap rich-text, Vercel Blob uploads, Pusher realtime, and the Postgres migration are explicitly deferred to M4b because they need external service credentials.
