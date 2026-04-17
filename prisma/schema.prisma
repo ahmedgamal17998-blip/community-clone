@@ -97,6 +97,10 @@ model User {
   comments         Comment[]
   reactions        Reaction[]
   pollVotes        PollVote[]
+
+  // M6 relations
+  invitesSent      Invite[] @relation("InvitesSent")
+  invitesAccepted  Invite[] @relation("InvitesAccepted")
 }
 
 // Single row per user. Updated by a debounced heartbeat (M6).
@@ -163,8 +167,31 @@ model Group {
 
   memberships  GroupMembership[]
   channels     Channel[]
+  invites      Invite[]
 
   @@index([communityId])
+}
+
+// ─── Invites (M6) ───────────────────────────────────────────────────────────
+model Invite {
+  id           String    @id @default(cuid())
+  token        String    @unique
+  groupId      String
+  invitedById  String
+  email        String?
+  role         String    @default("MEMBER")
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  acceptedById String?
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  group        Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  invitedBy    User  @relation("InvitesSent", fields: [invitedById], references: [id], onDelete: Cascade)
+  acceptedBy   User? @relation("InvitesAccepted", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@index([groupId])
+  @@index([email])
 }
 
 model GroupMembership {

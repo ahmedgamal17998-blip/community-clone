@@ -24,12 +24,14 @@ const TAB_FILTERS: Record<Tab, { state?: string; roleIn?: string[] }> = {
   banned:       { state: "BANNED" },
 };
 
+const STALE_MS = 5 * 60 * 1000;
+
 export default async function GroupMembersPage({
   params,
   searchParams,
 }: {
   params: { slug: string };
-  searchParams: { tab?: string };
+  searchParams: { tab?: string; q?: string };
 }) {
   const session = await auth();
   const t = await getTranslations("groups");
@@ -56,15 +58,32 @@ export default async function GroupMembersPage({
     ? (searchParams.tab as Tab)
     : "all");
 
+  const q = (searchParams.q ?? "").trim();
   const filter = TAB_FILTERS[tab];
 
   const where: {
     groupId: string;
     state?: string;
     role?: { in: string[] };
+    user?: {
+      OR: Array<
+        | { name: { contains: string; mode: "insensitive" } }
+        | { handle: { contains: string; mode: "insensitive" } }
+        | { email: { contains: string; mode: "insensitive" } }
+      >;
+    };
   } = { groupId: group.id };
   if (filter.state) where.state = filter.state;
   if (filter.roleIn) where.role = { in: filter.roleIn };
+  if (q) {
+    where.user = {
+      OR: [
+        { name: { contains: q, mode: "insensitive" } },
+        { handle: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+      ],
+    };
+  }
 
   const members = await db.groupMembership.findMany({
     where,
@@ -76,33 +95,83 @@ export default async function GroupMembersPage({
           name: true,
           handle: true,
           image: true,
+          email: true,
+          emailPublic: true,
           presence: { select: { lastSeenAt: true, status: true } },
         },
       },
     },
   });
 
-  const tabs: Array<{ key: Tab; label: string }> = [
+  const pendingCount = canModerate
+    ? await db.groupMembership.count({
+        where: { groupId: group.id, state: "REQUESTED" },
+      })
+    : 0;
+
+  const tabs: Array<{ key: Tab; label: string; badge?: number }> = [
     { key: "all",          label: t("memberTabs.all") },
     { key: "admins",       label: t("memberTabs.admins") },
     { key: "contributors", label: t("memberTabs.contributors") },
   ];
   if (canModerate) {
-    tabs.push({ key: "requested", label: t("memberTabs.requested") });
+    tabs.push({ key: "requested", label: t("memberTabs.requested"), badge: pendingCount });
     tabs.push({ key: "banned",    label: t("memberTabs.banned") });
   }
 
   return (
     <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <form
+          method="GET"
+          action={`/groups/${group.slug}/members`}
+          className="flex items-center gap-2"
+        >
+          <input type="hidden" name="tab" value={tab} />
+          <input
+            type="search"
+            name="q"
+            defaultValue={q}
+            placeholder="Search members…"
+            className="h-9 w-64 rounded-md border border-border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+          />
+          <button
+            type="submit"
+            className="h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Search
+          </button>
+          {q ? (
+            <Link
+              href={`/groups/${group.slug}/members?tab=${tab}`}
+              className="text-xs text-muted-foreground hover:underline"
+            >
+              Clear
+            </Link>
+          ) : null}
+        </form>
+        {canModerate ? (
+          <Link
+            href={`/groups/${group.slug}/members/invite`}
+            className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Invite
+          </Link>
+        ) : null}
+      </div>
+
       <div className="flex flex-wrap gap-1 rounded-full bg-muted p-1" role="tablist">
         {tabs.map((x) => {
           const active = x.key === tab;
+          const href = q
+            ? `/groups/${group.slug}/members?tab=${x.key}&q=${encodeURIComponent(q)}`
+            : `/groups/${group.slug}/members?tab=${x.key}`;
           return (
             <Link
               key={x.key}
-              href={`/groups/${group.slug}/members?tab=${x.key}`}
+              href={href}
               className={cn(
-                "rounded-full px-3 py-1 text-sm transition-colors",
+                "relative rounded-full px-3 py-1 text-sm transition-colors",
                 active
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
@@ -111,6 +180,11 @@ export default async function GroupMembersPage({
               aria-selected={active}
             >
               {x.label}
+              {x.badge && x.badge > 0 ? (
+                <span className="ms-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-destructive-foreground">
+                  {x.badge}
+                </span>
+              ) : null}
             </Link>
           );
         })}
@@ -123,10 +197,18 @@ export default async function GroupMembersPage({
           </div>
         ) : (
           members.map((m) => {
+            const lastSeenAt = m.user.presence?.lastSeenAt;
+            const rawStatus = m.user.presence?.status ?? "OFFLINE";
+            const effectiveStatus =
+              lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() > STALE_MS
+                ? "OFFLINE"
+                : rawStatus;
             const presenceDot =
-              m.user.presence?.status === "ONLINE" ? "bg-[hsl(var(--presence-online))]"
-              : m.user.presence?.status === "AWAY" ? "bg-[hsl(var(--presence-away))]"
+              effectiveStatus === "ONLINE" ? "bg-[hsl(var(--presence-online))]"
+              : effectiveStatus === "AWAY" ? "bg-[hsl(var(--presence-away))]"
               : "bg-muted-foreground/40";
+            const showEmail =
+              (m.user.emailPublic || canModerate) && Boolean(m.user.email);
             return (
               <div key={m.id} className="flex items-center gap-3 p-3">
                 <div className="relative">
@@ -163,9 +245,22 @@ export default async function GroupMembersPage({
                     ) : null}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {m.user.presence?.lastSeenAt
-                      ? t("activeTime", { time: timeAgo(m.user.presence.lastSeenAt) })
+                    {lastSeenAt
+                      ? t("activeTime", { time: timeAgo(lastSeenAt) })
                       : t("joined", { date: new Date(m.joinedAt).toLocaleDateString() })}
+                    {showEmail ? (
+                      <>
+                        {" · "}
+                        <a
+                          href={`mailto:${m.user.email}`}
+                          className="hover:underline"
+                        >
+                          {m.user.email}
+                        </a>
+                      </>
+                    ) : null}
+                    {" · "}
+                    {t("joined", { date: new Date(m.joinedAt).toLocaleDateString() })}
                   </p>
                 </div>
                 {canModerate && m.userId !== session?.user?.id ? (
