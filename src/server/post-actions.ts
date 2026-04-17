@@ -8,6 +8,7 @@ import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { encodeMedia } from "@/server/posts";
 import { notifyMentions } from "@/server/notifications";
+import { addPoints } from "@/server/points";
 
 // ─── Shared: permission & access gate for a channel ────────────────────────
 
@@ -159,6 +160,21 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
   revalidatePath(
     `/groups/${gate.channel.group.slug}/channels/${gate.channel.slug}`,
   );
+
+  // Points (best-effort).
+  try {
+    await addPoints({
+      userId: session.user.id,
+      groupId: gate.channel.groupId,
+      delta: 1,
+      reason: "POST",
+      refType: "post",
+      refId: post.id,
+    });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("addPoints (post) failed", e);
+  }
 
   // Fire @mention notifications (best-effort; don't block the response).
   try {

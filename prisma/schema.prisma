@@ -122,6 +122,9 @@ model User {
   availability      Availability?
   bookingsHosted    Booking[]      @relation("BookingHost")
   bookingsAsInvitee Booking[]      @relation("BookingInvitee")
+
+  // M12 relations
+  pointsLedger      PointsLedger[] @relation("PointsUser")
 }
 
 // Single row per user. Updated by a debounced heartbeat (M6).
@@ -182,6 +185,7 @@ model Group {
   primaryHsl   String   @default("263 74% 58%") // per-group override of community color
   visibility   String   @default("PUBLIC")      // PUBLIC | PRIVATE | HIDDEN
   active       Boolean  @default(true)
+  deletedAt    DateTime?                          // M12: soft-delete (30-day archive)
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -195,6 +199,9 @@ model Group {
   // M11 relations
   bookingPolicy GroupBookingPolicy?
   bookings      Booking[]
+
+  // M12 relations
+  pointsLedger PointsLedger[]
 
   @@index([communityId])
 }
@@ -698,4 +705,30 @@ model Booking {
   @@index([hostId, startsAt])
   @@index([inviteeId, startsAt])
   @@index([groupId, startsAt])
+}
+
+// ─── Points Ledger (M12) ───────────────────────────────────────────────────
+//
+// Append-only point history per user per group. `reason` is one of:
+//   POST | COMMENT | REACTION_RECEIVED | LESSON_COMPLETED | ADMIN_ADJUST
+// `refType`/`refId` point at the source row (post, comment, reaction, lesson, manual).
+// Idempotency is enforced at the application layer via findFirst before insert on
+// the (userId, groupId, reason, refType, refId) tuple.
+
+model PointsLedger {
+  id          String   @id @default(cuid())
+  userId      String
+  groupId     String
+  delta       Int
+  reason      String
+  refType     String?
+  refId       String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  user        User  @relation("PointsUser", fields: [userId], references: [id], onDelete: Cascade)
+  group       Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, userId, createdAt])
+  @@index([groupId, createdAt])
 }

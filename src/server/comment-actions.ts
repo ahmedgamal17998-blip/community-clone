@@ -6,6 +6,7 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { createNotification, notifyMentions } from "@/server/notifications";
+import { addPoints } from "@/server/points";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -132,6 +133,21 @@ export async function createCommentAction(formData: FormData) {
         },
       },
     });
+    if (ctx) {
+      try {
+        await addPoints({
+          userId: session.user.id,
+          groupId: ctx.channel.groupId,
+          delta: 1,
+          reason: "COMMENT",
+          refType: "comment",
+          refId: comment.id,
+        });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("addPoints (comment) failed", e);
+      }
+    }
     if (ctx) {
       const href = `/groups/${ctx.channel.group.slug}/channels/${ctx.channel.slug}#comment-${comment.id}`;
       const snippet = parsed.data.body ?? "(voice note)";

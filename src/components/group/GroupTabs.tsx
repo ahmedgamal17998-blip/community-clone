@@ -20,6 +20,7 @@ export function GroupTabs({ slug }: Props) {
     { href: `${base}`,          label: t("discussion"), match: (p: string) => p === base },
     { href: `${base}/learning`, label: t("learning"),   match: (p: string) => p.startsWith(`${base}/learning`) },
     { href: `${base}/events`,   label: t("events"),     match: (p: string) => p.startsWith(`${base}/events`) },
+    { href: `${base}/leaderboard`, label: t("leaderboard"), match: (p: string) => p.startsWith(`${base}/leaderboard`) },
     { href: `${base}/members`,  label: t("members"),    match: (p: string) => p.startsWith(`${base}/members`) },
     { href: `${base}/about`,    label: t("about"),      match: (p: string) => p.startsWith(`${base}/about`) },
   ];

@@ -57,6 +57,7 @@ export async function listDiscoverableGroups(userId: string) {
   return db.group.findMany({
     where: {
       active: true,
+      deletedAt: null,
       visibility: { in: ["PUBLIC", "PRIVATE"] },
       id: { notIn: myIds },
     },

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { createNotification } from "@/server/notifications";
+import { addPoints } from "@/server/points";
 
 const SUPPORTED_EMOJIS = ["❤️", "👍", "🎉", "😂", "🤔", "👏"] as const;
 
@@ -102,6 +103,22 @@ export async function toggleReactionAction(formData: FormData) {
             href: `/groups/${post.channel.group.slug}/channels/${post.channel.slug}#post-${postId}`,
           });
         }
+        // Points: award target post author +1 REACTION_RECEIVED (skip self).
+        if (post && post.authorId !== authorId) {
+          try {
+            await addPoints({
+              userId: post.authorId,
+              groupId: post.channel.groupId,
+              delta: 1,
+              reason: "REACTION_RECEIVED",
+              refType: "reaction",
+              refId: `post:${postId}:${authorId}:${emoji}`,
+            });
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.error("addPoints (reaction on post) failed", e);
+          }
+        }
       } catch (e) {
         // eslint-disable-next-line no-console
         console.error("reaction notification failed", e);
@@ -118,6 +135,29 @@ export async function toggleReactionAction(formData: FormData) {
       await db.reaction.create({
         data: { emoji, authorId, commentId },
       });
+      // Points: award target comment author.
+      try {
+        const c = await db.comment.findUnique({
+          where: { id: commentId },
+          select: {
+            authorId: true,
+            post: { select: { channel: { select: { groupId: true } } } },
+          },
+        });
+        if (c && c.authorId !== authorId) {
+          await addPoints({
+            userId: c.authorId,
+            groupId: c.post.channel.groupId,
+            delta: 1,
+            reason: "REACTION_RECEIVED",
+            refType: "reaction",
+            refId: `comment:${commentId}:${authorId}:${emoji}`,
+          });
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("addPoints (reaction on comment) failed", e);
+      }
     }
   }
 }

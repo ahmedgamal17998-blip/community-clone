@@ -20,6 +20,7 @@ import { z } from "zod";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, isAtLeast, requireRole, type Role } from "@/server/permissions";
+import { addPoints } from "@/server/points";
 
 // ─── Slug helpers ──────────────────────────────────────────────────────────
 
@@ -539,6 +540,12 @@ export async function markLessonCompleteAction(formData: FormData) {
   if (!ok) throw new Error("FORBIDDEN");
 
   const now = new Date();
+  // Check if this is the first time completing (for points gate).
+  const prior = await db.lessonProgress.findUnique({
+    where: { userId_lessonId: { userId: session.user.id, lessonId: lesson.id } },
+    select: { completedAt: true },
+  });
+  const isFirstCompletion = !prior?.completedAt;
   await db.lessonProgress.upsert({
     where: { userId_lessonId: { userId: session.user.id, lessonId: lesson.id } },
     create: {
@@ -550,6 +557,22 @@ export async function markLessonCompleteAction(formData: FormData) {
     },
     update: { completedAt: now, lastSeenAt: now },
   });
+
+  if (isFirstCompletion) {
+    try {
+      await addPoints({
+        userId: session.user.id,
+        groupId: lesson.course.groupId,
+        delta: 5,
+        reason: "LESSON_COMPLETED",
+        refType: "lesson",
+        refId: lesson.id,
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("addPoints (lesson) failed", e);
+    }
+  }
 
   // Find next lesson (by position).
   const siblings = await db.lesson.findMany({
