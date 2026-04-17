@@ -7,6 +7,12 @@ import { decodeMedia } from "@/server/posts";
 import { formatRelative } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { PostActionsMenu } from "@/components/post/PostActionsMenu";
+import { ReactionBar } from "@/components/post/ReactionBar";
+import { CommentSection } from "@/components/post/CommentSection";
+import { PollBlock } from "@/components/post/PollBlock";
+import { getPostComments } from "@/server/comments";
+import type { ReactionSummary } from "@/server/comments";
+import type { PollData } from "@/server/posts";
 
 type PostCardPost = {
   id: string;
@@ -30,6 +36,10 @@ type PostCardPost = {
     kind: string;
     group: { slug: string };
   };
+  // M5 engagement fields.
+  commentCount?: number;
+  reactions?: ReactionSummary[];
+  poll?: PollData | null;
 };
 
 type Props = {
@@ -47,6 +57,11 @@ export async function PostCard({ post, viewerId, viewerCanModerate, hideChannelC
 
   const canManage = viewerCanModerate || post.authorId === viewerId;
   const channelHref = `/groups/${post.channel.group.slug}/channels/${post.channel.slug}`;
+
+  // Load comments server-side so CommentSection gets hydrated data.
+  const comments = await getPostComments(post.id, viewerId);
+  const commentCount = post.commentCount ?? comments.reduce((n, c) => n + 1 + c.replies.length, 0);
+  const reactions = post.reactions ?? [];
 
   return (
     <article
@@ -148,6 +163,27 @@ export async function PostCard({ post, viewerId, viewerCanModerate, hideChannelC
           ))}
         </div>
       ) : null}
+
+      {/* Poll */}
+      {post.poll ? <PollBlock poll={post.poll} /> : null}
+
+      {/* Reactions */}
+      <div className="mt-3">
+        <ReactionBar
+          postId={post.id}
+          reactions={reactions}
+          viewerId={viewerId}
+        />
+      </div>
+
+      {/* Comments */}
+      <CommentSection
+        postId={post.id}
+        comments={comments}
+        viewerId={viewerId}
+        viewerCanModerate={viewerCanModerate}
+        commentCount={commentCount}
+      />
     </article>
   );
 }

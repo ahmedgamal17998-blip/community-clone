@@ -1,13 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Community Clone — Prisma schema (M1 + M2 + M3 + M4b)
+// Community Clone — Prisma schema (M1–M5)
 //
 // M1 surface: User / Account / Session / VerificationToken / Presence
 // M2 adds:    Community / Group / GroupMembership
 // M3 adds:    Channel / ChannelAccess / ChatThread / ChatParticipant
-// M4 adds:    Post  (mediaUrls kept as JSON String for now; native String[]
-//             upgrade is a follow-on migration once data is on Postgres.)
-// M4b:        Migrated from SQLite → Neon PostgreSQL.
-// Later milestones add Comment, Reaction, ChatMessage, Booking, etc.
+// M4 adds:    Post
+// M5 adds:    Comment / Reaction / Poll / PollOption / PollVote
+// Later milestones add ChatMessage, Booking, etc.
 // ─────────────────────────────────────────────────────────────────────────────
 
 generator client {
@@ -93,6 +92,11 @@ model User {
 
   // M4 relations
   posts            Post[]
+
+  // M5 relations
+  comments         Comment[]
+  reactions        Reaction[]
+  pollVotes        PollVote[]
 }
 
 // Single row per user. Updated by a debounced heartbeat (M6).
@@ -290,6 +294,101 @@ model Post {
   channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
   author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
+  // M5 relations
+  comments    Comment[]
+  reactions   Reaction[]
+  poll        Poll?
+
   @@index([channelId, pinned, createdAt])
   @@index([authorId])
+}
+
+// ─── Comments (M5) ──────────────────────────────────────────────────────────
+//
+// Max 2 nesting levels: a top-level comment (parentId = null) can have replies
+// (parentId = top-level commentId). Replies cannot be nested further.
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  authorId  String
+  parentId  String?                          // null = top-level; set = reply
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  editedAt  DateTime?
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  reactions Reaction[]
+
+  @@index([postId, createdAt])
+  @@index([parentId])
+  @@index([authorId])
+}
+
+// ─── Reactions (M5) ─────────────────────────────────────────────────────────
+//
+// Polymorphic: either postId OR commentId is set (never both, never neither).
+// One reaction per (user, emoji, target) — upsert on toggle.
+// Supported emojis: ❤️ 👍 🎉 🤔 👏
+
+model Reaction {
+  id        String   @id @default(cuid())
+  emoji     String                           // one of the 5 supported emoji strings
+  authorId  String
+  postId    String?
+  commentId String?
+  createdAt DateTime @default(now())
+
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([authorId, emoji, postId])
+  @@unique([authorId, emoji, commentId])
+  @@index([postId])
+  @@index([commentId])
+}
+
+// ─── Polls (M5) ─────────────────────────────────────────────────────────────
+//
+// One poll per post (optional). Viewer votes on one or more options.
+
+model Poll {
+  id             String       @id @default(cuid())
+  postId         String       @unique
+  question       String
+  multipleChoice Boolean      @default(false)
+  closedAt       DateTime?                    // null = open forever
+
+  post           Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  options        PollOption[]
+}
+
+model PollOption {
+  id     String     @id @default(cuid())
+  pollId String
+  text   String
+  order  Int        @default(0)
+
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes  PollVote[]
+
+  @@index([pollId, order])
+}
+
+model PollVote {
+  id       String     @id @default(cuid())
+  optionId String
+  userId   String
+  votedAt  DateTime   @default(now())
+
+  option   PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([optionId, userId])
+  @@index([userId])
 }

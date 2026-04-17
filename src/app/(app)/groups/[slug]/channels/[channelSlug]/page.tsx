@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
-import { listChannelPosts } from "@/server/posts";
+import { listChannelPosts, buildPostReactions, buildPollData } from "@/server/posts";
 import { PostCard } from "@/components/post/PostCard";
 import { FeedClient } from "@/components/post/FeedClient";
 import { Composer } from "@/components/post/Composer";
@@ -38,7 +38,8 @@ export default async function ChannelPostsPage({
   // can still read.
   const canPost = channel.kind === "ANNOUNCEMENT" ? isAdmin : true;
 
-  const feed = await listChannelPosts({ channelId: channel.id });
+  const viewerId = session.user.id;
+  const feed = await listChannelPosts({ channelId: channel.id, viewerId });
   const isEmpty = feed.pinned.length === 0 && feed.items.length === 0;
 
   return (
@@ -57,8 +58,13 @@ export default async function ChannelPostsPage({
           {feed.pinned.map((p) => (
             <PostCard
               key={p.id}
-              post={p}
-              viewerId={session.user!.id}
+              post={{
+                ...p,
+                commentCount: p._count.comments,
+                reactions: buildPostReactions(p.reactions, viewerId),
+                poll: buildPollData(p.poll),
+              }}
+              viewerId={viewerId}
               viewerCanModerate={isAdmin}
               hideChannelCrumb
             />
@@ -66,8 +72,13 @@ export default async function ChannelPostsPage({
           {feed.items.map((p) => (
             <PostCard
               key={p.id}
-              post={p}
-              viewerId={session.user!.id}
+              post={{
+                ...p,
+                commentCount: p._count.comments,
+                reactions: buildPostReactions(p.reactions, viewerId),
+                poll: buildPollData(p.poll),
+              }}
+              viewerId={viewerId}
               viewerCanModerate={isAdmin}
               hideChannelCrumb
             />
@@ -76,6 +87,7 @@ export default async function ChannelPostsPage({
             scope={{ channelId: channel.id }}
             initialCursor={feed.nextCursor}
             hideChannelCrumb
+            viewerId={viewerId}
           />
         </>
       )}

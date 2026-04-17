@@ -76,11 +76,26 @@ const urlList = z
   })
   .pipe(z.array(z.string().url()).max(10));
 
+const pollOptionList = z
+  .string()
+  .optional()
+  .transform((v) => {
+    if (!v) return [] as string[];
+    return v
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  })
+  .pipe(z.array(z.string().min(1).max(200)).max(5));
+
 const createSchema = z.object({
   channelId: z.string().cuid(),
   title: z.string().trim().max(160).optional(),
   body: z.string().trim().min(1).max(10_000),
   mediaUrls: urlList,
+  pollQuestion: z.string().trim().max(500).optional(),
+  pollOptions: pollOptionList,
+  pollMultipleChoice: z.enum(["1", "0"]).optional(),
 });
 
 export async function createPostAction(_prev: unknown, formData: FormData) {
@@ -92,6 +107,9 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
     title: formData.get("title") || undefined,
     body: formData.get("body"),
     mediaUrls: formData.get("mediaUrls") ?? "",
+    pollQuestion: formData.get("pollQuestion") || undefined,
+    pollOptions: formData.get("pollOptions") ?? "",
+    pollMultipleChoice: formData.get("pollMultipleChoice") ?? undefined,
   });
   if (!parsed.success) {
     return {
@@ -106,6 +124,9 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
   });
   if (!gate.ok) return { ok: false as const, error: gate.error };
 
+  const hasPoll =
+    !!parsed.data.pollQuestion && parsed.data.pollOptions.length >= 2;
+
   const post = await db.post.create({
     data: {
       channelId: parsed.data.channelId,
@@ -113,6 +134,22 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
       title: parsed.data.title,
       body: parsed.data.body,
       mediaUrls: encodeMedia(parsed.data.mediaUrls),
+      ...(hasPoll
+        ? {
+            poll: {
+              create: {
+                question: parsed.data.pollQuestion!,
+                multipleChoice: parsed.data.pollMultipleChoice === "1",
+                options: {
+                  create: parsed.data.pollOptions.map((text, i) => ({
+                    text,
+                    order: i,
+                  })),
+                },
+              },
+            },
+          }
+        : {}),
     },
     select: { id: true },
   });

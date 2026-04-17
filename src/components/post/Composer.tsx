@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * Post composer. M4a: plain textarea + optional list of image URLs
- * (one per line). M4b will swap the textarea for TipTap and add direct-to-blob
- * image upload.
+ * Post composer. M4a: plain textarea + optional list of image URLs.
+ * M5: adds optional poll (question + up to 5 options).
  */
 import { useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
+import { X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,10 +22,15 @@ type Props = {
   compact?: boolean;
 };
 
+const MAX_POLL_OPTIONS = 5;
+
 export function Composer({ channelId, compact = true }: Props) {
   const t = useTranslations("posts.composer");
+  const tc = useTranslations("composer");
   const [expanded, setExpanded] = useState(!compact);
   const [mediaOpen, setMediaOpen] = useState(false);
+  const [pollOpen, setPollOpen] = useState(false);
+  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
   const formRef = useRef<HTMLFormElement>(null);
 
   const [state, formAction] = useFormState<State, FormData>(
@@ -34,11 +39,27 @@ export function Composer({ channelId, compact = true }: Props) {
       if (result?.ok) {
         formRef.current?.reset();
         setMediaOpen(false);
+        setPollOpen(false);
+        setPollOptions(["", ""]);
       }
       return result ?? prev;
     },
     null,
   );
+
+  function addPollOption() {
+    if (pollOptions.length < MAX_POLL_OPTIONS) {
+      setPollOptions((prev) => [...prev, ""]);
+    }
+  }
+
+  function removePollOption(idx: number) {
+    setPollOptions((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function updatePollOption(idx: number, value: string) {
+    setPollOptions((prev) => prev.map((v, i) => (i === idx ? value : v)));
+  }
 
   if (!expanded) {
     return (
@@ -76,6 +97,7 @@ export function Composer({ channelId, compact = true }: Props) {
         className="resize-y border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
       />
 
+      {/* Media section */}
       {mediaOpen ? (
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">
@@ -90,6 +112,91 @@ export function Composer({ channelId, compact = true }: Props) {
         </div>
       ) : (
         <input type="hidden" name="mediaUrls" value="" />
+      )}
+
+      {/* Poll section */}
+      {pollOpen ? (
+        <div className="space-y-3 rounded-lg border border-border p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">{tc("pollQuestion")}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setPollOpen(false);
+                setPollOptions(["", ""]);
+              }}
+              className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+              aria-label={tc("removePoll")}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <Input
+            name="pollQuestion"
+            placeholder={tc("pollQuestionPlaceholder")}
+            maxLength={500}
+            className="text-sm"
+          />
+
+          {pollOptions.map((val, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <Input
+                value={val}
+                onChange={(e) => updatePollOption(idx, e.target.value)}
+                placeholder={tc("pollOptionPlaceholder")}
+                maxLength={200}
+                className="text-sm"
+              />
+              {/* Pass values via hidden inputs for form submission */}
+              <input type="hidden" name={`pollOptionItem`} value={val} />
+              {pollOptions.length > 2 ? (
+                <button
+                  type="button"
+                  onClick={() => removePollOption(idx)}
+                  className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
+                  aria-label="Remove option"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+          ))}
+
+          {pollOptions.length < MAX_POLL_OPTIONS ? (
+            <button
+              type="button"
+              onClick={addPollOption}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {tc("addOption")}
+            </button>
+          ) : null}
+
+          {/* Hidden textarea to submit all options as newline-separated */}
+          <textarea
+            name="pollOptions"
+            className="sr-only"
+            readOnly
+            value={pollOptions.join("\n")}
+            aria-hidden
+          />
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="pollMultipleChoice"
+              value="1"
+              className="rounded"
+            />
+            {tc("multipleChoice")}
+          </label>
+        </div>
+      ) : (
+        <>
+          <input type="hidden" name="pollOptions" value="" />
+        </>
       )}
 
       {state && state.ok === false && state.error ? (
@@ -112,6 +219,18 @@ export function Composer({ channelId, compact = true }: Props) {
           >
             {t("addMedia")}
           </button>
+          <button
+            type="button"
+            onClick={() => setPollOpen((v) => !v)}
+            className={cn(
+              "rounded-md px-2 py-1 text-xs font-medium transition-colors",
+              pollOpen
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground",
+            )}
+          >
+            {pollOpen ? tc("removePoll") : tc("addPoll")}
+          </button>
         </div>
         <div className="flex items-center gap-2">
           {compact ? (
@@ -121,6 +240,8 @@ export function Composer({ channelId, compact = true }: Props) {
               onClick={() => {
                 formRef.current?.reset();
                 setMediaOpen(false);
+                setPollOpen(false);
+                setPollOptions(["", ""]);
                 setExpanded(false);
               }}
             >

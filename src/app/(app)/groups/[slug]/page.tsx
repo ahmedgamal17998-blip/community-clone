@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
-import { listGroupFeed } from "@/server/posts";
+import { listGroupFeed, buildPostReactions, buildPollData } from "@/server/posts";
 import { PostCard } from "@/components/post/PostCard";
 import { FeedClient } from "@/components/post/FeedClient";
 
@@ -47,10 +47,8 @@ export default async function GroupDiscussionPage({
     );
   }
 
-  const feed = await listGroupFeed({
-    groupId: group.id,
-    userId: session.user.id,
-  });
+  const viewerId = session.user.id;
+  const feed = await listGroupFeed({ groupId: group.id, userId: viewerId });
 
   const isEmpty = feed.pinned.length === 0 && feed.items.length === 0;
 
@@ -68,22 +66,33 @@ export default async function GroupDiscussionPage({
           {feed.pinned.map((p) => (
             <PostCard
               key={p.id}
-              post={p}
-              viewerId={session.user!.id}
+              post={{
+                ...p,
+                commentCount: p._count.comments,
+                reactions: buildPostReactions(p.reactions, viewerId),
+                poll: buildPollData(p.poll),
+              }}
+              viewerId={viewerId}
               viewerCanModerate={canModerate}
             />
           ))}
           {feed.items.map((p) => (
             <PostCard
               key={p.id}
-              post={p}
-              viewerId={session.user!.id}
+              post={{
+                ...p,
+                commentCount: p._count.comments,
+                reactions: buildPostReactions(p.reactions, viewerId),
+                poll: buildPollData(p.poll),
+              }}
+              viewerId={viewerId}
               viewerCanModerate={canModerate}
             />
           ))}
           <FeedClient
             scope={{ groupId: group.id }}
             initialCursor={feed.nextCursor}
+            viewerId={viewerId}
           />
         </>
       )}

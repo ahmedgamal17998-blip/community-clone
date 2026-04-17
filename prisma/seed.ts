@@ -508,12 +508,210 @@ async function main() {
     void fingerprint;
   }
 
+  // ─── M5: Comments, reactions, poll ───────────────────────────────────────
+
+  console.log("⚙️  Seeding M5 engagement (comments, reactions, poll)…");
+
+  // Grab some post IDs we know exist from the seed above.
+  const welcomePost = await prisma.post.findFirst({
+    where: {
+      title: "Welcome — start here",
+      channel: { group: { slug: "english-to-work" } },
+    },
+    select: { id: true },
+  });
+
+  const focusStackPost = await prisma.post.findFirst({
+    where: {
+      title: "My focus stack",
+      channel: { group: { slug: "deep-work-club" } },
+    },
+    select: { id: true },
+  });
+
+  const sprintPost = await prisma.post.findFirst({
+    where: {
+      title: "Sprint 14 kicks off Monday",
+      channel: { group: { slug: "deep-work-club" } },
+    },
+    select: { id: true },
+  });
+
+  // ── Comments on welcome post ──────────────────────────────────────────────
+  if (welcomePost) {
+    const topComment = await prisma.comment.upsert({
+      where: {
+        // No natural unique; use findFirst pattern with fingerprint approach.
+        // Use create+skip if exists via try/catch instead.
+        id: "seed-comment-welcome-1",
+      },
+      update: {},
+      create: {
+        id: "seed-comment-welcome-1",
+        postId: welcomePost.id,
+        authorId: created["jordan@example.com"].id,
+        body: "Hey! Jordan from Austin. Super excited to be here. My main goal is to sound more natural on video calls — not like I'm reading from a script.",
+        createdAt: new Date(Date.now() - 60 * 60 * 1000 * 10),
+      },
+    });
+
+    await prisma.comment.upsert({
+      where: { id: "seed-comment-welcome-2" },
+      update: {},
+      create: {
+        id: "seed-comment-welcome-2",
+        postId: welcomePost.id,
+        authorId: created["yara@example.com"].id,
+        body: "يارا من القاهرة 👋 مصممة واجهات وعايزة أتحسن في الكتابة الاحترافية بالإنجليزي. يلا نبدأ!",
+        createdAt: new Date(Date.now() - 60 * 60 * 1000 * 6),
+      },
+    });
+
+    // A reply to the first comment.
+    await prisma.comment.upsert({
+      where: { id: "seed-comment-welcome-reply-1" },
+      update: {},
+      create: {
+        id: "seed-comment-welcome-reply-1",
+        postId: welcomePost.id,
+        parentId: topComment.id,
+        authorId: created["alex@example.com"].id,
+        body: "Welcome Jordan! Sounding natural on calls is exactly what we drill in the Thursday sessions. See you there.",
+        createdAt: new Date(Date.now() - 60 * 60 * 1000 * 9),
+      },
+    });
+
+    await prisma.comment.upsert({
+      where: { id: "seed-comment-welcome-reply-2" },
+      update: {},
+      create: {
+        id: "seed-comment-welcome-reply-2",
+        postId: welcomePost.id,
+        parentId: topComment.id,
+        authorId: created["mona@example.com"].id,
+        body: "Same here — it's the #1 thing people struggle with. We have a whole module on filler word reduction.",
+        createdAt: new Date(Date.now() - 60 * 60 * 1000 * 8),
+      },
+    });
+  }
+
+  // ── Comments on focus stack post ──────────────────────────────────────────
+  if (focusStackPost) {
+    await prisma.comment.upsert({
+      where: { id: "seed-comment-focus-1" },
+      update: {},
+      create: {
+        id: "seed-comment-focus-1",
+        postId: focusStackPost.id,
+        authorId: created["omar@example.com"].id,
+        body: "The \"one browser profile per task\" tip is underrated. I started doing this last month and the context-switching overhead dropped massively.",
+        createdAt: new Date(Date.now() - 60 * 60 * 1000 * 7),
+      },
+    });
+
+    await prisma.comment.upsert({
+      where: { id: "seed-comment-focus-2" },
+      update: {},
+      create: {
+        id: "seed-comment-focus-2",
+        postId: focusStackPost.id,
+        authorId: created["samir@example.com"].id,
+        body: "Hard airplane mode is non-negotiable for me too. What timer app do you use for the 25/5?",
+        createdAt: new Date(Date.now() - 60 * 60 * 1000 * 5),
+      },
+    });
+  }
+
+  // ── Reactions on welcome post ─────────────────────────────────────────────
+  if (welcomePost) {
+    const reactionSeeds = [
+      { emoji: "❤️", authorEmail: "mona@example.com" },
+      { emoji: "❤️", authorEmail: "jordan@example.com" },
+      { emoji: "👍", authorEmail: "yara@example.com" },
+      { emoji: "👍", authorEmail: "omar@example.com" },
+      { emoji: "🎉", authorEmail: "layla@example.com" },
+    ];
+    for (const r of reactionSeeds) {
+      const authorId = created[r.authorEmail]?.id;
+      if (!authorId) continue;
+      await prisma.reaction.upsert({
+        where: { authorId_emoji_postId: { authorId, emoji: r.emoji, postId: welcomePost.id } },
+        update: {},
+        create: { emoji: r.emoji, authorId, postId: welcomePost.id },
+      });
+    }
+  }
+
+  // ── Reactions on focus stack post ─────────────────────────────────────────
+  if (focusStackPost) {
+    const reactionSeeds = [
+      { emoji: "👏", authorEmail: "samir@example.com" },
+      { emoji: "👏", authorEmail: "alex@example.com" },
+      { emoji: "🤔", authorEmail: "jordan@example.com" },
+    ];
+    for (const r of reactionSeeds) {
+      const authorId = created[r.authorEmail]?.id;
+      if (!authorId) continue;
+      await prisma.reaction.upsert({
+        where: { authorId_emoji_postId: { authorId, emoji: r.emoji, postId: focusStackPost.id } },
+        update: {},
+        create: { emoji: r.emoji, authorId, postId: focusStackPost.id },
+      });
+    }
+  }
+
+  // ── Poll on sprint post ───────────────────────────────────────────────────
+  if (sprintPost) {
+    const existingPoll = await prisma.poll.findUnique({
+      where: { postId: sprintPost.id },
+      select: { id: true },
+    });
+
+    if (!existingPoll) {
+      const poll = await prisma.poll.create({
+        data: {
+          postId: sprintPost.id,
+          question: "Which time block works best for your sprint this week?",
+          multipleChoice: false,
+          options: {
+            create: [
+              { text: "9–11 UTC (morning)", order: 0 },
+              { text: "13–15 UTC (afternoon)", order: 1 },
+              { text: "17–19 UTC (evening)", order: 2 },
+              { text: "Async — I'll log separately", order: 3 },
+            ],
+          },
+        },
+        include: { options: true },
+      });
+
+      // Seed a couple of votes.
+      const optionIds = poll.options.map((o) => o.id);
+      const voteSeeds = [
+        { email: "omar@example.com", optionIdx: 0 },
+        { email: "alex@example.com", optionIdx: 0 },
+        { email: "jordan@example.com", optionIdx: 2 },
+      ];
+      for (const v of voteSeeds) {
+        const userId = created[v.email]?.id;
+        const optionId = optionIds[v.optionIdx];
+        if (!userId || !optionId) continue;
+        await prisma.pollVote.upsert({
+          where: { optionId_userId: { optionId, userId } },
+          update: {},
+          create: { optionId, userId },
+        });
+      }
+    }
+  }
+
   console.log(`✅ Done.`);
   console.log(`   Communities: 2`);
   console.log(`   Groups:      3  (english-to-work, arabic-learners, deep-work-club)`);
   console.log(`   Memberships: ${seats.reduce((n, s) => n + s.rows.length, 0)} across 10 users`);
   console.log(`   Channels:    ${channelSeeds.length} with auto-provisioned chat threads`);
   console.log(`   Posts:       ${postSeeds.length} across multiple channels`);
+  console.log(`   M5:          comments, reactions, poll seeded.`);
   console.log(`   Log in with any seeded email via the magic-link flow.`);
 }
 

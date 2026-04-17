@@ -4,8 +4,9 @@
  * Infinite-scroll loader. Renders additional pages after the SSR'd first page
  * by calling `/api/feed`. Uses IntersectionObserver on a sentinel row.
  *
- * Intentionally simple: no optimistic insertion, no realtime. M4b will layer
- * Pusher on top to push new posts into this list without a refetch.
+ * M5: includes reactions, comment count, and poll data in serialized posts.
+ * The lazy-loaded posts use a lightweight inline render (no server-component
+ * PostCard) — they show reactions/polls via client components.
  */
 import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
@@ -19,41 +20,22 @@ import {
 import { initialsFrom } from "@/lib/initials";
 import { formatRelative } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
-
-type FeedItem = {
-  id: string;
-  title: string | null;
-  body: string;
-  mediaUrls: string[];
-  pinned: boolean;
-  createdAt: string;
-  editedAt: string | null;
-  authorId: string;
-  author: {
-    id: string;
-    name: string | null;
-    handle: string;
-    image: string | null;
-  };
-  channel: {
-    id: string;
-    slug: string;
-    name: string;
-    kind: string;
-    group: { slug: string };
-  };
-};
+import { ReactionBar } from "@/components/post/ReactionBar";
+import { PollBlock } from "@/components/post/PollBlock";
+import type { SerializedPost } from "@/server/posts";
 
 type Props = {
   scope: { groupId?: string; channelId?: string };
   initialCursor: string | null;
   hideChannelCrumb?: boolean;
+  /** The current viewer's user ID (for reaction toggling). */
+  viewerId: string;
 };
 
-export function FeedClient({ scope, initialCursor, hideChannelCrumb }: Props) {
+export function FeedClient({ scope, initialCursor, hideChannelCrumb, viewerId }: Props) {
   const locale = useLocale();
   const t = useTranslations("posts.card");
-  const [items, setItems] = useState<FeedItem[]>([]);
+  const [items, setItems] = useState<SerializedPost[]>([]);
   const [cursor, setCursor] = useState<string | null>(initialCursor);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(initialCursor === null);
@@ -72,7 +54,7 @@ export function FeedClient({ scope, initialCursor, hideChannelCrumb }: Props) {
         setDone(true);
         return;
       }
-      const data: { items: FeedItem[]; nextCursor: string | null } = await res.json();
+      const data: { items: SerializedPost[]; nextCursor: string | null } = await res.json();
       setItems((prev) => [...prev, ...data.items]);
       setCursor(data.nextCursor);
       if (!data.nextCursor) setDone(true);
@@ -151,12 +133,15 @@ export function FeedClient({ scope, initialCursor, hideChannelCrumb }: Props) {
               </div>
             </div>
           </header>
+
           {p.title ? (
             <h2 className="mt-3 text-lg font-semibold leading-snug">{p.title}</h2>
           ) : null}
+
           <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">
             {p.body}
           </div>
+
           {p.mediaUrls.length > 0 ? (
             <div
               className={cn(
@@ -176,6 +161,18 @@ export function FeedClient({ scope, initialCursor, hideChannelCrumb }: Props) {
               ))}
             </div>
           ) : null}
+
+          {/* Poll */}
+          {p.poll ? <PollBlock poll={p.poll} /> : null}
+
+          {/* Reactions */}
+          <div className="mt-3">
+            <ReactionBar
+              postId={p.id}
+              reactions={p.reactions}
+              viewerId={viewerId}
+            />
+          </div>
         </article>
       ))}
 

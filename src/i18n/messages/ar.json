@@ -198,6 +198,40 @@
       "delete": "حذف"
     }
   },
+  "comments": {
+    "count": "{count, plural, =0 {لا تعليقات} one {تعليق واحد} two {تعليقان} few {# تعليقات} many {# تعليقاً} other {# تعليق}}",
+    "write": "اكتب تعليقاً…",
+    "writeReply": "اكتب رداً…",
+    "reply": "رد",
+    "replies": "{count, plural, one {# رد} other {# ردود}}",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "edited": "تم التعديل",
+    "empty": "كن أول من يعلّق."
+  },
+  "reactions": {
+    "add": "إضافة تفاعل"
+  },
+  "polls": {
+    "vote": "تصويت",
+    "votes": "{count, plural, =0 {لا أصوات} one {صوت واحد} two {صوتان} few {# أصوات} many {# صوتاً} other {# صوت}}",
+    "totalVotes": "{count, plural, =0 {لا أصوات بعد} one {# صوت إجمالاً} other {# صوت إجمالاً}}",
+    "closed": "التصويت مغلق",
+    "change": "تغيير الصوت",
+    "yourVote": "صوتك"
+  },
+  "composer": {
+    "addPoll": "إضافة استطلاع",
+    "pollQuestion": "سؤال الاستطلاع",
+    "pollQuestionPlaceholder": "اطرح سؤالاً…",
+    "pollOption": "خيار {n}",
+    "pollOptionPlaceholder": "الخيار…",
+    "addOption": "إضافة خيار",
+    "removePoll": "إزالة الاستطلاع",
+    "multipleChoice": "السماح باختيار متعدد"
+  },
   "channels": {
     "sidebarTitle": "القنوات",
     "addChannel": "إضافة قناة",

@@ -198,6 +198,40 @@
       "delete": "Delete"
     }
   },
+  "comments": {
+    "count": "{count, plural, =0 {No comments} one {1 comment} other {# comments}}",
+    "write": "Write a comment…",
+    "writeReply": "Write a reply…",
+    "reply": "Reply",
+    "replies": "{count, plural, one {# reply} other {# replies}}",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edited": "edited",
+    "empty": "Be the first to comment."
+  },
+  "reactions": {
+    "add": "Add reaction"
+  },
+  "polls": {
+    "vote": "Vote",
+    "votes": "{count, plural, =0 {No votes} one {# vote} other {# votes}}",
+    "totalVotes": "{count, plural, =0 {No votes yet} one {# vote total} other {# votes total}}",
+    "closed": "Poll closed",
+    "change": "Change vote",
+    "yourVote": "Your vote"
+  },
+  "composer": {
+    "addPoll": "Add poll",
+    "pollQuestion": "Poll question",
+    "pollQuestionPlaceholder": "Ask a question…",
+    "pollOption": "Option {n}",
+    "pollOptionPlaceholder": "Choice…",
+    "addOption": "Add option",
+    "removePoll": "Remove poll",
+    "multipleChoice": "Allow multiple choices"
+  },
   "channels": {
     "sidebarTitle": "Channels",
     "addChannel": "Add channel",

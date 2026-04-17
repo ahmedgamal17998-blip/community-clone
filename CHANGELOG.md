@@ -1,5 +1,34 @@
 # Changelog
 
+## [M5] — Comments + Reactions + Polls — 2026-04-17
+
+Fifth milestone. Posts are now **conversational**: readers can react with emoji, leave threaded comments, and vote on polls. All interactions are optimistic on the client — clicks feel instant.
+
+### Added
+- **`Comment` model** — max 2-level nesting (`parentId` → top-level; grandchild replies rejected). Fields: `body`, `editedAt`, soft-delete via cascade.
+- **`Reaction` model** — polymorphic (targets a `Post` or a `Comment`). One row per `(author, emoji, target)`. Supported set: ❤️ 👍 🎉 🤔 👏.
+- **`Poll` / `PollOption` / `PollVote` models** — one optional poll per post. Single-choice or multiple-choice. `closedAt` for time-limited polls.
+- **`src/server/comment-actions.ts`** — `createCommentAction`, `editCommentAction`, `deleteCommentAction`. Depth guard, author/moderator permission checks, `revalidatePath`.
+- **`src/server/reaction-actions.ts`** — `toggleReactionAction`. Toggle semantics (react → un-react on second click). Membership gated.
+- **`src/server/poll-actions.ts`** — `voteOnPollAction`. Handles single/multiple choice, un-vote by resubmitting same selection, closed-poll rejection.
+- **`src/server/comments.ts`** — `getPostComments`: fetches comments with replies, per-emoji reaction summaries and `viewerReacted` boolean.
+- **`ReactionBar`** — optimistic emoji bar with `useTransition`. Inactive emojis shown on hover. Active emojis show count badge and highlight.
+- **`CommentSection`** — collapsible toggle showing comment count. Expands to list + composer.
+- **`CommentItem`** — avatar, name, time, inline edit mode, delete/edit menu, `ReactionBar`, reply button (top-level only).
+- **`CommentComposer`** — textarea form with `parentId` for replies.
+- **`PollBlock`** — voting mode (radio/checkbox) → results mode (% fill bars + vote counts). "Change vote" to re-enter voting mode.
+- **Composer poll mode** — "Add poll" toggle opens question input + up to 5 option fields + multiple-choice switch.
+- **i18n** — `comments.*`, `reactions.*`, `polls.*`, `composer.*` namespaces in en + ar.
+- **Seed** — 6 comments (with replies), 8 reactions across 2 posts, 1 poll with 3 pre-cast votes.
+
+### Decisions
+- **Optimistic UI, no Pusher** — reactions/comments update instantly on the author's screen; other users see updates on next page load. Pusher realtime lands in M8.
+- **Reactions on comments too** — matches the target platform's UX where comment reactions are visible under each reply.
+- **Max 2 nesting levels** — mirrors Reddit/Facebook "one reply level" pattern; deeper threads become unreadable on mobile.
+- **Poll as post attachment** — one poll per post, created at compose time. No standalone poll posts.
+
+---
+
 ## [Deploy] — Production deployment + GitHub CI — 2026-04-17
 
 First public deployment. The app is live at **https://community-clone.vercel.app** and every `git push` to `main` now triggers an automatic Vercel redeploy.
