@@ -24,7 +24,8 @@ export type NotificationType =
   | "REPLY"
   | "REACTION_ON_POST"
   | "MEMBERSHIP_APPROVED"
-  | "INVITE_ACCEPTED";
+  | "INVITE_ACCEPTED"
+  | "CHAT_MESSAGE";
 
 type Channel = "IN_APP" | "EMAIL" | "BOTH" | "OFF";
 
@@ -52,6 +53,9 @@ function prefFor(type: NotificationType, prefs: PrefsRow): Channel {
       return prefs.membershipApproved as Channel;
     case "INVITE_ACCEPTED":
       return prefs.inviteAccepted as Channel;
+    case "CHAT_MESSAGE":
+      // No per-pref for chat yet; default to IN_APP only.
+      return "IN_APP";
   }
 }
 
@@ -95,6 +99,8 @@ function subjectFor(type: NotificationType, actorName: string): string {
       return `You've been approved`;
     case "INVITE_ACCEPTED":
       return `${actorName} accepted your invite`;
+    case "CHAT_MESSAGE":
+      return `${actorName} sent you a message`;
   }
 }
 

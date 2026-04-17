@@ -69,6 +69,7 @@ export default async function GroupLayout({
           <aside className="hidden lg:block">
             <ChannelSidebar
               groupSlug={group.slug}
+              groupId={group.id}
               channels={channels.map((c) => ({
                 id: c.id,
                 slug: c.slug,

@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { initialsFrom } from "@/lib/initials";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "@/lib/utils";
+import { MessageUserButton } from "@/components/chat/MessageUserButton";
 
 export default async function ProfilePage({ params }: { params: { handle: string } }) {
   const t = await getTranslations("profile");
@@ -75,6 +76,8 @@ export default async function ProfilePage({ params }: { params: { handle: string
             <Button asChild variant="outline" size="sm">
               <Link href="/settings/profile">{t("editTitle")}</Link>
             </Button>
+          ) : session?.user ? (
+            <MessageUserButton userId={user.id} />
           ) : null}
         </div>
       </div>

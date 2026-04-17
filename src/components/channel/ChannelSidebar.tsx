@@ -4,6 +4,7 @@
  */
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -20,6 +21,7 @@ type ChannelRow = {
 
 type Props = {
   groupSlug: string;
+  groupId?: string;
   channels: ChannelRow[];
   canManage: boolean;
 };
@@ -30,10 +32,37 @@ function KindIcon({ kind }: { kind: string }) {
   return <Hash className="h-4 w-4 shrink-0" />;
 }
 
-export function ChannelSidebar({ groupSlug, channels, canManage }: Props) {
+export function ChannelSidebar({ groupSlug, groupId, channels, canManage }: Props) {
   const t = useTranslations("channels");
   const pathname = usePathname();
   const base = `/groups/${groupSlug}/channels`;
+  const [unread, setUnread] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!groupId) return;
+    let cancelled = false;
+    async function fetchUnread() {
+      try {
+        const res = await fetch(
+          `/api/chat/channel-unread?groupId=${encodeURIComponent(groupId!)}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as { map: Record<string, number> };
+        if (!cancelled) setUnread(data.map ?? {});
+      } catch {
+        /* ignore */
+      }
+    }
+    fetchUnread();
+    const iv = setInterval(() => {
+      if (document.visibilityState === "visible") fetchUnread();
+    }, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [groupId]);
 
   // Extract the active channel slug from the path, if any.
   const activeChannelSlug = pathname.startsWith(`${base}/`)
@@ -80,6 +109,11 @@ export function ChannelSidebar({ groupSlug, channels, canManage }: Props) {
                     <KindIcon kind={c.kind} />
                   )}
                   <span className="truncate">{c.name}</span>
+                  {unread[c.id] > 0 ? (
+                    <span className="ms-auto shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground">
+                      {unread[c.id] > 99 ? "99+" : unread[c.id]}
+                    </span>
+                  ) : null}
                 </Link>
               </li>
             );
