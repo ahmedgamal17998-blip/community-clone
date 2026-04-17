@@ -1,0 +1,239 @@
+{
+  "brand": {
+    "name": "Community Clone"
+  },
+  "nav": {
+    "home": "الرئيسية",
+    "search": "بحث",
+    "notifications": "الإشعارات",
+    "chat": "المحادثات",
+    "signIn": "تسجيل الدخول",
+    "signOut": "تسجيل الخروج",
+    "profile": "الملف الشخصي",
+    "settings": "الإعدادات"
+  },
+  "login": {
+    "title": "تسجيل الدخول إلى Community Clone",
+    "subtitle": "هنبعتلك لينك دخول سحري — من غير باسورد.",
+    "emailLabel": "البريد الإلكتروني",
+    "emailPlaceholder": "you@example.com",
+    "continue": "المتابعة بالبريد",
+    "orContinueWith": "أو متابعة عبر",
+    "google": "جوجل",
+    "legal": "بالمتابعة أنت توافق على الشروط."
+  },
+  "verify": {
+    "title": "راجع بريدك",
+    "subtitle": "بعتنالك لينك الدخول. إضغط عليه للمتابعة.",
+    "devHint": "شغّال محلياً من غير Resend؟ اللينك هتلاقيه في كونسول السيرفر."
+  },
+  "home": {
+    "welcome": "أهلاً بعودتك يا {name}.",
+    "emptyFeed": "الفيد فاضي حالياً. المجتمعات والجروبات والبوستات هتظهر هنا في الخطوات الجاية."
+  },
+  "profile": {
+    "editTitle": "تعديل الملف الشخصي",
+    "viewTitle": "الملف الشخصي",
+    "name": "الاسم الظاهر",
+    "bio": "نبذة",
+    "bioPlaceholder": "جملة قصيرة عنك.",
+    "handle": "المعرّف",
+    "email": "البريد الإلكتروني",
+    "emailPublic": "إظهار البريد على ملفي",
+    "locale": "اللغة",
+    "save": "حفظ التغييرات",
+    "saved": "تم حفظ الملف.",
+    "notFound": "الملف غير موجود.",
+    "activeTime": "نشط {time}",
+    "joined": "انضم في {date}"
+  },
+  "theme": {
+    "toggleLight": "الوضع الفاتح",
+    "toggleDark": "الوضع الداكن"
+  },
+  "locale": {
+    "toggle": "تغيير اللغة",
+    "english": "English",
+    "arabic": "العربية"
+  },
+  "groups": {
+    "switcherLabel": "تبديل الجروب",
+    "switcherAll": "كل الجروبات",
+    "yourGroups": "جروباتك",
+    "noneYet": "لسه مفيش جروبات انضميت لها.",
+    "discover": "استكشف الجروبات",
+    "create": "إنشاء جروب",
+    "settings": "الإعدادات",
+    "join": "انضم",
+    "requestJoin": "طلب الانضمام",
+    "leave": "مغادرة",
+    "pending": "قيد المراجعة",
+    "memberCount": "{count, plural, =0 {لا يوجد أعضاء} one {# عضو} two {عضوان} few {# أعضاء} many {# عضو} other {# عضو}}",
+    "activeTime": "نشط {time}",
+    "joined": "انضم في {date}",
+    "visibility": {
+      "public": "عام",
+      "private": "خاص",
+      "hidden": "مخفي"
+    },
+    "tabs": {
+      "discussion": "النقاش",
+      "learning": "التعلم",
+      "events": "الفعاليات",
+      "members": "الأعضاء",
+      "about": "عن الجروب"
+    },
+    "empty": {
+      "discussionTitle": "الفيد هيبدأ قريب",
+      "discussionBody": "البوستات والتعليقات والتفاعلات بتيجي في M4.",
+      "learningTitle": "الكورسات في M9",
+      "learningBody": "هنا هتلاقي الكورسات والدروس وتقدمك.",
+      "eventsTitle": "الفعاليات في M10",
+      "eventsBody": "هنا هتبقى التقويم والـRSVP والتذكيرات."
+    },
+    "about": {
+      "aboutThisGroup": "عن الجروب ده",
+      "noDescription": "مفيش وصف لسه.",
+      "partOfCommunity": "تابع لكوميونيتي"
+    },
+    "memberTabs": {
+      "all": "النشطين",
+      "admins": "المشرفين",
+      "contributors": "المساهمين",
+      "requested": "قيد الطلب",
+      "banned": "محظورين",
+      "empty": "لا يوجد أعضاء."
+    },
+    "menu": {
+      "open": "إجراءات العضو",
+      "pendingReview": "قيد المراجعة",
+      "approve": "موافقة",
+      "reject": "رفض",
+      "changeRole": "تغيير الدور",
+      "makeRole": {
+        "OWNER": "تعيين كمالك",
+        "ADMIN": "تعيين كمشرف",
+        "CONTRIBUTOR": "تعيين كمساهم",
+        "MEMBER": "تعيين كعضو"
+      },
+      "ban": "حظر",
+      "unban": "رفع الحظر",
+      "remove": "إزالة من الجروب"
+    },
+    "rail": {
+      "about": "عن الجروب",
+      "members": "الأعضاء",
+      "visibility": "الخصوصية",
+      "created": "تم الإنشاء",
+      "createdAt": "أُنشئ في {date}"
+    },
+    "directory": {
+      "title": "الجروبات",
+      "subtitle": "جروباتك وكمان اللي ممكن تحبها.",
+      "yours": "جروباتك",
+      "discover": "استكشاف",
+      "noneYet": "لسه مفيش جروبات انضميت لها.",
+      "nothingToDiscover": "مفيش جروبات جديدة دلوقتي."
+    },
+    "wizard": {
+      "title": "إنشاء جروب",
+      "subtitle": "سمّيه، اختار الخصوصية ولون — بس كده. تقدر تعدّل كل حاجة بعدين.",
+      "name": "اسم الجروب",
+      "namePlaceholder": "مثلاً: الإنجليزي للشغل",
+      "description": "وصف مختصر",
+      "descriptionPlaceholder": "الجروب ده عن إيه؟",
+      "visibility": "الخصوصية",
+      "visibilityOptions": {
+        "public": "عام",
+        "private": "خاص",
+        "hidden": "مخفي"
+      },
+      "visibilityHints": {
+        "public": "أي حد يقدر يلاقيه وينضم.",
+        "private": "بيظهر في البحث، لكن الانضمام بيحتاج موافقة.",
+        "hidden": "بدعوة فقط. مش ظاهر في القوائم."
+      },
+      "primaryColor": "اللون الأساسي",
+      "create": "إنشاء",
+      "creating": "جاري الإنشاء…"
+    },
+    "settingsPage": {
+      "title": "إعدادات الجروب",
+      "subtitle": "عدّل الاسم والخصوصية واللون.",
+      "save": "حفظ",
+      "saving": "جاري الحفظ…",
+      "saved": "تم الحفظ."
+    }
+  },
+  "posts": {
+    "nonMember": "انضم للجروب عشان تشوف البوستات وتشارك في النقاش.",
+    "empty": {
+      "groupTitle": "لسه مفيش بوستات",
+      "groupBody": "ادخل قناة وابدأ النقاش.",
+      "channelTitle": "القناة هادية",
+      "channelBody": "كن أول واحد يكتب في القناة دي."
+    },
+    "composer": {
+      "placeholder": "اكتب بوست…",
+      "titlePlaceholder": "العنوان (اختياري)",
+      "bodyPlaceholder": "بتفكر في إيه؟",
+      "addMedia": "إضافة صور",
+      "mediaLabel": "روابط الصور (رابط في كل سطر)",
+      "mediaPlaceholder": "https://example.com/photo.jpg",
+      "cancel": "إلغاء",
+      "publish": "نشر",
+      "publishing": "جاري النشر…"
+    },
+    "card": {
+      "inChannel": "في #{channel}",
+      "edited": "تم التعديل",
+      "pinned": "مثبت",
+      "loading": "جاري التحميل…"
+    },
+    "menu": {
+      "open": "إجراءات البوست",
+      "pin": "تثبيت",
+      "unpin": "إلغاء التثبيت",
+      "edit": "تعديل",
+      "delete": "حذف"
+    }
+  },
+  "channels": {
+    "sidebarTitle": "القنوات",
+    "addChannel": "إضافة قناة",
+    "empty": "مفيش قنوات لسه.",
+    "kinds": {
+      "PUBLIC": "عامة",
+      "PRIVATE": "خاصة",
+      "ANNOUNCEMENT": "إعلانات"
+    },
+    "tabs": {
+      "posts": "البوستات",
+      "chat": "المحادثة"
+    },
+    "new": {
+      "title": "إنشاء قناة",
+      "subtitle": "ضيف مساحة جديدة للبوستات والمحادثة.",
+      "name": "اسم القناة",
+      "namePlaceholder": "مثلاً: تعارف",
+      "description": "الوصف",
+      "descriptionPlaceholder": "القناة دي ليه؟",
+      "emoji": "إيموجي (اختياري)",
+      "emojiPlaceholder": "🎯",
+      "kind": "النوع",
+      "kindHints": {
+        "PUBLIC": "كل الأعضاء يقدروا يكتبوا ويدردشوا.",
+        "PRIVATE": "بس اللي تديله صلاحية يشوفها.",
+        "ANNOUNCEMENT": "الكل يقرأ، بس المشرفين يكتبوا."
+      },
+      "create": "إنشاء",
+      "creating": "جاري الإنشاء…"
+    },
+    "empty_page": {
+      "postsTitle": "البوستات في M4",
+      "postsBody": "فيد القناة جاي قريب.",
+      "chatTitle": "المحادثة في M8",
+      "chatBody": "غرفة الشات للقناة دي جاهزة من ناحية البنية — الواجهة بتيجي في M8."
+    }
+  }
+}

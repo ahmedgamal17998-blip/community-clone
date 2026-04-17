@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────
+   Design tokens — drawn from audit §2 "Design tokens captured".
+   Brand defaults to the observed English-To-Work purple palette.
+   Per-group theming (M2) will override --brand-* inline.
+   ───────────────────────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    --radius: 12px;
+
+    /* Semantic, light */
+    --canvas:              240 10% 96%;   /* #f4f4f7 */
+    --card:                0 0% 100%;
+    --foreground:          240 13% 14%;   /* #1f1f2a */
+    --muted:               240 6% 94%;
+    --muted-foreground:    240 6% 45%;    /* #6b6b78 */
+    --border:              240 6% 90%;    /* #e7e7ec */
+    --input:               240 6% 90%;
+    --ring:                280 45% 40%;
+
+    /* Brand (purple) */
+    --brand-50:  285 60% 97%;
+    --brand-100: 283 56% 92%;
+    --brand-200: 282 52% 85%;
+    --brand-300: 282 48% 74%;
+    --brand-400: 282 45% 60%;
+    --brand-500: 282 42% 47%;   /* ~ #8547a8 */
+    --brand-600: 280 47% 39%;   /* ~ #6d3691  (active nav) */
+    --brand-700: 280 52% 33%;   /* ~ #5a2e7b  (sidebar end) */
+    --brand-800: 281 56% 24%;   /* ~ #4a1c5c  (sidebar) */
+    --brand-900: 282 62% 20%;   /* ~ #3d1650 */
+
+    --primary:             280 47% 39%;
+    --primary-foreground:  0 0% 100%;
+
+    --destructive:         0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --presence-online:     142 70% 45%;   /* ~ #22c55e */
+    --presence-away:       36 92% 50%;    /* ~ #f59e0b */
+
+    --font-sans: "system-ui", "Segoe UI", "Inter", "Tahoma", sans-serif;
+  }
+
+  .dark {
+    --canvas:              240 10% 10%;   /* ~ #1a1a1a */
+    --card:                240 10% 16%;
+    --foreground:          240 12% 88%;   /* ~ #e0e0e0 */
+    --muted:               240 6% 22%;
+    --muted-foreground:    240 5% 65%;
+    --border:              240 6% 24%;
+    --input:               240 6% 24%;
+    --ring:                282 52% 60%;
+
+    --brand-500: 282 50% 60%;
+    --brand-600: 280 55% 55%;
+
+    --primary:             280 55% 55%;
+    --primary-foreground:  0 0% 100%;
+  }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-canvas text-foreground font-sans antialiased;
+  }
+
+  /* RTL tweaks — next-intl sets dir="rtl" on <html> for Arabic. */
+  [dir="rtl"] .rtl-flip {
+    transform: scaleX(-1);
+  }
+}
+
+@layer utilities {
+  /* Posts/chat can mix Arabic + English per paragraph.
+     `dir-auto` lets the browser pick the right direction per block. */
+  .dir-auto {
+    unicode-bidi: plaintext;
+  }
+}

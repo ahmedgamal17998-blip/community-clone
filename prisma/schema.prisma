@@ -1,0 +1,295 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Community Clone — Prisma schema (M1 + M2 + M3 + M4b)
+//
+// M1 surface: User / Account / Session / VerificationToken / Presence
+// M2 adds:    Community / Group / GroupMembership
+// M3 adds:    Channel / ChannelAccess / ChatThread / ChatParticipant
+// M4 adds:    Post  (mediaUrls kept as JSON String for now; native String[]
+//             upgrade is a follow-on migration once data is on Postgres.)
+// M4b:        Migrated from SQLite → Neon PostgreSQL.
+// Later milestones add Comment, Reaction, ChatMessage, Booking, etc.
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+// ─── Auth (NextAuth.js v5 — Prisma adapter shape) ───────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Core user + profile ────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  // Profile fields (M1)
+  handle        String    @unique            // e.g. "mohamed-abdullah-x9Fk2L"
+  bio           String?
+  locale        String    @default("en")     // "en" | "ar"
+  // Visibility toggles (default: hidden)
+  emailPublic   Boolean   @default(false)
+  phonePublic   Boolean   @default(false)
+  phone         String?
+  // Socials (JSON blob — SQLite friendly; typed at the application layer)
+  socials       String?                      // JSON: { twitter?: string, ig?: string, li?: string, yt?: string, web?: string }
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  presence      Presence?
+
+  // M2 relations
+  ownedCommunities Community[]       @relation("CommunityOwner")
+  memberships      GroupMembership[]
+
+  // M3 relations
+  channelGrants    ChannelAccess[]
+  chatParticipants ChatParticipant[]
+
+  // M4 relations
+  posts            Post[]
+}
+
+// Single row per user. Updated by a debounced heartbeat (M6).
+// Stubbed in M1 so later milestones can just write to it.
+model Presence {
+  userId     String   @id
+  lastSeenAt DateTime @default(now())
+  status     String   @default("OFFLINE")    // ONLINE | AWAY | OFFLINE
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Communities + Groups (M2) ──────────────────────────────────────────────
+//
+// Community = tenant container (e.g. "English Super Fast").
+// Group     = a sub-community (e.g. "English to Work"). This is the unit that
+//             has its own feed/channels/members — matches the "group" concept
+//             we audited on ClientClub. Most of the product-level UX lives at
+//             the group level.
+//
+// GroupMembership is orthogonal: a user can have a Role and a MembershipState.
+// State gates visibility (REQUESTED → awaiting approval; BANNED → shadow-hidden);
+// Role gates permissions (OWNER > ADMIN > CONTRIBUTOR > MEMBER).
+//
+// Visibility PUBLIC  — discoverable + anyone can join
+//            PRIVATE — discoverable but requires approval
+//            HIDDEN  — not discoverable; invite-only
+// Enums are encoded as Strings (SQLite has no native enum). Values are
+// constrained at the application layer via Zod.
+
+model Community {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  logoUrl     String?
+  coverUrl    String?
+  // Canonical brand color stored as HSL triplet "H S% L%" so it slots straight
+  // into CSS vars without runtime parsing. Default = our audited purple.
+  primaryHsl  String   @default("263 74% 58%")
+  ownerId     String
+  owner       User     @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  groups      Group[]
+}
+
+model Group {
+  id           String   @id @default(cuid())
+  communityId  String
+  community    Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  slug         String   @unique                 // route segment, globally unique
+  name         String
+  description  String?
+  logoUrl      String?
+  coverUrl     String?
+  primaryHsl   String   @default("263 74% 58%") // per-group override of community color
+  visibility   String   @default("PUBLIC")      // PUBLIC | PRIVATE | HIDDEN
+  active       Boolean  @default(true)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships  GroupMembership[]
+  channels     Channel[]
+
+  @@index([communityId])
+}
+
+model GroupMembership {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String
+  role      String   @default("MEMBER")   // OWNER | ADMIN | CONTRIBUTOR | MEMBER
+  state     String   @default("ACTIVE")   // REQUESTED | ACTIVE | BANNED
+  joinedAt  DateTime @default(now())
+  // Free-text reason for moderators when state = BANNED or REQUESTED notes.
+  note      String?
+
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@index([groupId, state])
+}
+
+// ─── Channels + built-in chat threads (M3) ──────────────────────────────────
+//
+// A Channel is a sub-space inside a Group (like a Slack / Discord channel).
+// Channel types:
+//   PUBLIC       — every ACTIVE group member can post + chat
+//   PRIVATE      — only explicitly-granted users (ChannelAccess rows) can see it
+//   ANNOUNCEMENT — visible to all ACTIVE members but only ADMIN+ can post
+//
+// Every channel auto-provisions a ChatThread { kind: CHANNEL, channelId }
+// at create time, and ChatParticipant rows for its member set. The actual
+// message UI lands in M8 — M3 just stands up the substrate.
+
+model Channel {
+  id          String   @id @default(cuid())
+  groupId     String
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  slug        String                               // unique within the group
+  name        String
+  emoji       String?                              // optional prefix like 🎯
+  description String?
+  kind        String   @default("PUBLIC")          // PUBLIC | PRIVATE | ANNOUNCEMENT
+  position    Int      @default(0)                 // sidebar ordering (lower = higher)
+  archived    Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  accesses    ChannelAccess[]
+  chatThread  ChatThread?
+  posts       Post[]
+
+  @@unique([groupId, slug])
+  @@index([groupId, archived, position])
+}
+
+// Per-user grant for PRIVATE channels. For PUBLIC / ANNOUNCEMENT channels this
+// table stays empty — visibility is inferred from ACTIVE GroupMembership.
+model ChannelAccess {
+  id        String   @id @default(cuid())
+  channelId String
+  userId    String
+  grantedAt DateTime @default(now())
+
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([userId])
+}
+
+// A thread is a container for chat messages. M3 creates rows only; M8 adds
+// ChatMessage and the UI. Keeping it generic across DIRECT / GROUP / CHANNEL
+// means the chat layer in M8 has one schema to render against.
+model ChatThread {
+  id         String   @id @default(cuid())
+  kind       String                                 // DIRECT | GROUP | CHANNEL
+  title      String?                                // optional for GROUP chats
+  channelId  String?  @unique                       // set iff kind = CHANNEL
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  channel      Channel?          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  participants ChatParticipant[]
+
+  @@index([kind])
+}
+
+model ChatParticipant {
+  id         String   @id @default(cuid())
+  threadId   String
+  userId     String
+  joinedAt   DateTime @default(now())
+  lastReadAt DateTime?
+
+  thread     ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+// ─── Posts (M4a) ────────────────────────────────────────────────────────────
+//
+// A Post lives inside a Channel (the Discussion/channel feed). Author must be
+// an ACTIVE member of the parent group at post time, and for ANNOUNCEMENT
+// channels also ADMIN+. Visibility mirrors channel visibility (PRIVATE → grant
+// required). `pinned` surfaces a post above the non-pinned feed.
+//
+// `mediaUrls` stores a JSON-encoded `string[]`. We'll switch this to a native
+// `String[]` column when we migrate to Postgres (M4b).
+//
+// `body` holds either plain text or a TipTap JSON blob (stringified). For now
+// we're plain-text; M4b swaps to TipTap JSON and the PostCard renders it.
+model Post {
+  id          String   @id @default(cuid())
+  channelId   String
+  authorId    String
+  title       String?                               // optional headline
+  body        String                                // plain text in M4a; TipTap JSON in M4b
+  mediaUrls   String   @default("[]")               // JSON-encoded string[]
+  pinned      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  editedAt    DateTime?
+
+  channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, pinned, createdAt])
+  @@index([authorId])
+}

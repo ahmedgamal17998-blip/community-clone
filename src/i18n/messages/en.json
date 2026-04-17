@@ -1,0 +1,239 @@
+{
+  "brand": {
+    "name": "Community Clone"
+  },
+  "nav": {
+    "home": "Home",
+    "search": "Search",
+    "notifications": "Notifications",
+    "chat": "Chat",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "profile": "Profile",
+    "settings": "Settings"
+  },
+  "login": {
+    "title": "Sign in to Community Clone",
+    "subtitle": "We'll send you a magic link — no password needed.",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "continue": "Continue with email",
+    "orContinueWith": "Or continue with",
+    "google": "Google",
+    "legal": "By continuing you agree to our terms."
+  },
+  "verify": {
+    "title": "Check your email",
+    "subtitle": "We sent a sign-in link to your inbox. Click it to continue.",
+    "devHint": "Running in dev without a mail provider? Check your server console for the link."
+  },
+  "home": {
+    "welcome": "Welcome back, {name}.",
+    "emptyFeed": "Your feed is empty. Communities, groups and posts will show up here in later milestones."
+  },
+  "profile": {
+    "editTitle": "Edit profile",
+    "viewTitle": "Profile",
+    "name": "Display name",
+    "bio": "Bio",
+    "bioPlaceholder": "A short sentence about you.",
+    "handle": "Handle",
+    "email": "Email",
+    "emailPublic": "Show email on my profile",
+    "locale": "Language",
+    "save": "Save changes",
+    "saved": "Profile updated.",
+    "notFound": "Profile not found.",
+    "activeTime": "Active {time}",
+    "joined": "Joined {date}"
+  },
+  "theme": {
+    "toggleLight": "Switch to light mode",
+    "toggleDark": "Switch to dark mode"
+  },
+  "locale": {
+    "toggle": "Change language",
+    "english": "English",
+    "arabic": "العربية"
+  },
+  "groups": {
+    "switcherLabel": "Switch group",
+    "switcherAll": "All groups",
+    "yourGroups": "Your groups",
+    "noneYet": "You haven't joined any groups yet.",
+    "discover": "Discover groups",
+    "create": "Create a group",
+    "settings": "Settings",
+    "join": "Join",
+    "requestJoin": "Request to join",
+    "leave": "Leave",
+    "pending": "Pending",
+    "memberCount": "{count, plural, =0 {No members} one {# member} other {# members}}",
+    "activeTime": "Active {time}",
+    "joined": "Joined {date}",
+    "visibility": {
+      "public": "Public",
+      "private": "Private",
+      "hidden": "Hidden"
+    },
+    "tabs": {
+      "discussion": "Discussion",
+      "learning": "Learning",
+      "events": "Events",
+      "members": "Members",
+      "about": "About"
+    },
+    "empty": {
+      "discussionTitle": "The feed lights up soon",
+      "discussionBody": "Posts, comments and reactions arrive in M4. For now this tab just frames the shell.",
+      "learningTitle": "Courses coming in M9",
+      "learningBody": "The Learning tab will hold courses, lessons and progress.",
+      "eventsTitle": "Events coming in M10",
+      "eventsBody": "The Events tab will hold a calendar, RSVPs and reminders."
+    },
+    "about": {
+      "aboutThisGroup": "About this group",
+      "noDescription": "No description yet.",
+      "partOfCommunity": "Part of community"
+    },
+    "memberTabs": {
+      "all": "Active",
+      "admins": "Admins",
+      "contributors": "Contributors",
+      "requested": "Requested",
+      "banned": "Banned",
+      "empty": "No one here yet."
+    },
+    "menu": {
+      "open": "Member actions",
+      "pendingReview": "Pending review",
+      "approve": "Approve",
+      "reject": "Reject",
+      "changeRole": "Change role",
+      "makeRole": {
+        "OWNER": "Make owner",
+        "ADMIN": "Make admin",
+        "CONTRIBUTOR": "Make contributor",
+        "MEMBER": "Make member"
+      },
+      "ban": "Ban",
+      "unban": "Unban",
+      "remove": "Remove from group"
+    },
+    "rail": {
+      "about": "About",
+      "members": "Members",
+      "visibility": "Visibility",
+      "created": "Created",
+      "createdAt": "Created {date}"
+    },
+    "directory": {
+      "title": "Groups",
+      "subtitle": "Your groups, plus a few you might like.",
+      "yours": "Your groups",
+      "discover": "Discover",
+      "noneYet": "You haven't joined any groups yet.",
+      "nothingToDiscover": "Nothing to discover right now."
+    },
+    "wizard": {
+      "title": "Create a group",
+      "subtitle": "Name it, set visibility, pick a color — that's it. You can change everything later.",
+      "name": "Group name",
+      "namePlaceholder": "e.g. English to Work",
+      "description": "Short description",
+      "descriptionPlaceholder": "What is this group about?",
+      "visibility": "Visibility",
+      "visibilityOptions": {
+        "public": "Public",
+        "private": "Private",
+        "hidden": "Hidden"
+      },
+      "visibilityHints": {
+        "public": "Anyone can find and join.",
+        "private": "Discoverable, but joining needs approval.",
+        "hidden": "Invite-only. Not listed."
+      },
+      "primaryColor": "Primary color",
+      "create": "Create group",
+      "creating": "Creating…"
+    },
+    "settingsPage": {
+      "title": "Group settings",
+      "subtitle": "Update the name, visibility, and brand color.",
+      "save": "Save changes",
+      "saving": "Saving…",
+      "saved": "Changes saved."
+    }
+  },
+  "posts": {
+    "nonMember": "Join this group to see posts and join the discussion.",
+    "empty": {
+      "groupTitle": "No posts yet",
+      "groupBody": "Head into a channel and start the conversation.",
+      "channelTitle": "Quiet in here",
+      "channelBody": "Be the first to post in this channel."
+    },
+    "composer": {
+      "placeholder": "Write a post…",
+      "titlePlaceholder": "Title (optional)",
+      "bodyPlaceholder": "What's on your mind?",
+      "addMedia": "Add media",
+      "mediaLabel": "Image URLs (one per line)",
+      "mediaPlaceholder": "https://example.com/photo.jpg",
+      "cancel": "Cancel",
+      "publish": "Publish",
+      "publishing": "Publishing…"
+    },
+    "card": {
+      "inChannel": "in #{channel}",
+      "edited": "edited",
+      "pinned": "Pinned",
+      "loading": "Loading…"
+    },
+    "menu": {
+      "open": "Post actions",
+      "pin": "Pin post",
+      "unpin": "Unpin post",
+      "edit": "Edit",
+      "delete": "Delete"
+    }
+  },
+  "channels": {
+    "sidebarTitle": "Channels",
+    "addChannel": "Add channel",
+    "empty": "No channels yet.",
+    "kinds": {
+      "PUBLIC": "Public",
+      "PRIVATE": "Private",
+      "ANNOUNCEMENT": "Announcement"
+    },
+    "tabs": {
+      "posts": "Posts",
+      "chat": "Chat"
+    },
+    "new": {
+      "title": "Create channel",
+      "subtitle": "Add a new space for posts and chat.",
+      "name": "Channel name",
+      "namePlaceholder": "e.g. introductions",
+      "description": "Description",
+      "descriptionPlaceholder": "What's this channel for?",
+      "emoji": "Emoji (optional)",
+      "emojiPlaceholder": "🎯",
+      "kind": "Type",
+      "kindHints": {
+        "PUBLIC": "All members can post and chat.",
+        "PRIVATE": "Only people you grant access can see it.",
+        "ANNOUNCEMENT": "Everyone can read; only admins can post."
+      },
+      "create": "Create channel",
+      "creating": "Creating…"
+    },
+    "empty_page": {
+      "postsTitle": "Posts land in M4",
+      "postsBody": "The feed for this channel is coming soon.",
+      "chatTitle": "Chat lands in M8",
+      "chatBody": "A live chat room for this channel is provisioned — UI arrives in M8."
+    }
+  }
+}
