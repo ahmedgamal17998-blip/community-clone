@@ -4,7 +4,7 @@ import { z } from "zod";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 
-const SUPPORTED_EMOJIS = ["❤️", "👍", "🎉", "🤔", "👏"] as const;
+const SUPPORTED_EMOJIS = ["❤️", "👍", "🎉", "😂", "🤔", "👏"] as const;
 
 const toggleSchema = z
   .object({

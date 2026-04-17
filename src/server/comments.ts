@@ -27,7 +27,9 @@ export type CommentItem = {
   id: string;
   postId: string;
   parentId: string | null;
-  body: string;
+  body: string | null;
+  audioUrl: string | null;
+  audioDurationSec: number | null;
   createdAt: Date;
   editedAt: Date | null;
   authorId: string;
@@ -90,6 +92,8 @@ export async function getPostComments(
     postId: c.postId,
     parentId: c.parentId,
     body: c.body,
+    audioUrl: c.audioUrl,
+    audioDurationSec: c.audioDurationSec,
     createdAt: c.createdAt,
     editedAt: c.editedAt,
     authorId: c.authorId,
@@ -100,6 +104,8 @@ export async function getPostComments(
       postId: r.postId,
       parentId: r.parentId,
       body: r.body,
+      audioUrl: r.audioUrl,
+      audioDurationSec: r.audioDurationSec,
       createdAt: r.createdAt,
       editedAt: r.editedAt,
       authorId: r.authorId,

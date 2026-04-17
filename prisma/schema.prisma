@@ -313,7 +313,9 @@ model Comment {
   postId    String
   authorId  String
   parentId  String?                          // null = top-level; set = reply
-  body      String
+  body      String?
+  audioUrl         String?
+  audioDurationSec Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   editedAt  DateTime?

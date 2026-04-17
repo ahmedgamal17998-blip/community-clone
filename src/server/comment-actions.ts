@@ -44,20 +44,37 @@ async function getGroupMembership(postId: string, userId: string) {
 
 // ─── Create comment ──────────────────────────────────────────────────────────
 
-const createSchema = z.object({
-  postId: z.string().cuid(),
-  body: z.string().trim().min(1).max(2000),
-  parentId: z.string().cuid().optional(),
-});
+const createSchema = z
+  .object({
+    postId: z.string().cuid(),
+    body: z.string().trim().max(2000).optional(),
+    parentId: z.string().cuid().optional(),
+    audioUrl: z.string().url().optional(),
+    audioDurationSec: z.coerce.number().int().min(1).max(120).optional(),
+  })
+  .refine((d) => !!(d.body?.length || d.audioUrl), {
+    message: "Either body or audio required",
+  });
 
 export async function createCommentAction(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("UNAUTHENTICATED");
 
+  const bodyRaw = formData.get("body");
+  const audioUrlRaw = formData.get("audioUrl");
+  const audioDurationRaw = formData.get("audioDurationSec");
   const raw = {
     postId: formData.get("postId"),
-    body: formData.get("body"),
+    body: typeof bodyRaw === "string" && bodyRaw.length > 0 ? bodyRaw : undefined,
     parentId: formData.get("parentId") ?? undefined,
+    audioUrl:
+      typeof audioUrlRaw === "string" && audioUrlRaw.length > 0
+        ? audioUrlRaw
+        : undefined,
+    audioDurationSec:
+      typeof audioDurationRaw === "string" && audioDurationRaw.length > 0
+        ? audioDurationRaw
+        : undefined,
   };
 
   const parsed = createSchema.safeParse(raw);
@@ -85,8 +102,10 @@ export async function createCommentAction(formData: FormData) {
     data: {
       postId: parsed.data.postId,
       authorId: session.user.id,
-      body: parsed.data.body,
+      body: parsed.data.body ?? null,
       parentId: parsed.data.parentId ?? null,
+      audioUrl: parsed.data.audioUrl ?? null,
+      audioDurationSec: parsed.data.audioDurationSec ?? null,
     },
   });
 

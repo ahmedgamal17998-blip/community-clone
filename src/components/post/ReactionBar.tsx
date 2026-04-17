@@ -4,7 +4,7 @@ import { useTransition, useState } from "react";
 import { toggleReactionAction } from "@/server/reaction-actions";
 import { cn } from "@/lib/utils";
 
-const EMOJI_LIST = ["❤️", "👍", "🎉", "🤔", "👏"] as const;
+const EMOJI_LIST = ["❤️", "👍", "🎉", "😂", "🤔", "👏"] as const;
 type Emoji = (typeof EMOJI_LIST)[number];
 
 type ReactionData = {

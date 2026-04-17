@@ -97,7 +97,7 @@ export function CommentItem({ comment, viewerId, viewerCanModerate, isReply = fa
               <input type="hidden" name="commentId" value={comment.id} />
               <Textarea
                 name="body"
-                defaultValue={comment.body}
+                defaultValue={comment.body ?? ""}
                 required
                 rows={2}
                 maxLength={2000}
@@ -121,9 +121,20 @@ export function CommentItem({ comment, viewerId, viewerCanModerate, isReply = fa
               </div>
             </form>
           ) : (
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-              {comment.body}
-            </p>
+            <>
+              {comment.body ? (
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                  {comment.body}
+                </p>
+              ) : null}
+              {comment.audioUrl ? (
+                <audio
+                  controls
+                  src={comment.audioUrl}
+                  className="mt-1 w-full max-w-sm"
+                />
+              ) : null}
+            </>
           )}
 
           {/* Reactions + actions */}
