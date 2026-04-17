@@ -112,6 +112,10 @@ model User {
 
   // M9 relations
   lessonProgress   LessonProgress[]
+
+  // M10 relations
+  eventsCreated    Event[]     @relation("EventCreator")
+  eventRSVPs       EventRSVP[]
 }
 
 // Single row per user. Updated by a debounced heartbeat (M6).
@@ -180,6 +184,7 @@ model Group {
   channels     Channel[]
   invites      Invite[]
   courses      Course[]
+  events       Event[]
 
   @@index([communityId])
 }
@@ -558,4 +563,56 @@ model LessonProgress {
 
   @@unique([userId, lessonId])
   @@index([userId, courseId])
+}
+
+// ─── Events + RSVP (M10) ────────────────────────────────────────────────────
+
+model Event {
+  id               String   @id @default(cuid())
+  groupId          String
+  creatorId        String
+  title            String
+  description      String?
+  startsAt         DateTime
+  endsAt           DateTime
+  timezone         String   @default("UTC")
+  color            String   @default("#6d56f0")
+  category         String?
+  locationUrl      String?
+  recurrence       String   @default("NONE")     // NONE | WEEKLY
+  recurrenceEndsAt DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  group    Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator  User        @relation("EventCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  rsvps    EventRSVP[]
+
+  @@index([groupId, startsAt])
+}
+
+model EventRSVP {
+  id                 String   @id @default(cuid())
+  eventId            String
+  userId             String
+  status             String   // GOING | MAYBE | DECLINED
+  occurrenceStartsAt DateTime?
+  createdAt          DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId, occurrenceStartsAt])
+  @@index([userId])
+}
+
+model EventReminderSent {
+  id                 String   @id @default(cuid())
+  eventId            String
+  userId             String
+  occurrenceStartsAt DateTime
+  kind               String   // T_24H | T_1H
+  sentAt             DateTime @default(now())
+
+  @@unique([eventId, userId, occurrenceStartsAt, kind])
 }

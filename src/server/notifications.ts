@@ -25,7 +25,9 @@ export type NotificationType =
   | "REACTION_ON_POST"
   | "MEMBERSHIP_APPROVED"
   | "INVITE_ACCEPTED"
-  | "CHAT_MESSAGE";
+  | "CHAT_MESSAGE"
+  | "EVENT_CREATED"
+  | "EVENT_REMINDER";
 
 type Channel = "IN_APP" | "EMAIL" | "BOTH" | "OFF";
 
@@ -55,6 +57,12 @@ function prefFor(type: NotificationType, prefs: PrefsRow): Channel {
       return prefs.inviteAccepted as Channel;
     case "CHAT_MESSAGE":
       // No per-pref for chat yet; default to IN_APP only.
+      return "IN_APP";
+    case "EVENT_CREATED":
+      return "IN_APP";
+    case "EVENT_REMINDER":
+      return "BOTH";
+    default:
       return "IN_APP";
   }
 }
@@ -101,6 +109,12 @@ function subjectFor(type: NotificationType, actorName: string): string {
       return `${actorName} accepted your invite`;
     case "CHAT_MESSAGE":
       return `${actorName} sent you a message`;
+    case "EVENT_CREATED":
+      return `${actorName} posted a new event`;
+    case "EVENT_REMINDER":
+      return `Event reminder`;
+    default:
+      return `New notification`;
   }
 }
 
