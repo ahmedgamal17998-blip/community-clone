@@ -116,6 +116,12 @@ model User {
   // M10 relations
   eventsCreated    Event[]     @relation("EventCreator")
   eventRSVPs       EventRSVP[]
+
+  // M11 relations
+  googleAccount     GoogleAccount?
+  availability      Availability?
+  bookingsHosted    Booking[]      @relation("BookingHost")
+  bookingsAsInvitee Booking[]      @relation("BookingInvitee")
 }
 
 // Single row per user. Updated by a debounced heartbeat (M6).
@@ -185,6 +191,10 @@ model Group {
   invites      Invite[]
   courses      Course[]
   events       Event[]
+
+  // M11 relations
+  bookingPolicy GroupBookingPolicy?
+  bookings      Booking[]
 
   @@index([communityId])
 }
@@ -615,4 +625,77 @@ model EventReminderSent {
   sentAt             DateTime @default(now())
 
   @@unique([eventId, userId, occurrenceStartsAt, kind])
+}
+
+// ─── Booking + Google Calendar + Meet (M11) ────────────────────────────────
+
+model GoogleAccount {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  googleSub            String   @unique
+  email                String
+  accessToken          String
+  refreshTokenEnc      String
+  accessTokenExpiresAt DateTime
+  scope                String
+  connectedAt          DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Availability {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  timezone       String   @default("UTC")
+  slotLengthMin  Int      @default(30)
+  bufferMin      Int      @default(0)
+  minNoticeHours Int      @default(4)
+  maxPerDay      Int      @default(6)
+  rules          String
+  bookableScope  String   @default("EVERYONE")
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GroupBookingPolicy {
+  id             String   @id @default(cuid())
+  groupId        String   @unique
+  whoCanBeBooked String   @default("EVERYONE")
+  updatedAt      DateTime @updatedAt
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model Booking {
+  id               String    @id @default(cuid())
+  hostId           String
+  inviteeId        String?
+  inviteeEmail     String
+  inviteeName      String?
+  title            String
+  description      String?
+  startsAt         DateTime
+  endsAt           DateTime
+  timezone         String    @default("UTC")
+  status           String    @default("CONFIRMED")
+  googleEventId    String?
+  googleCalendarId String?
+  meetLink         String?
+  meetConferenceId String?
+  cancelReason     String?
+  cancelledAt      DateTime?
+  cancelledById    String?
+  groupId          String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  host    User   @relation("BookingHost", fields: [hostId], references: [id], onDelete: Cascade)
+  invitee User?  @relation("BookingInvitee", fields: [inviteeId], references: [id], onDelete: SetNull)
+  group   Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@index([hostId, startsAt])
+  @@index([inviteeId, startsAt])
+  @@index([groupId, startsAt])
 }

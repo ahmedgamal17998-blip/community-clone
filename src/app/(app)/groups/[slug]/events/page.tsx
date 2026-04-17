@@ -20,6 +20,7 @@ import { ViewToggle } from "@/components/events/ViewToggle";
 import { CalendarGrid } from "@/components/events/CalendarGrid";
 import { UpcomingPastPanel } from "@/components/events/UpcomingPastPanel";
 import { Button } from "@/components/ui/button";
+import { db } from "@/server/db";
 
 type Props = {
   params: { slug: string };
@@ -55,7 +56,7 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
     rangeEnd = endOfWeek(endOfMonth(date));
   }
 
-  const [occurrences, upcoming, past] = await Promise.all([
+  const [occurrences, upcoming, past, myBookings] = await Promise.all([
     listEventsForGroup({
       groupId: group.id,
       viewerId: session.user.id,
@@ -64,6 +65,25 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
     }),
     listUpcoming(group.id, session.user.id, 10),
     listPast(group.id, session.user.id, 10),
+    db.booking.findMany({
+      where: {
+        status: "CONFIRMED",
+        startsAt: { gte: rangeStart, lte: rangeEnd },
+        OR: [
+          { hostId: session.user.id },
+          { inviteeId: session.user.id },
+        ],
+      },
+      select: {
+        id: true,
+        title: true,
+        startsAt: true,
+        endsAt: true,
+        hostId: true,
+      },
+      orderBy: { startsAt: "asc" },
+      take: 20,
+    }),
   ]);
 
   const title = titleFor(view, date);
@@ -96,12 +116,40 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
             groupSlug={group.slug}
           />
         </div>
-        <div>
+        <div className="space-y-4">
           <UpcomingPastPanel
             upcoming={upcoming}
             past={past}
             groupSlug={group.slug}
           />
+          {myBookings.length > 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-card p-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Your bookings in view
+              </div>
+              <ul className="space-y-1.5">
+                {myBookings.map((b) => (
+                  <li key={b.id}>
+                    <Link
+                      href={`/bookings/${b.id}`}
+                      className="block rounded-md border border-dashed border-border px-2 py-1 text-xs hover:border-primary"
+                    >
+                      <div className="font-medium">{b.title}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {b.startsAt.toLocaleString([], {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {b.hostId === session.user!.id ? " · hosting" : " · invited"}
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

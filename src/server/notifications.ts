@@ -27,7 +27,9 @@ export type NotificationType =
   | "INVITE_ACCEPTED"
   | "CHAT_MESSAGE"
   | "EVENT_CREATED"
-  | "EVENT_REMINDER";
+  | "EVENT_REMINDER"
+  | "BOOKING_CREATED"
+  | "BOOKING_CANCELLED";
 
 type Channel = "IN_APP" | "EMAIL" | "BOTH" | "OFF";
 
@@ -62,6 +64,9 @@ function prefFor(type: NotificationType, prefs: PrefsRow): Channel {
       return "IN_APP";
     case "EVENT_REMINDER":
       return "BOTH";
+    case "BOOKING_CREATED":
+    case "BOOKING_CANCELLED":
+      return "IN_APP";
     default:
       return "IN_APP";
   }
@@ -113,6 +118,10 @@ function subjectFor(type: NotificationType, actorName: string): string {
       return `${actorName} posted a new event`;
     case "EVENT_REMINDER":
       return `Event reminder`;
+    case "BOOKING_CREATED":
+      return `New booking with ${actorName}`;
+    case "BOOKING_CANCELLED":
+      return `${actorName} cancelled a booking`;
     default:
       return `New notification`;
   }

@@ -27,6 +27,7 @@ export default async function ProfilePage({ params }: { params: { handle: string
         emailPublic: true,
         createdAt: true,
         presence: { select: { lastSeenAt: true, status: true } },
+        availability: { select: { id: true } },
       },
     }),
   ]);
@@ -77,7 +78,14 @@ export default async function ProfilePage({ params }: { params: { handle: string
               <Link href="/settings/profile">{t("editTitle")}</Link>
             </Button>
           ) : session?.user ? (
-            <MessageUserButton userId={user.id} />
+            <div className="flex flex-col items-end gap-2">
+              <MessageUserButton userId={user.id} />
+              {user.availability ? (
+                <Button asChild size="sm">
+                  <Link href={`/profile/${user.handle}/book`}>Book a session</Link>
+                </Button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </div>

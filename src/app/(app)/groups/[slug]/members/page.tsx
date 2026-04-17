@@ -98,10 +98,24 @@ export default async function GroupMembersPage({
           email: true,
           emailPublic: true,
           presence: { select: { lastSeenAt: true, status: true } },
+          availability: { select: { id: true } },
         },
       },
     },
   });
+
+  // M11: who-can-be-booked per-group policy
+  const policy = await db.groupBookingPolicy.findUnique({
+    where: { groupId: group.id },
+    select: { whoCanBeBooked: true },
+  });
+  const whoCanBeBooked = policy?.whoCanBeBooked ?? "EVERYONE";
+  function memberBookable(role: string): boolean {
+    if (whoCanBeBooked === "ADMINS_ONLY") return role === "ADMIN" || role === "OWNER";
+    if (whoCanBeBooked === "CONTRIBUTORS_PLUS")
+      return role === "CONTRIBUTOR" || role === "ADMIN" || role === "OWNER";
+    return true;
+  }
 
   const pendingCount = canModerate
     ? await db.groupMembership.count({
@@ -263,6 +277,18 @@ export default async function GroupMembersPage({
                     {t("joined", { date: new Date(m.joinedAt).toLocaleDateString() })}
                   </p>
                 </div>
+                {m.userId !== session?.user?.id &&
+                m.user.availability &&
+                m.state === "ACTIVE" &&
+                memberBookable(m.role) ? (
+                  <Link
+                    href={`/profile/${m.user.handle}/book?groupId=${group.id}`}
+                    className="inline-flex h-8 items-center rounded-md border border-border bg-background px-2 text-xs font-medium hover:border-primary hover:text-primary"
+                    title="Book a session"
+                  >
+                    Book
+                  </Link>
+                ) : null}
                 {canModerate && m.userId !== session?.user?.id ? (
                   <RoleMenu
                     membershipId={m.id}
