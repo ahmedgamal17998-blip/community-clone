@@ -11,6 +11,7 @@ import Link from "next/link";
 import { Pin, Reply, X, MoreHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { MentionTextarea } from "@/components/mention/MentionTextarea";
 import {
   sendMessageAction,
   markThreadReadAction,
@@ -64,15 +65,16 @@ function timeLabel(iso: string): string {
   return d.toLocaleString();
 }
 
-export function ChatThreadView({
-  threadId,
-  kind,
-  viewerId,
-  viewerIsAdmin = false,
-  initialMessages,
-  pinned: initialPinned,
-  participants,
-}: ChatThreadViewProps) {
+export function ChatThreadView(props: ChatThreadViewProps) {
+  const {
+    threadId,
+    kind,
+    viewerId,
+    viewerIsAdmin = false,
+    initialMessages,
+    pinned: initialPinned,
+    participants,
+  } = props;
   const [messages, setMessages] = useState<ChatMessageView[]>(initialMessages);
   const [pinned, setPinned] = useState<ChatMessageView[]>(initialPinned);
   const [body, setBody] = useState("");
@@ -325,18 +327,34 @@ export function ChatThreadView({
         onSubmit={handleSend}
         className="flex flex-col gap-2 border-t border-border p-3"
       >
-        <Textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Type a message…"
-          rows={2}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-        />
+        {props.groupSlug ? (
+          <MentionTextarea
+            value={body}
+            onChange={setBody}
+            groupSlug={props.groupSlug}
+            placeholder="Type a message… use @ to mention"
+            rows={2}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.defaultPrevented) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+          />
+        ) : (
+          <Textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Type a message…"
+            rows={2}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+          />
+        )}
         <div className="flex items-center justify-between">
           <MediaAttach value={attached} onChange={setAttached} />
           <Button type="submit" size="sm" disabled={sending || (!body.trim() && !attached)}>
