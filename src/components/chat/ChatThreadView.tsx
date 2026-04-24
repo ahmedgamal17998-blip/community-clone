@@ -5,6 +5,10 @@
  *
  * Polls /api/chat/threads/[id]/messages?after=<lastId> every 3s while visible
  * and fires markThreadReadAction every 5s.
+ *
+ * M15: when NEXT_PUBLIC_PUSHER_APP_KEY is set, subscribes to
+ * private-thread-{threadId} for live new-message and typing events.
+ * Falls back to polling when Pusher is unavailable.
  */
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
@@ -19,6 +23,7 @@ import {
   deleteMessageAction,
 } from "@/server/chat";
 import { MediaAttach, type Attached } from "@/components/chat/MediaAttach";
+import { useChannel, useEvent } from "@/lib/pusher-client";
 
 type Author = {
   id: string;
@@ -85,6 +90,87 @@ export function ChatThreadView(props: ChatThreadViewProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
 
+  // M15: Pusher real-time state.
+  // typingUsers: map of userId → { handle, name, expiresAt }
+  const [typingUsers, setTypingUsers] = useState<
+    Record<string, { handle: string; name: string | null; expiresAt: number }>
+  >({});
+  const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // Subscribe to the private thread channel (no-op when Pusher unavailable).
+  const pusherChannel = useChannel(`private-thread-${threadId}`);
+
+  // M15: handle incoming real-time messages from Pusher.
+  useEvent<ChatMessageView>(pusherChannel, "new-message", (data) => {
+    if (!data?.id) return;
+    setMessages((prev) => {
+      const seen = new Set(prev.map((m) => m.id));
+      if (seen.has(data.id)) return prev;
+      return [...prev, data];
+    });
+    // Clear typing indicator for the sender.
+    setTypingUsers((prev) => {
+      if (!data.authorId || !prev[data.authorId]) return prev;
+      const next = { ...prev };
+      delete next[data.authorId];
+      return next;
+    });
+  });
+
+  // M15: handle typing events from Pusher.
+  useEvent<{ userId: string; handle: string; name: string | null }>(
+    pusherChannel,
+    "typing",
+    (data) => {
+      if (!data?.userId || data.userId === viewerId) return;
+      const expiresAt = Date.now() + 3000;
+      setTypingUsers((prev) => ({
+        ...prev,
+        [data.userId]: { handle: data.handle, name: data.name, expiresAt },
+      }));
+      // Auto-clear after 3s.
+      if (typingTimeoutsRef.current[data.userId]) {
+        clearTimeout(typingTimeoutsRef.current[data.userId]);
+      }
+      typingTimeoutsRef.current[data.userId] = setTimeout(() => {
+        setTypingUsers((prev) => {
+          const next = { ...prev };
+          delete next[data.userId];
+          return next;
+        });
+        delete typingTimeoutsRef.current[data.userId];
+      }, 3000);
+    },
+  );
+
+  // Clean up timeouts on unmount.
+  useEffect(() => {
+    return () => {
+      for (const t of Object.values(typingTimeoutsRef.current)) {
+        clearTimeout(t);
+      }
+    };
+  }, []);
+
+  // Debounced typing indicator fire (800ms, skip if empty).
+  const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fireTyping = useCallback(
+    (value: string) => {
+      if (!value.trim()) return;
+      if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = setTimeout(() => {
+        fetch("/api/chat/typing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ threadId }),
+        }).catch(() => {
+          /* ignore */
+        });
+      }, 800);
+    },
+    [threadId],
+  );
+
   // Track scroll position so we only auto-stick when user is already near bottom.
   const onScroll = useCallback(() => {
     const el = listRef.current;
@@ -108,7 +194,11 @@ export function ChatThreadView(props: ChatThreadViewProps) {
   }, []);
 
   // Poll for new messages every 3s while visible.
+  // M15: skip polling when Pusher channel is active (real-time takes over).
   useEffect(() => {
+    // If Pusher is connected and subscribed, skip polling.
+    if (pusherChannel) return;
+
     let cancelled = false;
 
     async function poll() {
@@ -140,7 +230,7 @@ export function ChatThreadView(props: ChatThreadViewProps) {
       cancelled = true;
       clearInterval(iv);
     };
-  }, [threadId, messages]);
+  }, [threadId, messages, pusherChannel]);
 
   // Mark read on mount + every 5s.
   useEffect(() => {
@@ -155,8 +245,6 @@ export function ChatThreadView(props: ChatThreadViewProps) {
     const iv = setInterval(markRead, 5000);
     return () => clearInterval(iv);
   }, [threadId]);
-
-  // TODO(pusher): typing events — real-time typing indicator would go here.
 
   async function handleSend(e?: React.FormEvent) {
     e?.preventDefault();
@@ -304,6 +392,11 @@ export function ChatThreadView(props: ChatThreadViewProps) {
         )}
       </div>
 
+      {/* M15: typing indicator strip */}
+      {Object.keys(typingUsers).length > 0 ? (
+        <TypingStrip typingUsers={typingUsers} />
+      ) : null}
+
       {replyTo ? (
         <div className="flex items-center justify-between border-t border-border bg-muted/50 px-3 py-1.5 text-xs">
           <div className="min-w-0 flex-1 truncate">
@@ -330,7 +423,10 @@ export function ChatThreadView(props: ChatThreadViewProps) {
         {props.groupSlug ? (
           <MentionTextarea
             value={body}
-            onChange={setBody}
+            onChange={(val) => {
+              setBody(val);
+              fireTyping(val);
+            }}
             groupSlug={props.groupSlug}
             placeholder="Type a message… use @ to mention"
             rows={2}
@@ -344,7 +440,10 @@ export function ChatThreadView(props: ChatThreadViewProps) {
         ) : (
           <Textarea
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => {
+              setBody(e.target.value);
+              fireTyping(e.target.value);
+            }}
             placeholder="Type a message…"
             rows={2}
             onKeyDown={(e) => {
@@ -510,5 +609,35 @@ function MessageRow({
         ) : null}
       </div>
     </li>
+  );
+}
+
+/** M15: Typing indicator strip — shown below the message list */
+function TypingStrip({
+  typingUsers,
+}: {
+  typingUsers: Record<
+    string,
+    { handle: string; name: string | null; expiresAt: number }
+  >;
+}) {
+  const names = Object.values(typingUsers).map(
+    (u) => u.name ?? `@${u.handle}`,
+  );
+  if (names.length === 0) return null;
+
+  let label: string;
+  if (names.length === 1) {
+    label = `${names[0]} is typing…`;
+  } else if (names.length === 2) {
+    label = `${names[0]} and ${names[1]} are typing…`;
+  } else {
+    label = `${names.slice(0, 2).join(", ")} and ${names.length - 2} others are typing…`;
+  }
+
+  return (
+    <div className="border-t border-border bg-muted/30 px-3 py-1 text-[11px] text-muted-foreground italic">
+      {label}
+    </div>
   );
 }

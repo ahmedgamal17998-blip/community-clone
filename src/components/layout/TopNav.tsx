@@ -45,7 +45,7 @@ export async function TopNav({ activeGroupSlug }: TopNavProps = {}) {
           <LocaleToggle />
           {session?.user ? (
             <>
-              <NotificationBell />
+              <NotificationBell viewerId={session.user.id} />
               <Button variant="ghost" size="icon" aria-label="Apps" title="Apps">
                 <Grid3x3 className="h-5 w-5" />
               </Button>

@@ -3,6 +3,10 @@
 /**
  * NotificationBell — top-nav bell with unread badge + dropdown list.
  * Polls /api/notifications/unread-count every 30s while tab is visible.
+ *
+ * M15: when Pusher is available, subscribes to private-user-{viewerId} for
+ * live notification.created events and shows a brief toast. Polling kept as
+ * fallback when Pusher is unavailable.
  */
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
@@ -17,6 +21,7 @@ import {
   markAllReadAction,
   markReadAction,
 } from "@/server/notifications";
+import { useChannel, useEvent } from "@/lib/pusher-client";
 
 type Actor = {
   id: string;
@@ -64,13 +69,39 @@ function describe(type: string, actorName: string): string {
   }
 }
 
-export function NotificationBell() {
+type ToastItem = { id: string; snippet: string | null; href: string };
+
+export function NotificationBell({ viewerId }: { viewerId?: string }) {
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [, startTransition] = useTransition();
   const mountedRef = useRef(true);
+
+  // M15: subscribe to private-user channel for live notifications.
+  const pusherChannel = useChannel(viewerId ? `private-user-${viewerId}` : null);
+
+  useEvent<{ id: string; type: string; snippet: string | null; href: string }>(
+    pusherChannel,
+    "notification.created",
+    (data) => {
+      if (!data?.id) return;
+      // Increment bell badge.
+      setCount((c) => c + 1);
+      // Show a brief toast.
+      const toast: ToastItem = {
+        id: data.id,
+        snippet: data.snippet ?? null,
+        href: data.href,
+      };
+      setToasts((prev) => [...prev, toast]);
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+      }, 4000);
+    },
+  );
 
   // Poll unread count.
   const fetchCount = useCallback(async () => {
@@ -89,6 +120,12 @@ export function NotificationBell() {
   useEffect(() => {
     mountedRef.current = true;
     fetchCount();
+    // M15: skip polling interval when Pusher channel is active.
+    if (pusherChannel) {
+      return () => {
+        mountedRef.current = false;
+      };
+    }
     const iv = setInterval(() => {
       if (document.visibilityState === "visible") fetchCount();
     }, 30_000);
@@ -101,7 +138,7 @@ export function NotificationBell() {
       clearInterval(iv);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [fetchCount]);
+  }, [fetchCount, pusherChannel]);
 
   // Load list when opened.
   useEffect(() => {
@@ -154,23 +191,42 @@ export function NotificationBell() {
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Notifications"
-          title="Notifications"
-          className="relative"
-        >
-          <Bell className="h-5 w-5" />
-          {count > 0 ? (
-            <span className="absolute -top-0.5 -end-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
-              {count > 99 ? "99+" : count}
-            </span>
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
+    <>
+      {/* M15: live notification toasts (fixed bottom-right, auto-fade after 4s) */}
+      {toasts.length > 0 ? (
+        <div className="fixed bottom-4 end-4 z-50 flex flex-col gap-2 pointer-events-none">
+          {toasts.map((t) => (
+            <a
+              key={t.id}
+              href={t.href}
+              className="pointer-events-auto flex max-w-xs items-start gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-lg text-sm animate-in fade-in slide-in-from-bottom-2"
+            >
+              <Bell className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <span className="min-w-0 truncate text-foreground">
+                {t.snippet ?? "New notification"}
+              </span>
+            </a>
+          ))}
+        </div>
+      ) : null}
+
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Notifications"
+            title="Notifications"
+            className="relative"
+          >
+            <Bell className="h-5 w-5" />
+            {count > 0 ? (
+              <span className="absolute -top-0.5 -end-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
+                {count > 99 ? "99+" : count}
+              </span>
+            ) : null}
+          </Button>
+        </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[360px] max-h-[520px] overflow-y-auto p-0">
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <div className="text-sm font-semibold">Notifications</div>
@@ -204,6 +260,7 @@ export function NotificationBell() {
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+    </>
   );
 }
 

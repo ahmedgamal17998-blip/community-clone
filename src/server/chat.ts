@@ -18,6 +18,7 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { createNotification, notifyMentions } from "@/server/notifications";
+import { getPusherServer } from "@/lib/pusher-server";
 
 const DEFAULT_PAGE = 30;
 
@@ -396,7 +397,46 @@ export async function sendMessageAction(formData: FormData) {
       mediaType: parsed.data.mediaType ?? null,
       replyToId: parsed.data.replyToId ?? null,
     },
+    include: {
+      author: { select: { id: true, name: true, handle: true, image: true } },
+      replyTo: {
+        select: {
+          id: true,
+          body: true,
+          authorId: true,
+          author: { select: { name: true, handle: true } },
+        },
+      },
+    },
   });
+
+  // M15: trigger real-time event — silently skip if Pusher is not configured.
+  const pusher = getPusherServer();
+  if (pusher) {
+    await pusher
+      .trigger(`private-thread-${parsed.data.threadId}`, "new-message", {
+        id: msg.id,
+        threadId: msg.threadId,
+        authorId: msg.authorId,
+        body: msg.body,
+        mediaUrl: msg.mediaUrl,
+        mediaType: msg.mediaType,
+        pinned: msg.pinned,
+        editedAt: msg.editedAt?.toISOString() ?? null,
+        createdAt: msg.createdAt.toISOString(),
+        author: msg.author,
+        replyTo: msg.replyTo
+          ? {
+              id: msg.replyTo.id,
+              body: msg.replyTo.body,
+              author: msg.replyTo.author,
+            }
+          : null,
+      })
+      .catch(() => {
+        /* ignore — non-critical */
+      });
+  }
 
   await db.chatThread.update({
     where: { id: parsed.data.threadId },

@@ -17,6 +17,7 @@ import { z } from "zod";
 import { Resend as ResendClient } from "resend";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
+import { getPusherServer } from "@/lib/pusher-server";
 
 export type NotificationType =
   | "MENTION"
@@ -208,6 +209,21 @@ export async function createNotification(input: CreateNotificationInput) {
       },
       select: { id: true },
     });
+
+    // M15: push live notification event — silently skip if Pusher unavailable.
+    const pusher = getPusherServer();
+    if (pusher && created) {
+      await pusher
+        .trigger(`private-user-${input.userId}`, "notification.created", {
+          id: created.id,
+          type: input.type,
+          snippet: truncate(input.snippet ?? null),
+          href: input.href,
+        })
+        .catch(() => {
+          /* ignore — non-critical */
+        });
+    }
   }
 
   if (wantsEmail) {
