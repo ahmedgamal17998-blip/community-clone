@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/server/db";
-import { buildGuestToken } from "@/server/booking-actions";
+import { buildGuestToken } from "@/lib/guest-token";
 import { Button } from "@/components/ui/button";
 
 export default async function GuestBookingConfirmPage({

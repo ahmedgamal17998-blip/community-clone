@@ -25,7 +25,7 @@ import {
   sendBookingCancellation,
   sendBookingReschedule,
 } from "@/server/email-booking";
-import { createHmac } from "node:crypto";
+import { buildGuestToken } from "@/lib/guest-token";
 
 // ─── Availability ──────────────────────────────────────────────────────────
 
@@ -119,11 +119,7 @@ const createBookingSchema = z.object({
   guestName: z.string().max(200).optional().nullable(),
 });
 
-/** Build a short HMAC token for guest booking confirmation links. */
-export function buildGuestToken(bookingId: string): string {
-  const secret = process.env.AUTH_SECRET ?? "dev-secret";
-  return createHmac("sha256", secret).update(bookingId).digest("hex").slice(0, 32);
-}
+// buildGuestToken moved to src/lib/guest-token.ts (cannot be non-async in "use server" file)
 
 export async function createBookingAction(formData: FormData) {
   const session = await auth();
