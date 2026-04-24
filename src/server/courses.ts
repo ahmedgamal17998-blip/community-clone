@@ -212,6 +212,8 @@ const createCourseSchema = z.object({
   coverUrl: z.string().trim().url().optional().or(z.literal("")),
   priceType: z.enum(["FREE", "PAID"]).default("FREE"),
   priceLabel: z.string().trim().max(40).optional(),
+  priceDollars: z.coerce.number().min(0).max(99999).optional(),
+  stripePriceId: z.string().trim().max(100).optional(),
   published: z.string().optional(), // "on" | undefined
 });
 
@@ -226,6 +228,8 @@ export async function createCourseAction(formData: FormData) {
     coverUrl: formData.get("coverUrl") || undefined,
     priceType: formData.get("priceType") || "FREE",
     priceLabel: formData.get("priceLabel") || undefined,
+    priceDollars: formData.get("priceDollars") || undefined,
+    stripePriceId: formData.get("stripePriceId") || undefined,
     published: formData.get("published") || undefined,
   });
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid input");
@@ -251,6 +255,11 @@ export async function createCourseAction(formData: FormData) {
 
   const slug = await uniqueCourseSlug(parsed.data.groupId, parsed.data.title);
 
+  const priceAmount =
+    parsed.data.priceDollars != null
+      ? Math.round(parsed.data.priceDollars * 100)
+      : null;
+
   const course = await db.course.create({
     data: {
       groupId: parsed.data.groupId,
@@ -260,6 +269,8 @@ export async function createCourseAction(formData: FormData) {
       coverUrl: parsed.data.coverUrl || null,
       priceType: parsed.data.priceType,
       priceLabel: parsed.data.priceLabel,
+      priceAmount,
+      stripePriceId: parsed.data.stripePriceId || null,
       published: !!parsed.data.published,
       position,
     },
@@ -276,6 +287,8 @@ const updateCourseSchema = z.object({
   coverUrl: z.string().trim().url().optional().or(z.literal("")),
   priceType: z.enum(["FREE", "PAID"]).default("FREE"),
   priceLabel: z.string().trim().max(40).optional(),
+  priceDollars: z.coerce.number().min(0).max(99999).optional(),
+  stripePriceId: z.string().trim().max(100).optional(),
   published: z.string().optional(),
 });
 
@@ -290,6 +303,8 @@ export async function updateCourseAction(formData: FormData) {
     coverUrl: formData.get("coverUrl") || undefined,
     priceType: formData.get("priceType") || "FREE",
     priceLabel: formData.get("priceLabel") || undefined,
+    priceDollars: formData.get("priceDollars") || undefined,
+    stripePriceId: formData.get("stripePriceId") || undefined,
     published: formData.get("published") || undefined,
   });
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid input");
@@ -306,6 +321,11 @@ export async function updateCourseAction(formData: FormData) {
     min: "ADMIN",
   });
 
+  const updatePriceAmount =
+    parsed.data.priceDollars != null
+      ? Math.round(parsed.data.priceDollars * 100)
+      : null;
+
   await db.course.update({
     where: { id: course.id },
     data: {
@@ -314,6 +334,8 @@ export async function updateCourseAction(formData: FormData) {
       coverUrl: parsed.data.coverUrl || null,
       priceType: parsed.data.priceType,
       priceLabel: parsed.data.priceLabel,
+      priceAmount: updatePriceAmount,
+      stripePriceId: parsed.data.stripePriceId || null,
       published: !!parsed.data.published,
     },
   });

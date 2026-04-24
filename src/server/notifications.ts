@@ -30,7 +30,8 @@ export type NotificationType =
   | "EVENT_CREATED"
   | "EVENT_REMINDER"
   | "BOOKING_CREATED"
-  | "BOOKING_CANCELLED";
+  | "BOOKING_CANCELLED"
+  | "COURSE_ENROLLED";
 
 type Channel = "IN_APP" | "EMAIL" | "BOTH" | "OFF";
 

@@ -30,6 +30,20 @@ export default async function GroupLearningPage({
 
   const courses = await listCoursesForGroup(group.id, session.user.id);
 
+  // M16: load user enrollments for this group to pass to CourseCard.
+  const courseIds = courses.map((c) => c.id);
+  const enrollments = courseIds.length
+    ? await db.courseEnrollment.findMany({
+        where: {
+          userId: session.user.id,
+          courseId: { in: courseIds },
+          status: "ACTIVE",
+        },
+        select: { courseId: true },
+      })
+    : [];
+  const enrolledSet = new Set(enrollments.map((e) => e.courseId));
+
   if (courses.length === 0 && !canManage) {
     return (
       <section className="rounded-xl border border-dashed border-border bg-card/40 p-8 text-center">
@@ -61,8 +75,11 @@ export default async function GroupLearningPage({
             coverUrl={c.coverUrl}
             priceType={c.priceType}
             priceLabel={c.priceLabel}
+            priceAmount={c.priceAmount ?? null}
+            currency={c.currency}
             published={c.published}
             progressPercent={c.progressPercent}
+            enrolled={enrolledSet.has(c.id)}
           />
         ))}
         {canManage ? (

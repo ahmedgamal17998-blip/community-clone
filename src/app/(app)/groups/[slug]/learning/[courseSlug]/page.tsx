@@ -4,15 +4,19 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { getCourse, deleteCourseAction } from "@/server/courses";
+import { getEnrollmentStatus } from "@/server/stripe-actions";
+import { getStripePK } from "@/lib/stripe";
 import { Button } from "@/components/ui/button";
 import { LessonSidebar } from "@/components/courses/LessonSidebar";
+import { CourseAccessGate } from "@/components/courses/CourseAccessGate";
+import { AdminEnrollmentPanel } from "@/components/courses/AdminEnrollmentPanel";
 
 export default async function CoursePage({
   params,
   searchParams,
 }: {
   params: { slug: string; courseSlug: string };
-  searchParams?: { done?: string };
+  searchParams?: { done?: string; enrolled?: string; blocked?: string };
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -30,6 +34,24 @@ export default async function CoursePage({
   });
   if (!data) notFound();
   const { course, lessons, progressPercent, isAdmin, nextLesson } = data;
+
+  const enrollment = await getEnrollmentStatus(session.user.id, course.id);
+  const enrolled = enrollment?.status === "ACTIVE";
+  const stripeConfigured = !!getStripePK();
+
+  // For admin enrollment panel, load all enrollments.
+  const adminEnrollments = isAdmin
+    ? await db.courseEnrollment.findMany({
+        where: { courseId: course.id },
+        orderBy: { enrolledAt: "desc" },
+        include: {
+          user: { select: { name: true, email: true, handle: true } },
+        },
+      })
+    : [];
+
+  const isPaid = course.priceType === "PAID";
+  const canAccessLessons = !isPaid || enrolled || isAdmin;
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
@@ -62,9 +84,21 @@ export default async function CoursePage({
       </aside>
 
       <div className="space-y-6">
+        {searchParams?.enrolled === "1" ? (
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
+            🎉 Enrollment successful! You now have full access.
+          </div>
+        ) : null}
+
         {searchParams?.done === "1" ? (
           <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-300">
             Course completed. Nice work!
+          </div>
+        ) : null}
+
+        {searchParams?.blocked === "1" ? (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+            This is a paid course. Enroll below to access lessons.
           </div>
         ) : null}
 
@@ -123,26 +157,46 @@ export default async function CoursePage({
           </div>
         </header>
 
-        {nextLesson ? (
-          <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                {progressPercent === 0 ? "Start here" : "Continue"}
-              </p>
-              <p className="text-sm font-medium">{nextLesson.title}</p>
+        {/* Access gate / CTA */}
+        <CourseAccessGate
+          course={{
+            id: course.id,
+            priceType: course.priceType,
+            priceAmount: course.priceAmount ?? null,
+            currency: course.currency ?? "usd",
+          }}
+          enrolled={enrolled}
+          stripeConfigured={stripeConfigured}
+        >
+          {nextLesson && canAccessLessons ? (
+            <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {progressPercent === 0 ? "Start here" : "Continue"}
+                </p>
+                <p className="text-sm font-medium">{nextLesson.title}</p>
+              </div>
+              <Button asChild>
+                <Link
+                  href={`/groups/${group.slug}/learning/${course.slug}/lessons/${nextLesson.slug}`}
+                >
+                  {progressPercent === 0 ? "Start course" : "Resume"}
+                </Link>
+              </Button>
             </div>
-            <Button asChild>
-              <Link
-                href={`/groups/${group.slug}/learning/${course.slug}/lessons/${nextLesson.slug}`}
-              >
-                {progressPercent === 0 ? "Start course" : "Resume"}
-              </Link>
-            </Button>
-          </div>
-        ) : isAdmin ? (
-          <div className="rounded-lg border border-dashed border-border bg-card/40 p-4 text-sm text-muted-foreground">
-            Add your first lesson to get started.
-          </div>
+          ) : isAdmin && lessons.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border bg-card/40 p-4 text-sm text-muted-foreground">
+              Add your first lesson to get started.
+            </div>
+          ) : null}
+        </CourseAccessGate>
+
+        {/* Admin: enrollment management */}
+        {isAdmin ? (
+          <AdminEnrollmentPanel
+            courseId={course.id}
+            enrollments={adminEnrollments}
+          />
         ) : null}
       </div>
     </div>

@@ -5,6 +5,7 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { getCourse, getLesson, deleteLessonAction } from "@/server/courses";
+import { getEnrollmentStatus } from "@/server/stripe-actions";
 import { Button } from "@/components/ui/button";
 import { LessonSidebar } from "@/components/courses/LessonSidebar";
 import { LessonPlayer } from "@/components/courses/LessonPlayer";
@@ -39,6 +40,14 @@ export default async function LessonPage({
   if (!courseData) notFound();
 
   const { course, lessons, progressPercent } = courseData;
+
+  // M16: gate paid course access.
+  if (course.priceType === "PAID" && !isAdmin) {
+    const enrollment = await getEnrollmentStatus(session.user.id, course.id);
+    if (!enrollment || enrollment.status !== "ACTIVE") {
+      redirect(`/groups/${group.slug}/learning/${course.slug}?blocked=1`);
+    }
+  }
   const lessonData = await getLesson({
     courseId: course.id,
     slug: params.lessonSlug,

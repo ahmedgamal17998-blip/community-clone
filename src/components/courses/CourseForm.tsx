@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +18,9 @@ type CourseShape = {
   coverUrl: string | null;
   priceType: string;
   priceLabel: string | null;
+  stripePriceId: string | null;
+  priceAmount: number | null;
+  currency: string;
   published: boolean;
 };
 
@@ -26,6 +32,12 @@ export function CourseForm(props: Props) {
   const isEdit = props.mode === "edit";
   const c = isEdit ? props.course : null;
   const action = isEdit ? updateCourseAction : createCourseAction;
+
+  const [priceType, setPriceType] = useState(c?.priceType ?? "FREE");
+
+  // Convert cents → dollars for display.
+  const defaultPriceDollars =
+    c?.priceAmount != null ? (c.priceAmount / 100).toFixed(2) : "";
 
   return (
     <form action={action} className="space-y-5">
@@ -61,15 +73,16 @@ export function CourseForm(props: Props) {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="priceType">Price</Label>
+          <Label htmlFor="priceType">Price type</Label>
           <select
             id="priceType"
             name="priceType"
-            defaultValue={c?.priceType ?? "FREE"}
+            value={priceType}
+            onChange={(e) => setPriceType(e.target.value)}
             className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           >
             <option value="FREE">Free</option>
-            <option value="PAID">Paid (coming soon)</option>
+            <option value="PAID">Paid</option>
           </select>
         </div>
         <div className="space-y-1.5">
@@ -83,6 +96,38 @@ export function CourseForm(props: Props) {
           />
         </div>
       </div>
+
+      {priceType === "PAID" ? (
+        <div className="grid grid-cols-1 gap-4 rounded-lg border border-border bg-muted/30 p-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="priceDollars">Price (USD)</Label>
+            <Input
+              id="priceDollars"
+              name="priceDollars"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={defaultPriceDollars}
+              placeholder="29.00"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Enter dollar amount (e.g. 29.00 = $29). Stored as cents internally.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="stripePriceId">Stripe Price ID (optional)</Label>
+            <Input
+              id="stripePriceId"
+              name="stripePriceId"
+              defaultValue={c?.stripePriceId ?? ""}
+              placeholder="price_1ABC…"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              If set, this Stripe Price ID is used directly. Otherwise an ad-hoc price is created.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <label className="flex items-center gap-2 text-sm">
         <input

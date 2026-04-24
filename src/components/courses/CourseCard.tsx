@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -9,8 +10,11 @@ type Props = {
   coverUrl?: string | null;
   priceType: string; // FREE | PAID
   priceLabel?: string | null;
+  priceAmount?: number | null;
+  currency?: string | null;
   published: boolean;
   progressPercent: number;
+  enrolled?: boolean;
 };
 
 export function CourseCard({
@@ -20,10 +24,23 @@ export function CourseCard({
   coverUrl,
   priceType,
   priceLabel,
+  priceAmount,
+  currency,
   published,
   progressPercent,
+  enrolled,
 }: Props) {
   const isPaid = priceType === "PAID";
+  const isLocked = isPaid && !enrolled;
+
+  const priceDisplay =
+    priceAmount != null
+      ? new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: currency ?? "usd",
+        }).format(priceAmount / 100)
+      : priceLabel ?? null;
+
   return (
     <div className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
       <div className="relative aspect-[16/9] w-full overflow-hidden">
@@ -43,16 +60,27 @@ export function CourseCard({
             }}
           />
         )}
+        {/* Lock overlay for paid+unenrolled */}
+        {isLocked && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+            <Lock className="h-8 w-8 text-white/80" />
+          </div>
+        )}
         <div className="absolute left-2 top-2 flex gap-1">
           {isPaid ? (
             <span className="rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-              Paid — Coming soon
+              {priceDisplay ?? "Paid"}
             </span>
           ) : (
             <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
               Free
             </span>
           )}
+          {enrolled && isPaid ? (
+            <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+              Enrolled
+            </span>
+          ) : null}
           {!published ? (
             <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground">
               Draft
@@ -79,12 +107,9 @@ export function CourseCard({
           </div>
         ) : null}
         <div className="mt-auto pt-2">
-          <Button asChild size="sm" className={cn("w-full", isPaid && "opacity-70")}>
-            <Link href={href}>{isPaid ? "View" : "Open"}</Link>
+          <Button asChild size="sm" className={cn("w-full", isLocked && "opacity-70")}>
+            <Link href={href}>{isPaid && !enrolled ? "View" : "Open"}</Link>
           </Button>
-          {isPaid && priceLabel ? (
-            <p className="mt-1 text-center text-[10px] text-muted-foreground">{priceLabel}</p>
-          ) : null}
         </div>
       </div>
     </div>
