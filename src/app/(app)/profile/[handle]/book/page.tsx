@@ -1,19 +1,19 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { computeAvailableSlots } from "@/server/booking-slots";
 import { BookingPicker } from "@/components/booking/BookingPicker";
+import { GuestBookingPicker } from "@/components/booking/GuestBookingPicker";
 
 export default async function BookProfilePage({
   params,
   searchParams,
 }: {
   params: { handle: string };
-  searchParams?: { groupId?: string };
+  searchParams?: { groupId?: string; email?: string; name?: string };
 }) {
   const session = await auth();
-  if (!session?.user) redirect(`/login?next=/profile/${params.handle}/book`);
 
   const handle = params.handle.replace(/^@/, "");
   const host = await db.user.findUnique({
@@ -29,7 +29,7 @@ export default async function BookProfilePage({
   });
   if (!host) notFound();
 
-  if (host.id === session.user.id) {
+  if (session?.user && host.id === session.user.id) {
     return (
       <section className="mx-auto max-w-xl py-10 text-center">
         <h1 className="text-lg font-semibold">That&apos;s you!</h1>
@@ -67,6 +67,11 @@ export default async function BookProfilePage({
     to,
   });
 
+  const slotsStr = slots.map((s) => ({
+    startsAt: s.startsAt.toISOString(),
+    endsAt: s.endsAt.toISOString(),
+  }));
+
   return (
     <section className="mx-auto max-w-5xl space-y-6">
       <header className="flex items-center gap-3">
@@ -78,6 +83,16 @@ export default async function BookProfilePage({
           </p>
         </div>
       </header>
+
+      {!session?.user ? (
+        <div className="rounded-md border border-blue-600/40 bg-blue-600/10 p-3 text-sm text-blue-800 dark:text-blue-200">
+          <strong>No account needed.</strong> Book as a guest below — just enter your name and email.{" "}
+          <Link href={`/login?next=/profile/${host.handle}/book`} className="underline hover:no-underline">
+            Sign in
+          </Link>{" "}
+          if you have an account.
+        </div>
+      ) : null}
 
       {!host.googleAccount ? (
         <div className="rounded-md border border-amber-600/40 bg-amber-600/10 p-3 text-sm text-amber-800 dark:text-amber-200">
@@ -93,15 +108,21 @@ export default async function BookProfilePage({
             No slots available in the next 14 days. Try again later.
           </p>
         </div>
-      ) : (
+      ) : session?.user ? (
         <BookingPicker
           hostHandle={host.handle}
           hostName={host.name ?? host.handle}
-          slots={slots.map((s) => ({
-            startsAt: s.startsAt.toISOString(),
-            endsAt: s.endsAt.toISOString(),
-          }))}
+          slots={slotsStr}
           groupId={searchParams?.groupId ?? null}
+        />
+      ) : (
+        <GuestBookingPicker
+          hostHandle={host.handle}
+          hostName={host.name ?? host.handle}
+          slots={slotsStr}
+          groupId={searchParams?.groupId ?? null}
+          prefillEmail={searchParams?.email ?? ""}
+          prefillName={searchParams?.name ?? ""}
         />
       )}
     </section>

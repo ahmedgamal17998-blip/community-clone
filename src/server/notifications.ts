@@ -31,6 +31,7 @@ export type NotificationType =
   | "EVENT_REMINDER"
   | "BOOKING_CREATED"
   | "BOOKING_CANCELLED"
+  | "BOOKING_RESCHEDULED"
   | "COURSE_ENROLLED";
 
 type Channel = "IN_APP" | "EMAIL" | "BOTH" | "OFF";
@@ -68,6 +69,7 @@ function prefFor(type: NotificationType, prefs: PrefsRow): Channel {
       return "BOTH";
     case "BOOKING_CREATED":
     case "BOOKING_CANCELLED":
+    case "BOOKING_RESCHEDULED":
       return "IN_APP";
     default:
       return "IN_APP";

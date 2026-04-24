@@ -4,11 +4,15 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { Button } from "@/components/ui/button";
 import { CancelBookingButton } from "@/components/booking/CancelBookingButton";
+import { ReschedulePanel } from "@/components/booking/ReschedulePanel";
+import { computeAvailableSlots } from "@/server/booking-slots";
 
 export default async function BookingDetailPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams?: { rescheduled?: string };
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -16,9 +20,11 @@ export default async function BookingDetailPage({
   const b = await db.booking.findUnique({
     where: { id: params.id },
     include: {
-      host: { select: { id: true, name: true, handle: true, email: true } },
+      host: { select: { id: true, name: true, handle: true, email: true, availability: true } },
       invitee: { select: { id: true, name: true, handle: true, email: true } },
       group: { select: { slug: true, name: true } },
+      rescheduledFrom: { select: { id: true } },
+      rescheduledTo: { select: { id: true } },
     },
   });
   if (!b) notFound();
@@ -27,16 +33,40 @@ export default async function BookingDetailPage({
   if (b.hostId !== me && b.inviteeId !== me) notFound();
 
   const isCancelled = b.status === "CANCELLED";
-  const canCancel = !isCancelled && (b.hostId === me || b.inviteeId === me);
+  const isRescheduled = b.status === "RESCHEDULED";
+  const isDone = isCancelled || isRescheduled;
+  const canAct = !isDone && (b.hostId === me || b.inviteeId === me);
+
+  // Fetch slots for reschedule picker (only if can reschedule)
+  let slots: { startsAt: string; endsAt: string }[] = [];
+  if (canAct) {
+    const from = new Date();
+    const to = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    const rawSlots = await computeAvailableSlots({ hostUserId: b.hostId, from, to });
+    slots = rawSlots.map((s) => ({
+      startsAt: s.startsAt.toISOString(),
+      endsAt: s.endsAt.toISOString(),
+    }));
+  }
+
+  const wasRescheduled = searchParams?.rescheduled === "1";
 
   return (
     <section className="mx-auto max-w-2xl space-y-6">
+      {wasRescheduled ? (
+        <div className="rounded-md border border-emerald-600/40 bg-emerald-600/10 p-3 text-sm text-emerald-800 dark:text-emerald-200">
+          Booking successfully rescheduled!
+        </div>
+      ) : null}
+
       <header>
         <div className="flex items-center gap-2 text-xs">
           <span
             className={`rounded-full px-2 py-0.5 font-semibold uppercase tracking-wide ${
               isCancelled
                 ? "bg-destructive/10 text-destructive"
+                : isRescheduled
+                ? "bg-amber-600/10 text-amber-700 dark:text-amber-300"
                 : "bg-emerald-600/10 text-emerald-700 dark:text-emerald-300"
             }`}
           >
@@ -96,7 +126,7 @@ export default async function BookingDetailPage({
             </>
           ) : null}
 
-          {b.meetLink && !isCancelled ? (
+          {b.meetLink && !isDone ? (
             <>
               <dt className="text-muted-foreground">Meet</dt>
               <dd>
@@ -124,6 +154,28 @@ export default async function BookingDetailPage({
               ) : null}
             </>
           ) : null}
+
+          {isRescheduled && b.rescheduledTo ? (
+            <>
+              <dt className="text-muted-foreground">Rescheduled to</dt>
+              <dd>
+                <Link href={`/bookings/${b.rescheduledTo.id}`} className="text-primary hover:underline">
+                  View new booking
+                </Link>
+              </dd>
+            </>
+          ) : null}
+
+          {b.rescheduledFrom ? (
+            <>
+              <dt className="text-muted-foreground">Rescheduled from</dt>
+              <dd>
+                <Link href={`/bookings/${b.rescheduledFrom.id}`} className="text-muted-foreground hover:underline text-xs">
+                  View original booking
+                </Link>
+              </dd>
+            </>
+          ) : null}
         </dl>
       </div>
 
@@ -131,8 +183,18 @@ export default async function BookingDetailPage({
         <Button asChild variant="outline">
           <a href={`/api/bookings/${b.id}/ics`}>Add to calendar (.ics)</a>
         </Button>
-        {canCancel ? <CancelBookingButton bookingId={b.id} /> : null}
+        {canAct ? <CancelBookingButton bookingId={b.id} /> : null}
       </div>
+
+      {canAct && slots.length > 0 ? (
+        <ReschedulePanel
+          bookingId={b.id}
+          currentTitle={b.title}
+          currentDescription={b.description ?? ""}
+          slots={slots}
+          hostHandle={b.host.handle}
+        />
+      ) : null}
     </section>
   );
 }

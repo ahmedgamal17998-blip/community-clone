@@ -720,7 +720,7 @@ model Booking {
   startsAt         DateTime
   endsAt           DateTime
   timezone         String    @default("UTC")
-  status           String    @default("CONFIRMED")
+  status           String    @default("CONFIRMED") // CONFIRMED | CANCELLED | RESCHEDULED
   googleEventId    String?
   googleCalendarId String?
   meetLink         String?
@@ -729,12 +729,21 @@ model Booking {
   cancelledAt      DateTime?
   cancelledById    String?
   groupId          String?
+  // M17: reschedule chain
+  rescheduledFromId String?
+  rescheduledToId   String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   host    User   @relation("BookingHost", fields: [hostId], references: [id], onDelete: Cascade)
   invitee User?  @relation("BookingInvitee", fields: [inviteeId], references: [id], onDelete: SetNull)
   group   Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  // Self-relations for reschedule chain
+  rescheduledFrom  Booking?  @relation("RescheduledFrom", fields: [rescheduledFromId], references: [id], onDelete: SetNull)
+  rescheduledTo    Booking?  @relation("RescheduledTo", fields: [rescheduledToId], references: [id], onDelete: SetNull)
+  previousVersions Booking[] @relation("RescheduledFrom")
+  nextVersion      Booking[] @relation("RescheduledTo")
 
   @@index([hostId, startsAt])
   @@index([inviteeId, startsAt])

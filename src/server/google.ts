@@ -183,6 +183,46 @@ export async function createCalendarEventWithMeet(params: {
   }
 }
 
+export async function patchCalendarEvent(params: {
+  hostUserId: string;
+  eventId: string;
+  calendarId?: string;
+  startsAt: Date;
+  endsAt: Date;
+  timezone: string;
+  title?: string;
+  description?: string | null;
+}): Promise<{ meetLink: string | null; conferenceId: string | null } | null> {
+  const authed = await getClientForUser(params.hostUserId);
+  if (!authed) return null;
+  const calendar = google.calendar({ version: "v3", auth: authed.client });
+  try {
+    const res = await calendar.events.patch({
+      calendarId: params.calendarId ?? "primary",
+      eventId: params.eventId,
+      sendUpdates: "all",
+      requestBody: {
+        summary: params.title,
+        description: params.description ?? undefined,
+        start: { dateTime: params.startsAt.toISOString(), timeZone: params.timezone },
+        end: { dateTime: params.endsAt.toISOString(), timeZone: params.timezone },
+      },
+    });
+    const ev = res.data;
+    const entry = ev.conferenceData?.entryPoints?.find(
+      (e) => e.entryPointType === "video",
+    );
+    return {
+      meetLink: entry?.uri ?? null,
+      conferenceId: ev.conferenceData?.conferenceId ?? null,
+    };
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[google] calendar patch failed", err);
+    return null;
+  }
+}
+
 export async function cancelCalendarEvent(params: {
   hostUserId: string;
   eventId: string;

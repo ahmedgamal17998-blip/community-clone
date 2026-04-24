@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { RRule, type Weekday } from "rrule";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,19 +20,41 @@ const COLOR_SWATCHES = [
   "#64748b", // slate
 ];
 
+const WEEKDAY_OPTIONS = [
+  { label: "Mon", rrDay: RRule.MO, value: "MO" },
+  { label: "Tue", rrDay: RRule.TU, value: "TU" },
+  { label: "Wed", rrDay: RRule.WE, value: "WE" },
+  { label: "Thu", rrDay: RRule.TH, value: "TH" },
+  { label: "Fri", rrDay: RRule.FR, value: "FR" },
+  { label: "Sat", rrDay: RRule.SA, value: "SA" },
+  { label: "Sun", rrDay: RRule.SU, value: "SU" },
+];
+
+type RecurrencePreset = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY_DATE" | "MONTHLY_WEEKDAY" | "CUSTOM";
+type EndCondition = "NEVER" | "ON_DATE" | "AFTER_N";
+
 type InitialEvent = {
   id: string;
   title: string;
   description: string | null;
-  startsAt: string; // ISO local datetime for input
+  startsAt: string;
   endsAt: string;
   timezone: string;
   color: string;
   category: string | null;
   locationUrl: string | null;
-  recurrence: "NONE" | "WEEKLY";
+  recurrence: string;
   recurrenceEndsAt: string | null;
 };
+
+/** Convert a stored recurrence string to the builder preset */
+function inferPreset(recurrence: string): RecurrencePreset {
+  if (!recurrence || recurrence === "NONE") return "NONE";
+  if (recurrence === "DAILY" || recurrence === "FREQ=DAILY") return "DAILY";
+  if (recurrence === "WEEKLY" || recurrence === "FREQ=WEEKLY" || recurrence.startsWith("FREQ=WEEKLY;BYDAY=")) return "WEEKLY";
+  if (recurrence.startsWith("FREQ=MONTHLY")) return "MONTHLY_DATE";
+  return "CUSTOM";
+}
 
 export function EventForm({
   groupId,
@@ -59,14 +82,88 @@ export function EventForm({
   const [color, setColor] = useState(initial?.color ?? COLOR_SWATCHES[0]);
   const [category, setCategory] = useState(initial?.category ?? "");
   const [locationUrl, setLocationUrl] = useState(initial?.locationUrl ?? "");
-  const [recurrence, setRecurrence] = useState<"NONE" | "WEEKLY">(
-    initial?.recurrence ?? "NONE",
-  );
-  const [recurrenceEndsAt, setRecurrenceEndsAt] = useState(
-    initial?.recurrenceEndsAt ?? "",
+
+  // Recurrence builder state
+  const [preset, setPreset] = useState<RecurrencePreset>(() => inferPreset(initial?.recurrence ?? "NONE"));
+  const [weekdays, setWeekdays] = useState<string[]>(["MO"]);
+  const [endCondition, setEndCondition] = useState<EndCondition>("NEVER");
+  const [untilDate, setUntilDate] = useState(initial?.recurrenceEndsAt ?? "");
+  const [countN, setCountN] = useState("10");
+  const [customRrule, setCustomRrule] = useState(
+    initial?.recurrence && inferPreset(initial.recurrence) === "CUSTOM" ? initial.recurrence : "",
   );
 
   const timezones = useMemo(() => listTimezones(), []);
+
+  /** Build the final rrule string from the current picker state */
+  const builtRrule = useMemo((): string => {
+    if (preset === "NONE") return "NONE";
+    if (preset === "CUSTOM") return customRrule.trim() || "NONE";
+
+    let freq: number;
+    let byweekday: Weekday[] | undefined;
+
+    switch (preset) {
+      case "DAILY":
+        freq = RRule.DAILY;
+        break;
+      case "WEEKLY":
+        freq = RRule.WEEKLY;
+        byweekday = weekdays
+          .map((w) => WEEKDAY_OPTIONS.find((o) => o.value === w)?.rrDay)
+          .filter(Boolean) as Weekday[];
+        if (byweekday.length === 0) byweekday = undefined;
+        break;
+      case "MONTHLY_DATE":
+        freq = RRule.MONTHLY;
+        break;
+      case "MONTHLY_WEEKDAY": {
+        freq = RRule.MONTHLY;
+        // e.g. 1st weekday of start date
+        const startD = new Date(startsAt);
+        const weekNum = Math.ceil(startD.getDate() / 7);
+        const dayOfWeek = startD.getDay(); // 0=Sun
+        const rrDays = [RRule.SU, RRule.MO, RRule.TU, RRule.WE, RRule.TH, RRule.FR, RRule.SA];
+        byweekday = [rrDays[dayOfWeek]!.nth(weekNum)] as Weekday[];
+        break;
+      }
+      default:
+        freq = RRule.WEEKLY;
+    }
+
+    const opts: ConstructorParameters<typeof RRule>[0] = { freq, byweekday };
+
+    if (endCondition === "ON_DATE" && untilDate) {
+      opts.until = new Date(untilDate);
+    } else if (endCondition === "AFTER_N" && countN) {
+      opts.count = Math.max(1, parseInt(countN, 10) || 1);
+    }
+
+    try {
+      const rule = new RRule(opts);
+      // Return only the RRULE part (no DTSTART)
+      return rule.toString().replace(/^RRULE:/, "");
+    } catch {
+      return "NONE";
+    }
+  }, [preset, weekdays, endCondition, untilDate, countN, customRrule, startsAt]);
+
+  /** Plain-English description */
+  const rruleText = useMemo((): string => {
+    if (builtRrule === "NONE" || !builtRrule) return "";
+    try {
+      const rule = RRule.fromString(`DTSTART:20240101T000000Z\nRRULE:${builtRrule}`);
+      return rule.toText();
+    } catch {
+      return "";
+    }
+  }, [builtRrule]);
+
+  function toggleWeekday(val: string) {
+    setWeekdays((prev) =>
+      prev.includes(val) ? prev.filter((d) => d !== val) : [...prev, val],
+    );
+  }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -81,9 +178,12 @@ export function EventForm({
     fd.append("color", color);
     fd.append("category", category);
     fd.append("locationUrl", locationUrl);
-    fd.append("recurrence", recurrence);
-    if (recurrence === "WEEKLY" && recurrenceEndsAt) {
-      fd.append("recurrenceEndsAt", new Date(recurrenceEndsAt).toISOString());
+    fd.append("recurrenceRule", builtRrule);
+    if ((endCondition === "ON_DATE" && untilDate) || initial?.recurrenceEndsAt) {
+      const endsAtVal = endCondition === "ON_DATE" && untilDate
+        ? new Date(untilDate).toISOString()
+        : (initial?.recurrenceEndsAt ?? "");
+      if (endsAtVal) fd.append("recurrenceEndsAt", endsAtVal);
     }
 
     start(async () => {
@@ -206,31 +306,107 @@ export function EventForm({
           placeholder="https://meet.google.com/..."
         />
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+      {/* ── Recurrence builder ── */}
+      <div className="space-y-3 rounded-xl border border-border p-4">
         <div>
-          <Label htmlFor="recurrence">Recurrence</Label>
+          <Label htmlFor="recurrence-preset">Recurrence</Label>
           <select
-            id="recurrence"
-            value={recurrence}
-            onChange={(e) => setRecurrence(e.target.value as "NONE" | "WEEKLY")}
+            id="recurrence-preset"
+            value={preset}
+            onChange={(e) => setPreset(e.target.value as RecurrencePreset)}
             className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm"
           >
             <option value="NONE">Does not repeat</option>
-            <option value="WEEKLY">Weekly</option>
+            <option value="DAILY">Daily</option>
+            <option value="WEEKLY">Weekly (pick days)</option>
+            <option value="MONTHLY_DATE">Monthly (same date)</option>
+            <option value="MONTHLY_WEEKDAY">Monthly (same weekday)</option>
+            <option value="CUSTOM">Custom rrule</option>
           </select>
         </div>
-        {recurrence === "WEEKLY" ? (
+
+        {preset === "WEEKLY" ? (
           <div>
-            <Label htmlFor="recurrenceEndsAt">Repeat until (optional)</Label>
+            <Label>Days of week</Label>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {WEEKDAY_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => toggleWeekday(opt.value)}
+                  className={cn(
+                    "rounded-full border px-3 py-0.5 text-xs transition",
+                    weekdays.includes(opt.value)
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background hover:border-primary",
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {preset === "CUSTOM" ? (
+          <div>
+            <Label htmlFor="custom-rrule">rrule string (e.g. FREQ=WEEKLY;BYDAY=MO,WE)</Label>
             <Input
-              id="recurrenceEndsAt"
-              type="datetime-local"
-              value={recurrenceEndsAt}
-              onChange={(e) => setRecurrenceEndsAt(e.target.value)}
+              id="custom-rrule"
+              value={customRrule}
+              onChange={(e) => setCustomRrule(e.target.value)}
+              placeholder="FREQ=WEEKLY;BYDAY=MO,WE,FR"
             />
           </div>
         ) : null}
+
+        {preset !== "NONE" ? (
+          <div>
+            <Label>End condition</Label>
+            <div className="mt-1 flex flex-wrap gap-3">
+              {(["NEVER", "ON_DATE", "AFTER_N"] as EndCondition[]).map((c) => (
+                <label key={c} className="flex cursor-pointer items-center gap-1.5 text-sm">
+                  <input
+                    type="radio"
+                    name="end-condition"
+                    value={c}
+                    checked={endCondition === c}
+                    onChange={() => setEndCondition(c)}
+                  />
+                  {c === "NEVER" ? "Never" : c === "ON_DATE" ? "On date" : "After N occurrences"}
+                </label>
+              ))}
+            </div>
+            {endCondition === "ON_DATE" ? (
+              <Input
+                type="datetime-local"
+                className="mt-2"
+                value={untilDate}
+                onChange={(e) => setUntilDate(e.target.value)}
+              />
+            ) : null}
+            {endCondition === "AFTER_N" ? (
+              <Input
+                type="number"
+                min={1}
+                max={999}
+                className="mt-2 w-28"
+                value={countN}
+                onChange={(e) => setCountN(e.target.value)}
+                placeholder="10"
+              />
+            ) : null}
+          </div>
+        ) : null}
+
+        {rruleText ? (
+          <p className="text-xs text-muted-foreground italic">
+            {rruleText.charAt(0).toUpperCase() + rruleText.slice(1)}
+          </p>
+        ) : null}
       </div>
+
       {error ? (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}

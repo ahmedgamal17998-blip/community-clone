@@ -53,6 +53,7 @@
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
     "resend": "^4.0.0",
+    "rrule": "^2.8.1",
     "stripe": "^22.1.0",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",

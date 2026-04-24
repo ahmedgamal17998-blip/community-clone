@@ -1,11 +1,12 @@
 /**
- * Events service (M10) — queries + server actions.
+ * Events service (M10 + M17 rrule) — queries + server actions.
  */
 "use server";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { RRule } from "rrule";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { isAtLeast, hasMinRole, type Role } from "@/server/permissions";
@@ -38,7 +39,16 @@ type EventRow = {
   timezone: string;
 };
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * Normalize a recurrence string to a valid rrule string.
+ * Legacy values: "NONE" → null, "WEEKLY" → "FREQ=WEEKLY"
+ * Anything else is passed through as a raw rrule string.
+ */
+function normalizeRrule(recurrence: string): string | null {
+  if (!recurrence || recurrence === "NONE") return null;
+  if (recurrence === "WEEKLY") return "FREQ=WEEKLY";
+  return recurrence;
+}
 
 /** Expand a single event into occurrences that overlap [windowStart, windowEnd]. */
 export async function expandOccurrences(
@@ -67,29 +77,31 @@ export async function expandOccurrences(
     });
   };
 
-  if (event.recurrence !== "WEEKLY") {
+  const rruleStr = normalizeRrule(event.recurrence);
+
+  if (!rruleStr) {
     push(event.startsAt);
     return out;
   }
 
-  // Weekly: iterate forward from startsAt. Stop at recurrenceEndsAt or windowEnd.
-  const hardEnd = event.recurrenceEndsAt ?? null;
-  let cursor = new Date(event.startsAt.getTime());
+  try {
+    // Build full rrule string with DTSTART
+    const dtstart = event.startsAt;
+    const fullStr = `DTSTART:${dtstart.toISOString().replace(/[-:]/g, "").split(".")[0]}Z\nRRULE:${rruleStr}`;
+    const rule = RRule.fromString(fullStr);
 
-  // Fast-forward into the window
-  if (cursor.getTime() + duration < windowStart.getTime()) {
-    const deltaMs = windowStart.getTime() - (cursor.getTime() + duration);
-    const skipWeeks = Math.floor(deltaMs / WEEK_MS);
-    if (skipWeeks > 0) cursor = new Date(cursor.getTime() + skipWeeks * WEEK_MS);
+    // Override UNTIL if recurrenceEndsAt is set and rrule doesn't already have one
+    // We expand within window bounds
+    const occurrences = rule.between(windowStart, windowEnd, true);
+    for (const occ of occurrences) {
+      if (event.recurrenceEndsAt && occ > event.recurrenceEndsAt) break;
+      push(occ);
+    }
+  } catch {
+    // Fallback: treat as single occurrence if rrule parse fails
+    push(event.startsAt);
   }
 
-  let guard = 0;
-  while (cursor <= windowEnd) {
-    if (hardEnd && cursor > hardEnd) break;
-    push(cursor);
-    cursor = new Date(cursor.getTime() + WEEK_MS);
-    if (++guard > 520) break; // 10 years safety cap
-  }
   return out;
 }
 
@@ -111,7 +123,7 @@ export async function listEventsForGroup(params: {
 }): Promise<ExpandedOccurrence[]> {
   // Pull events whose base window *could* intersect: any event that started
   // before rangeEnd, and either non-recurring with endsAt >= rangeStart, or
-  // weekly with recurrenceEndsAt null/>= rangeStart.
+  // recurring (any rrule or legacy WEEKLY) with recurrenceEndsAt null/>= rangeStart.
   const events = await db.event.findMany({
     where: {
       groupId: params.groupId,
@@ -119,7 +131,7 @@ export async function listEventsForGroup(params: {
       OR: [
         { recurrence: "NONE", endsAt: { gte: params.rangeStart } },
         {
-          recurrence: "WEEKLY",
+          NOT: { recurrence: "NONE" },
           OR: [
             { recurrenceEndsAt: null },
             { recurrenceEndsAt: { gte: params.rangeStart } },
@@ -219,6 +231,19 @@ export async function getUserUpcomingRSVPs(userId: string, limit = 10) {
 
 // ─── Mutations ─────────────────────────────────────────────────────────────
 
+/** Validate a recurrence value — accepts "NONE", "WEEKLY" (legacy), or any valid rrule string. */
+function validateRecurrence(value: string): string {
+  if (!value || value === "NONE") return "NONE";
+  if (value === "WEEKLY") return "WEEKLY";
+  // Try parsing as rrule
+  try {
+    RRule.fromString(`DTSTART:20240101T000000Z\nRRULE:${value}`);
+    return value;
+  } catch {
+    throw new Error(`Invalid recurrence rule: ${value}`);
+  }
+}
+
 const createSchema = z.object({
   groupId: z.string().min(1),
   title: z.string().min(1).max(200),
@@ -229,7 +254,7 @@ const createSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#6d56f0"),
   category: z.string().max(64).optional().nullable(),
   locationUrl: z.string().url().max(500).optional().nullable(),
-  recurrence: z.enum(["NONE", "WEEKLY"]).default("NONE"),
+  recurrence: z.string().default("NONE"),
   recurrenceEndsAt: z.string().optional().nullable(),
 });
 
@@ -243,6 +268,15 @@ export async function createEventAction(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("UNAUTHENTICATED");
 
+  // Accept either "recurrence" (legacy) or "recurrenceRule" (M17 rrule)
+  const rawRecurrence = (formData.get("recurrenceRule") as string) || (formData.get("recurrence") as string) || "NONE";
+  let recurrenceValue: string;
+  try {
+    recurrenceValue = validateRecurrence(rawRecurrence);
+  } catch (e) {
+    return { ok: false as const, error: (e as Error).message };
+  }
+
   const raw = {
     groupId: formData.get("groupId"),
     title: formData.get("title"),
@@ -253,7 +287,7 @@ export async function createEventAction(formData: FormData) {
     color: formData.get("color") || "#6d56f0",
     category: formData.get("category") || null,
     locationUrl: formData.get("locationUrl") || null,
-    recurrence: formData.get("recurrence") || "NONE",
+    recurrence: recurrenceValue,
     recurrenceEndsAt: formData.get("recurrenceEndsAt") || null,
   };
   const parsed = createSchema.safeParse(raw);
@@ -339,6 +373,14 @@ export async function updateEventAction(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("UNAUTHENTICATED");
 
+  const rawRecurrenceU = (formData.get("recurrenceRule") as string) || (formData.get("recurrence") as string) || "NONE";
+  let recurrenceValueU: string;
+  try {
+    recurrenceValueU = validateRecurrence(rawRecurrenceU);
+  } catch (e) {
+    return { ok: false as const, error: (e as Error).message };
+  }
+
   const raw = {
     eventId: formData.get("eventId"),
     groupId: formData.get("groupId"),
@@ -350,7 +392,7 @@ export async function updateEventAction(formData: FormData) {
     color: formData.get("color") || "#6d56f0",
     category: formData.get("category") || null,
     locationUrl: formData.get("locationUrl") || null,
-    recurrence: formData.get("recurrence") || "NONE",
+    recurrence: recurrenceValueU,
     recurrenceEndsAt: formData.get("recurrenceEndsAt") || null,
   };
   const parsed = updateSchema.safeParse(raw);
