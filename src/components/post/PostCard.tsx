@@ -10,6 +10,7 @@ import { PostActionsMenu } from "@/components/post/PostActionsMenu";
 import { ReactionBar } from "@/components/post/ReactionBar";
 import { CommentSection } from "@/components/post/CommentSection";
 import { PollBlock } from "@/components/post/PollBlock";
+import { RichTextRenderer } from "@/components/editor/RichTextRenderer";
 import { getPostComments } from "@/server/comments";
 import type { ReactionSummary } from "@/server/comments";
 import type { PollData } from "@/server/posts";
@@ -140,9 +141,7 @@ export async function PostCard({ post, viewerId, viewerCanModerate, hideChannelC
         <h2 className="mt-3 text-lg font-semibold leading-snug">{post.title}</h2>
       ) : null}
 
-      <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">
-        {post.body}
-      </div>
+      <RichTextRenderer content={post.body} className="mt-2 text-sm leading-relaxed" />
 
       {media.length > 0 ? (
         <div

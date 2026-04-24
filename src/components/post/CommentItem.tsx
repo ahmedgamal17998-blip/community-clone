@@ -19,6 +19,7 @@ import { formatRelative } from "@/lib/relative-time";
 import { deleteCommentAction, editCommentAction } from "@/server/comment-actions";
 import { ReactionBar } from "@/components/post/ReactionBar";
 import { CommentComposer } from "@/components/post/CommentComposer";
+import { RichTextRenderer } from "@/components/editor/RichTextRenderer";
 import type { CommentItem as CommentItemType, CommentWithReplies } from "@/server/comments";
 
 type Props = {
@@ -124,9 +125,10 @@ export function CommentItem({ comment, viewerId, viewerCanModerate, isReply = fa
           ) : (
             <>
               {comment.body ? (
-                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                  {comment.body}
-                </p>
+                <RichTextRenderer
+                  content={comment.body}
+                  className="text-sm leading-relaxed"
+                />
               ) : null}
               {comment.audioUrl ? (
                 <audio

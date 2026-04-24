@@ -49,7 +49,7 @@ async function getGroupMembership(postId: string, userId: string) {
 const createSchema = z
   .object({
     postId: z.string().cuid(),
-    body: z.string().trim().max(2000).optional(),
+    body: z.string().trim().max(10_000).optional(),
     parentId: z.string().cuid().optional(),
     audioUrl: z.string().url().optional(),
     audioDurationSec: z.coerce.number().int().min(1).max(120).optional(),
@@ -269,7 +269,7 @@ export async function deleteCommentAction(formData: FormData) {
 
 const editSchema = z.object({
   commentId: z.string().cuid(),
-  body: z.string().trim().min(1).max(2000),
+  body: z.string().trim().min(1).max(10_000),
 });
 
 export async function editCommentAction(formData: FormData) {

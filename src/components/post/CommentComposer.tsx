@@ -4,10 +4,9 @@ import { useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { createCommentAction } from "@/server/comment-actions";
 import { VoiceRecorder } from "@/components/post/VoiceRecorder";
-import { MentionTextarea } from "@/components/mention/MentionTextarea";
+import { RichTextEditor } from "@/components/editor/RichTextEditor";
 
 type Props = {
   postId: string;
@@ -23,17 +22,19 @@ export function CommentComposer({ postId, parentId, onCancel, onSuccess, groupSl
   const [isPending, startTransition] = useTransition();
   const [isUploading, setIsUploading] = useState(false);
   const [body, setBody] = useState("");
+  const [bodyText, setBodyText] = useState("");
   const [audio, setAudio] = useState<{ blob: Blob; duration: number } | null>(
     null,
   );
   const [error, setError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const hasBody = body.trim().length > 0;
+  const hasBody = bodyText.trim().length > 0;
   const canSubmit = !isPending && !isUploading && (hasBody || audio !== null);
 
   function resetAll() {
     setBody("");
+    setBodyText("");
     setAudio(null);
     setError(null);
     formRef.current?.reset();
@@ -94,30 +95,18 @@ export function CommentComposer({ postId, parentId, onCancel, onSuccess, groupSl
       <input type="hidden" name="postId" value={postId} />
       {parentId ? <input type="hidden" name="parentId" value={parentId} /> : null}
 
-      {groupSlug ? (
-        <MentionTextarea
-          groupSlug={groupSlug}
-          name="body"
-          value={body}
-          onChange={setBody}
-          placeholder={parentId ? t("writeReply") : t("write")}
-          rows={2}
-          maxLength={2000}
-          className="resize-none text-sm"
-          disabled={disabled}
-        />
-      ) : (
-        <Textarea
-          name="body"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder={parentId ? t("writeReply") : t("write")}
-          rows={2}
-          maxLength={2000}
-          className="resize-none text-sm"
-          disabled={disabled}
-        />
-      )}
+      {/* Hidden input carries JSON body for form submission */}
+      <input type="hidden" name="body" value={body} />
+      <RichTextEditor
+        value={body}
+        onChange={(json, _html, text) => { setBody(json); setBodyText(text); }}
+        placeholder={parentId ? t("writeReply") : t("write")}
+        groupSlug={groupSlug}
+        maxLength={2000}
+        minHeight={70}
+        disabled={disabled}
+        className="text-sm"
+      />
 
       <div className="flex items-center justify-between gap-2">
         <VoiceRecorder

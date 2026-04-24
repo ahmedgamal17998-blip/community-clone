@@ -93,7 +93,7 @@ const pollOptionList = z
 const createSchema = z.object({
   channelId: z.string().cuid(),
   title: z.string().trim().max(160).optional(),
-  body: z.string().trim().min(1).max(10_000),
+  body: z.string().trim().min(1).max(50_000),
   mediaUrls: urlList,
   pollQuestion: z.string().trim().max(500).optional(),
   pollOptions: pollOptionList,
@@ -200,7 +200,7 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
 const editSchema = z.object({
   postId: z.string().cuid(),
   title: z.string().trim().max(160).optional(),
-  body: z.string().trim().min(1).max(10_000),
+  body: z.string().trim().min(1).max(50_000),
   mediaUrls: urlList,
 });
 

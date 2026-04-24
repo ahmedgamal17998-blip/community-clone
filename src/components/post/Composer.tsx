@@ -3,6 +3,7 @@
 /**
  * Post composer. M4a: plain textarea + optional list of image URLs.
  * M5: adds optional poll (question + up to 5 options).
+ * M14: switched to TipTap RichTextEditor.
  */
 import { useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
@@ -13,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { createPostAction } from "@/server/post-actions";
 import { cn } from "@/lib/utils";
-import { MentionTextarea } from "@/components/mention/MentionTextarea";
+import { RichTextEditor } from "@/components/editor/RichTextEditor";
 
 type State = { ok: boolean; error?: string; postId?: string } | null;
 
@@ -93,28 +94,17 @@ export function Composer({ channelId, compact = true, groupSlug }: Props) {
         className="border-0 bg-transparent px-0 text-base font-medium shadow-none focus-visible:ring-0"
       />
 
-      {groupSlug ? (
-        <MentionTextarea
-          groupSlug={groupSlug}
-          name="body"
-          value={body}
-          onChange={setBody}
-          required
-          placeholder={t("bodyPlaceholder")}
-          rows={4}
-          maxLength={10_000}
-          className="resize-y border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-        />
-      ) : (
-        <Textarea
-          name="body"
-          required
-          placeholder={t("bodyPlaceholder")}
-          rows={4}
-          maxLength={10_000}
-          className="resize-y border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-        />
-      )}
+      {/* Hidden input carries the JSON body for form submission */}
+      <input type="hidden" name="body" value={body} />
+      <RichTextEditor
+        value={body}
+        onChange={(json) => setBody(json)}
+        placeholder={t("bodyPlaceholder")}
+        groupSlug={groupSlug}
+        maxLength={50_000}
+        minHeight={120}
+        className="border-0 bg-transparent shadow-none focus-within:ring-0"
+      />
 
       {/* Media section */}
       {mediaOpen ? (
