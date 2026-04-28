@@ -3,6 +3,14 @@
  */
 import { getTranslations } from "next-intl/server";
 import { Users, Lock, Globe, EyeOff, CalendarDays, FileText } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { initialsFrom } from "@/lib/initials";
+
+type OnlineMember = {
+  id: string;
+  name: string | null;
+  image: string | null;
+};
 
 type Props = {
   memberCount: number;
@@ -13,6 +21,8 @@ type Props = {
   primaryHsl?: string | null;
   description?: string | null;
   postCount?: number | null;
+  onlineMembers?: OnlineMember[];
+  extraOnlineCount?: number;
 };
 
 export async function GroupRightRail({
@@ -24,6 +34,8 @@ export async function GroupRightRail({
   primaryHsl,
   description,
   postCount,
+  onlineMembers = [],
+  extraOnlineCount = 0,
 }: Props) {
   const t = await getTranslations("groups");
   const VisibilityIcon =
@@ -75,13 +87,41 @@ export async function GroupRightRail({
           </div>
           <div className="h-6 w-px bg-border" />
           <div className="flex flex-col items-center gap-0.5">
-            <span className="flex items-center gap-1 text-sm font-bold">
-              <span className="h-2 w-2 rounded-full bg-green-500" />
+            <span className="flex items-center gap-1 rounded-full bg-orange-100 px-1.5 py-0.5 text-xs font-bold text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
               Online
             </span>
             <span className="text-[11px] text-muted-foreground">Active</span>
           </div>
         </div>
+
+        {/* Online member avatar stack */}
+        {onlineMembers.length > 0 && (
+          <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+            <div className="flex -space-x-2">
+              {onlineMembers.slice(0, 6).map((m) => (
+                <div key={m.id} className="relative">
+                  <Avatar className="h-7 w-7 ring-2 ring-card">
+                    {m.image ? <AvatarImage src={m.image} alt={m.name ?? ""} /> : null}
+                    <AvatarFallback className="text-[10px]">
+                      {initialsFrom(m.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  {/* Green online dot */}
+                  <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-green-500 ring-1 ring-card" />
+                </div>
+              ))}
+              {extraOnlineCount > 0 && (
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white ring-2 ring-card">
+                  +{extraOnlineCount}
+                </div>
+              )}
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {onlineMembers.length + extraOnlineCount} online
+            </span>
+          </div>
+        )}
 
         {/* About section */}
         <div className="px-4 py-3">

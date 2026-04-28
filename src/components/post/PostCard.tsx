@@ -7,8 +7,7 @@ import { decodeMedia } from "@/server/posts";
 import { formatRelative } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { PostActionsMenu } from "@/components/post/PostActionsMenu";
-import { ReactionBar } from "@/components/post/ReactionBar";
-import { CommentSection } from "@/components/post/CommentSection";
+import { PostEngagementArea } from "@/components/post/PostEngagementArea";
 import { PollBlock } from "@/components/post/PollBlock";
 import { RichTextRenderer } from "@/components/editor/RichTextRenderer";
 import { getPostComments } from "@/server/comments";
@@ -169,38 +168,16 @@ export async function PostCard({ post, viewerId, viewerCanModerate, hideChannelC
         {/* Poll */}
         {post.poll ? <PollBlock poll={post.poll} /> : null}
 
-        {/* Reaction summary */}
-        {reactions.length > 0 ? (
-          <div className="mt-3">
-            <ReactionBar
-              postId={post.id}
-              reactions={reactions}
-              viewerId={viewerId}
-            />
-          </div>
-        ) : null}
-
-        {/* Divider */}
-        <div className="mt-3 border-t border-border" />
-
-        {/* Action buttons row */}
-        <div className="mt-1 flex items-center gap-1">
-          {reactions.length === 0 ? (
-            <ReactionBar
-              postId={post.id}
-              reactions={reactions}
-              viewerId={viewerId}
-            />
-          ) : null}
-          <CommentSection
-            postId={post.id}
-            comments={comments}
-            viewerId={viewerId}
-            viewerCanModerate={viewerCanModerate}
-            commentCount={commentCount}
-            groupSlug={post.channel.group.slug}
-          />
-        </div>
+        {/* Engagement area: reactions summary + action row (Like/Comment/Share/Save) + comments */}
+        <PostEngagementArea
+          postId={post.id}
+          reactions={reactions}
+          viewerId={viewerId}
+          commentCount={commentCount}
+          comments={comments}
+          viewerCanModerate={viewerCanModerate}
+          groupSlug={post.channel.group.slug}
+        />
       </div>
     </article>
   );

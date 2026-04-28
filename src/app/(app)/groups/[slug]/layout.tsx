@@ -43,6 +43,18 @@ export default async function GroupLayout({
     ? await listVisibleChannels(group.id, session.user.id)
     : [];
 
+  // Fetch recently-joined members for the right-rail avatar stack.
+  const recentMemberships = isActiveMember
+    ? await db.groupMembership.findMany({
+        where: { groupId: group.id, state: "ACTIVE" },
+        orderBy: { joinedAt: "desc" },
+        take: 10,
+        include: { user: { select: { id: true, name: true, image: true } } },
+      })
+    : [];
+  const onlineMembers = recentMemberships.slice(0, 6).map((m) => m.user);
+  const extraOnlineCount = Math.max(0, recentMemberships.length - 6);
+
   return (
     <GroupThemeProvider primaryHsl={group.primaryHsl}>
       <div className="border-b border-border bg-card">
@@ -97,6 +109,8 @@ export default async function GroupLayout({
             logoUrl={group.logoUrl}
             primaryHsl={group.primaryHsl}
             description={group.description}
+            onlineMembers={onlineMembers}
+            extraOnlineCount={extraOnlineCount}
           />
         </aside>
       </div>
