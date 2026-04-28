@@ -2,7 +2,7 @@
  * Group header: avatar + name + description + join/leave/settings CTA row.
  */
 import Link from "next/link";
-import { Globe, Lock, EyeOff } from "lucide-react";
+import { Globe, Lock, EyeOff, LayoutDashboard } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { GroupAvatar } from "@/components/group/GroupAvatar";
 import { Button } from "@/components/ui/button";
@@ -60,8 +60,11 @@ export async function GroupHeader({ group, myMembership }: Props) {
 
       <div className="flex flex-shrink-0 items-center gap-2">
         {canManage ? (
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/groups/${group.slug}/settings`}>{t("settings")}</Link>
+          <Button asChild variant="outline" size="sm" className="gap-1.5">
+            <Link href={`/groups/${group.slug}/admin`}>
+              <LayoutDashboard className="h-4 w-4" />
+              <span>Admin Dashboard</span>
+            </Link>
           </Button>
         ) : null}
         {!myMembership ? (

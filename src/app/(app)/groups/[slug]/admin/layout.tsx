@@ -1,21 +1,8 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
-
-const NAV = [
-  { href: "", label: "Overview" },
-  { href: "/members", label: "Members" },
-  { href: "/requests", label: "Requests" },
-  { href: "/channels", label: "Channels" },
-  { href: "/team", label: "Team" },
-  { href: "/plans", label: "Plans" },
-  { href: "/announcements", label: "Announcements" },
-  { href: "/onboarding", label: "Onboarding" },
-  { href: "/branding", label: "Branding" },
-  { href: "/settings", label: "Settings" },
-];
+import { AdminSidebar } from "@/components/admin/AdminSidebar";
 
 export default async function AdminLayout({
   children,
@@ -41,25 +28,10 @@ export default async function AdminLayout({
     notFound();
   }
 
-  const base = `/groups/${group.slug}/admin`;
-
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-[200px_1fr]">
-      <aside className="rounded-xl border border-border bg-card p-3">
-        <h2 className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Admin
-        </h2>
-        <nav className="space-y-1">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={`${base}${item.href}`}
-              className="block rounded-md px-2 py-1.5 text-sm hover:bg-muted hover:text-foreground"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-[220px_1fr]">
+      <aside className="md:sticky md:top-[13rem] md:self-start md:max-h-[calc(100vh-14rem)] md:overflow-y-auto">
+        <AdminSidebar groupSlug={group.slug} />
       </aside>
       <div className="min-w-0">{children}</div>
     </div>
