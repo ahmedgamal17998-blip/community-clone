@@ -93,6 +93,10 @@ export default async function GroupLayout({
             memberCount={group._count.memberships}
             visibility={group.visibility}
             createdAt={group.createdAt}
+            name={group.name}
+            logoUrl={group.logoUrl}
+            primaryHsl={group.primaryHsl}
+            description={group.description}
           />
         </aside>
       </div>

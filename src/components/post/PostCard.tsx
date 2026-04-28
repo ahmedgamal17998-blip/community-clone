@@ -67,123 +67,141 @@ export async function PostCard({ post, viewerId, viewerCanModerate, hideChannelC
   return (
     <article
       className={cn(
-        "rounded-xl border bg-card p-4",
-        post.pinned ? "border-primary/40 bg-primary/5" : "border-border",
+        "rounded-xl bg-card",
+        "shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_rgba(0,0,0,0.04)]",
+        "dark:shadow-[0_1px_2px_rgba(0,0,0,0.3),0_0_0_1px_rgba(255,255,255,0.06)]",
       )}
     >
-      <header className="flex items-start gap-3">
-        <Link href={`/profile/${post.author.handle}`} className="shrink-0">
-          <Avatar>
-            {post.author.image ? (
-              <AvatarImage src={post.author.image} alt={post.author.name ?? ""} />
-            ) : null}
-            <AvatarFallback>{initialsFrom(post.author.name)}</AvatarFallback>
-          </Avatar>
-        </Link>
+      {/* Pinned ribbon */}
+      {post.pinned ? (
+        <div className="flex items-center gap-1.5 rounded-t-xl border-b border-primary/20 bg-primary/8 px-4 py-2 text-xs font-medium text-primary">
+          <Pin className="h-3 w-3" />
+          {t("pinned")}
+        </div>
+      ) : null}
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
-            <Link
-              href={`/profile/${post.author.handle}`}
-              className="font-semibold hover:underline"
-            >
-              {post.author.name ?? post.author.handle}
-            </Link>
-            <span className="text-muted-foreground">@{post.author.handle}</span>
-            <span className="text-muted-foreground" aria-hidden>
-              ·
-            </span>
-            <time
-              className="text-muted-foreground"
-              dateTime={post.createdAt.toISOString()}
-              title={post.createdAt.toLocaleString()}
-            >
-              {formatRelative(post.createdAt, locale)}
-            </time>
-            {!hideChannelCrumb ? (
-              <>
-                <span className="text-muted-foreground" aria-hidden>
-                  ·
-                </span>
+      <div className="p-4">
+        {/* Header */}
+        <header className="flex items-start gap-3">
+          <Link href={`/profile/${post.author.handle}`} className="shrink-0">
+            <Avatar className="h-10 w-10">
+              {post.author.image ? (
+                <AvatarImage src={post.author.image} alt={post.author.name ?? ""} />
+              ) : null}
+              <AvatarFallback className="text-sm font-semibold">
+                {initialsFrom(post.author.name)}
+              </AvatarFallback>
+            </Avatar>
+          </Link>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+              <Link
+                href={`/profile/${post.author.handle}`}
+                className="text-sm font-bold hover:underline"
+              >
+                {post.author.name ?? post.author.handle}
+              </Link>
+              {!hideChannelCrumb ? (
                 <Link
                   href={channelHref}
-                  className="text-muted-foreground hover:text-foreground hover:underline"
+                  className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
                 >
-                  {t("inChannel", { channel: post.channel.name })}
+                  #{post.channel.name}
                 </Link>
-              </>
-            ) : null}
-            {post.editedAt ? (
-              <span className="text-xs italic text-muted-foreground">
-                ({t("edited")})
-              </span>
-            ) : null}
-            {post.pinned ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                <Pin className="h-3 w-3" />
-                {t("pinned")}
-              </span>
-            ) : null}
+              ) : null}
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <time
+                className="text-xs text-muted-foreground"
+                dateTime={post.createdAt.toISOString()}
+                title={post.createdAt.toLocaleString()}
+              >
+                {formatRelative(post.createdAt, locale)}
+              </time>
+              {post.editedAt ? (
+                <span className="text-xs italic text-muted-foreground">
+                  · {t("edited")}
+                </span>
+              ) : null}
+            </div>
           </div>
-        </div>
 
-        {canManage ? (
-          <PostActionsMenu
-            postId={post.id}
-            pinned={post.pinned}
-            canPin={viewerCanModerate}
-            canDelete={canManage}
-          />
-        ) : null}
-      </header>
-
-      {post.title ? (
-        <h2 className="mt-3 text-lg font-semibold leading-snug">{post.title}</h2>
-      ) : null}
-
-      <RichTextRenderer content={post.body} className="mt-2 text-sm leading-relaxed" />
-
-      {media.length > 0 ? (
-        <div
-          className={cn(
-            "mt-3 grid gap-2",
-            media.length === 1 ? "grid-cols-1" : "grid-cols-2",
-          )}
-        >
-          {media.slice(0, 4).map((url, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={`${url}-${i}`}
-              src={url}
-              alt=""
-              className="h-48 w-full rounded-lg object-cover"
-              loading="lazy"
+          {canManage ? (
+            <PostActionsMenu
+              postId={post.id}
+              pinned={post.pinned}
+              canPin={viewerCanModerate}
+              canDelete={canManage}
             />
-          ))}
+          ) : null}
+        </header>
+
+        {/* Title */}
+        {post.title ? (
+          <h2 className="mt-3 text-[17px] font-bold leading-snug">{post.title}</h2>
+        ) : null}
+
+        {/* Body */}
+        <RichTextRenderer content={post.body} className="mt-2 text-sm leading-relaxed" />
+
+        {/* Media grid */}
+        {media.length > 0 ? (
+          <div
+            className={cn(
+              "mt-3 grid gap-2 overflow-hidden rounded-xl",
+              media.length === 1 ? "grid-cols-1" : "grid-cols-2",
+            )}
+          >
+            {media.slice(0, 4).map((url, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={`${url}-${i}`}
+                src={url}
+                alt=""
+                className="h-52 w-full object-cover"
+                loading="lazy"
+              />
+            ))}
+          </div>
+        ) : null}
+
+        {/* Poll */}
+        {post.poll ? <PollBlock poll={post.poll} /> : null}
+
+        {/* Reaction summary */}
+        {reactions.length > 0 ? (
+          <div className="mt-3">
+            <ReactionBar
+              postId={post.id}
+              reactions={reactions}
+              viewerId={viewerId}
+            />
+          </div>
+        ) : null}
+
+        {/* Divider */}
+        <div className="mt-3 border-t border-border" />
+
+        {/* Action buttons row */}
+        <div className="mt-1 flex items-center gap-1">
+          {reactions.length === 0 ? (
+            <ReactionBar
+              postId={post.id}
+              reactions={reactions}
+              viewerId={viewerId}
+            />
+          ) : null}
+          <CommentSection
+            postId={post.id}
+            comments={comments}
+            viewerId={viewerId}
+            viewerCanModerate={viewerCanModerate}
+            commentCount={commentCount}
+            groupSlug={post.channel.group.slug}
+          />
         </div>
-      ) : null}
-
-      {/* Poll */}
-      {post.poll ? <PollBlock poll={post.poll} /> : null}
-
-      {/* Reactions */}
-      <div className="mt-3">
-        <ReactionBar
-          postId={post.id}
-          reactions={reactions}
-          viewerId={viewerId}
-        />
       </div>
-
-      {/* Comments */}
-      <CommentSection
-        postId={post.id}
-        comments={comments}
-        viewerId={viewerId}
-        viewerCanModerate={viewerCanModerate}
-        commentCount={commentCount}
-        groupSlug={post.channel.group.slug}
-      />
     </article>
   );
 }

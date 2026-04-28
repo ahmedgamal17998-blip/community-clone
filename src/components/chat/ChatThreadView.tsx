@@ -341,67 +341,85 @@ export function ChatThreadView(props: ChatThreadViewProps) {
     }
   }
 
+  // Build date-separated message list
+  const groupedMessages = groupByDate(messages);
+
   return (
-    <div className="flex h-[calc(100vh-14rem)] min-h-[480px] flex-col rounded-xl border border-border bg-card">
+    <div className="flex h-[calc(100vh-14rem)] min-h-[480px] flex-col rounded-xl border border-border bg-card overflow-hidden">
+      {/* Pinned message banner */}
       {pinned.length > 0 ? (
-        <div className="border-b border-border bg-primary/5 px-3 py-2">
-          <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            <Pin className="h-3 w-3" />
-            Pinned
+        <div className="flex items-center gap-2 border-b border-amber-200/60 bg-amber-50 px-3 py-2 dark:border-amber-800/40 dark:bg-amber-950/40">
+          <Pin className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="min-w-0 flex-1 truncate text-xs">
+            <span className="font-semibold text-amber-800 dark:text-amber-300">
+              {pinned[0].author.name ?? `@${pinned[0].author.handle}`}:
+            </span>{" "}
+            <span className="text-amber-700 dark:text-amber-400">
+              {pinned[0].body ?? (pinned[0].mediaType ? `[${pinned[0].mediaType}]` : "")}
+            </span>
           </div>
-          <ul className="mt-1 space-y-1">
-            {pinned.slice(0, 3).map((p) => (
-              <li key={p.id} className="truncate text-xs">
-                <span className="font-medium">
-                  {p.author.name ?? `@${p.author.handle}`}:
-                </span>{" "}
-                <span className="text-muted-foreground">
-                  {p.body ?? (p.mediaType ? `[${p.mediaType}]` : "")}
-                </span>
-              </li>
-            ))}
-          </ul>
+          {pinned.length > 1 && (
+            <span className="shrink-0 text-[10px] text-amber-600 dark:text-amber-400">
+              +{pinned.length - 1} more
+            </span>
+          )}
         </div>
       ) : null}
 
+      {/* Message area with dot-pattern wallpaper */}
       <div
         ref={listRef}
         onScroll={onScroll}
-        className="flex-1 overflow-y-auto px-3 py-3"
-        style={{ overflowAnchor: "none" }}
+        className="flex-1 overflow-y-auto bg-muted/20 px-4 py-3"
+        style={{
+          backgroundImage: "radial-gradient(rgba(0,0,0,0.06) 1px, transparent 1px)",
+          backgroundSize: "18px 18px",
+          overflowAnchor: "none",
+        }}
       >
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             No messages yet — say hi.
           </div>
         ) : (
-          <ul className="space-y-2">
-            {messages.map((m) => (
-              <MessageRow
-                key={m.id}
-                msg={m}
-                viewerId={viewerId}
-                isChannel={kind === "CHANNEL"}
-                viewerIsAdmin={viewerIsAdmin}
-                onReply={() => setReplyTo(m)}
-                onPin={() => handlePin(m.id)}
-                onDelete={() => handleDelete(m.id)}
-              />
+          <div className="space-y-1">
+            {groupedMessages.map(({ label, msgs }) => (
+              <div key={label}>
+                {/* Date separator */}
+                <div className="my-3 flex items-center justify-center">
+                  <span className="rounded-full bg-black/10 px-3 py-0.5 text-[11px] font-medium text-foreground/60 dark:bg-white/10">
+                    {label}
+                  </span>
+                </div>
+                {msgs.map((m) => (
+                  <MessageRow
+                    key={m.id}
+                    msg={m}
+                    viewerId={viewerId}
+                    isChannel={kind === "CHANNEL"}
+                    viewerIsAdmin={viewerIsAdmin}
+                    onReply={() => setReplyTo(m)}
+                    onPin={() => handlePin(m.id)}
+                    onDelete={() => handleDelete(m.id)}
+                  />
+                ))}
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
 
-      {/* M15: typing indicator strip */}
+      {/* Typing indicator */}
       {Object.keys(typingUsers).length > 0 ? (
         <TypingStrip typingUsers={typingUsers} />
       ) : null}
 
+      {/* Reply preview bar */}
       {replyTo ? (
         <div className="flex items-center justify-between border-t border-border bg-muted/50 px-3 py-1.5 text-xs">
           <div className="min-w-0 flex-1 truncate">
             Replying to{" "}
-            <span className="font-medium">
+            <span className="font-semibold">
               {replyTo.author.name ?? `@${replyTo.author.handle}`}
             </span>
             : <span className="text-muted-foreground">{replyTo.body}</span>
@@ -409,16 +427,17 @@ export function ChatThreadView(props: ChatThreadViewProps) {
           <button
             type="button"
             onClick={() => setReplyTo(null)}
-            className="text-muted-foreground hover:text-foreground"
+            className="ml-2 text-muted-foreground hover:text-foreground"
           >
             <X className="h-3 w-3" />
           </button>
         </div>
       ) : null}
 
+      {/* Compose form */}
       <form
         onSubmit={handleSend}
-        className="flex flex-col gap-2 border-t border-border p-3"
+        className="flex flex-col gap-2 border-t border-border bg-card p-3"
       >
         {props.groupSlug ? (
           <MentionTextarea
@@ -465,6 +484,34 @@ export function ChatThreadView(props: ChatThreadViewProps) {
   );
 }
 
+/** Group messages by calendar date for date separators */
+function groupByDate(
+  msgs: ChatMessageView[],
+): Array<{ label: string; msgs: ChatMessageView[] }> {
+  const groups: Array<{ label: string; msgs: ChatMessageView[] }> = [];
+  let currentLabel = "";
+  for (const m of msgs) {
+    const d = new Date(m.createdAt);
+    const label = dateSeparatorLabel(d);
+    if (label !== currentLabel) {
+      currentLabel = label;
+      groups.push({ label, msgs: [] });
+    }
+    groups[groups.length - 1].msgs.push(m);
+  }
+  return groups;
+}
+
+function dateSeparatorLabel(d: Date): string {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (target.getTime() === today.getTime()) return "Today";
+  if (target.getTime() === yesterday.getTime()) return "Yesterday";
+  return d.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+}
+
 function MessageRow({
   msg,
   viewerId,
@@ -488,131 +535,181 @@ function MessageRow({
   const canPin = isChannel && viewerIsAdmin;
 
   return (
-    <li className="group flex gap-2">
-      <div className="mt-0.5 h-8 w-8 shrink-0 overflow-hidden rounded-full bg-muted">
-        {msg.author.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={msg.author.image} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
-            {(msg.author.name ?? msg.author.handle).slice(0, 1).toUpperCase()}
-          </div>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
+    <li
+      className={`group mb-1 flex items-end gap-2 ${isMine ? "flex-row-reverse" : "flex-row"}`}
+    >
+      {/* Avatar — only for others */}
+      {!isMine ? (
+        <div className="mb-0.5 h-7 w-7 shrink-0 overflow-hidden rounded-full bg-muted">
+          {msg.author.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={msg.author.image} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-muted-foreground">
+              {(msg.author.name ?? msg.author.handle).slice(0, 1).toUpperCase()}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Spacer so "mine" bubbles don't span full width */
+        <div className="w-7 shrink-0" />
+      )}
+
+      {/* Bubble */}
+      <div className={`relative max-w-[72%] ${isMine ? "items-end" : "items-start"} flex flex-col`}>
+        {/* Sender name (channel only, others only) */}
+        {isChannel && !isMine ? (
           <Link
             href={`/profile/${msg.author.handle}`}
-            className="text-sm font-medium hover:underline"
+            className="mb-0.5 ml-1 text-[11px] font-semibold text-primary hover:underline"
           >
             {msg.author.name ?? `@${msg.author.handle}`}
           </Link>
-          <span className="text-[11px] text-muted-foreground">
-            {timeLabel(msg.createdAt)}
-          </span>
-          {msg.editedAt ? (
-            <span className="text-[11px] italic text-muted-foreground">
-              edited
-            </span>
-          ) : null}
-          {msg.pinned ? <Pin className="h-3 w-3 text-primary" /> : null}
-        </div>
-        {msg.replyTo ? (
-          <div className="mt-0.5 rounded border-l-2 border-primary/40 bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground">
-            <span className="font-medium">
-              {msg.replyTo.author?.name ?? `@${msg.replyTo.author?.handle}`}
-            </span>
-            : <span className="truncate">{msg.replyTo.body}</span>
-          </div>
         ) : null}
-        {msg.body ? (
-          <div className="whitespace-pre-wrap break-words text-sm">{msg.body}</div>
-        ) : null}
-        {msg.mediaUrl ? (
-          <div className="mt-1">
-            {msg.mediaType === "image" ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={msg.mediaUrl}
-                alt=""
-                className="max-h-64 max-w-sm rounded-md border border-border object-contain"
-              />
-            ) : msg.mediaType === "audio" ? (
-              <audio controls src={msg.mediaUrl} className="max-w-sm" />
-            ) : (
-              <a
-                href={msg.mediaUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1 text-xs hover:bg-accent"
-              >
-                Download file
-              </a>
-            )}
-          </div>
-        ) : null}
-      </div>
-      <div className="relative flex shrink-0 items-start gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        <button
-          type="button"
-          onClick={onReply}
-          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label="Reply"
-          title="Reply"
+
+        {/* Bubble body */}
+        <div
+          className={`relative rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
+            isMine
+              ? "rounded-br-sm bg-primary text-primary-foreground"
+              : "rounded-bl-sm bg-card text-foreground dark:bg-[#2d2d2d]"
+          }`}
         >
-          <Reply className="h-3.5 w-3.5" />
-        </button>
-        {canPin || canDelete ? (
-          <>
-            <button
-              type="button"
-              onClick={() => setMenuOpen((v) => !v)}
-              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-              aria-label="More"
+          {/* Tail */}
+          <span
+            aria-hidden
+            className={`absolute bottom-0 h-2.5 w-2.5 ${
+              isMine
+                ? "right-[-6px] [clip-path:polygon(0_0,0%_100%,100%_100%)] bg-primary"
+                : "left-[-6px] [clip-path:polygon(100%_0,0%_100%,100%_100%)] bg-card dark:bg-[#2d2d2d]"
+            }`}
+          />
+
+          {/* Reply quote */}
+          {msg.replyTo ? (
+            <div
+              className={`mb-1.5 rounded-lg border-l-2 px-2 py-1 text-xs ${
+                isMine
+                  ? "border-white/50 bg-white/10"
+                  : "border-primary/60 bg-muted/60"
+              }`}
             >
-              <MoreHorizontal className="h-3.5 w-3.5" />
-            </button>
-            {menuOpen ? (
-              <div
-                className="absolute right-0 top-6 z-10 w-32 rounded-md border border-border bg-card py-1 text-xs shadow-md"
-                onMouseLeave={() => setMenuOpen(false)}
-              >
-                {canPin ? (
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 px-2 py-1 text-left hover:bg-accent"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onPin();
-                    }}
-                  >
-                    <Pin className="h-3 w-3" />
-                    {msg.pinned ? "Unpin" : "Pin"}
-                  </button>
-                ) : null}
-                {canDelete ? (
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 px-2 py-1 text-left text-destructive hover:bg-accent"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onDelete();
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    Delete
-                  </button>
-                ) : null}
+              <div className={`font-semibold ${isMine ? "text-white/90" : "text-primary"}`}>
+                {msg.replyTo.author?.name ?? `@${msg.replyTo.author?.handle}`}
               </div>
-            ) : null}
-          </>
-        ) : null}
+              <div className={`truncate ${isMine ? "text-white/70" : "text-muted-foreground"}`}>
+                {msg.replyTo.body}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Text body */}
+          {msg.body ? (
+            <div className="whitespace-pre-wrap break-words">{msg.body}</div>
+          ) : null}
+
+          {/* Media */}
+          {msg.mediaUrl ? (
+            <div className="mt-1">
+              {msg.mediaType === "image" ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={msg.mediaUrl}
+                  alt=""
+                  className="max-h-56 max-w-full rounded-xl object-contain"
+                />
+              ) : msg.mediaType === "audio" ? (
+                <audio controls src={msg.mediaUrl} className="max-w-full" />
+              ) : (
+                <a
+                  href={msg.mediaUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:opacity-80 ${
+                    isMine ? "border-white/30 bg-white/10 text-white" : "border-border bg-muted"
+                  }`}
+                >
+                  Download file
+                </a>
+              )}
+            </div>
+          ) : null}
+
+          {/* Timestamp + edited + pinned */}
+          <div
+            className={`mt-0.5 flex items-center gap-1 text-[10px] ${
+              isMine ? "justify-end text-white/60" : "text-muted-foreground"
+            }`}
+          >
+            {msg.editedAt ? <span className="italic">edited</span> : null}
+            {msg.pinned ? <Pin className="h-2.5 w-2.5" /> : null}
+            <time dateTime={msg.createdAt}>{timeLabel(msg.createdAt)}</time>
+          </div>
+        </div>
+
+        {/* Hover action row */}
+        <div
+          className={`mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 ${
+            isMine ? "flex-row-reverse" : "flex-row"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={onReply}
+            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label="Reply"
+            title="Reply"
+          >
+            <Reply className="h-3.5 w-3.5" />
+          </button>
+          {(canPin || canDelete) ? (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label="More"
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </button>
+              {menuOpen ? (
+                <div
+                  className={`absolute top-6 z-10 w-32 rounded-md border border-border bg-card py-1 text-xs shadow-md ${
+                    isMine ? "right-0" : "left-0"
+                  }`}
+                  onMouseLeave={() => setMenuOpen(false)}
+                >
+                  {canPin ? (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 px-2 py-1 text-left hover:bg-accent"
+                      onClick={() => { setMenuOpen(false); onPin(); }}
+                    >
+                      <Pin className="h-3 w-3" />
+                      {msg.pinned ? "Unpin" : "Pin"}
+                    </button>
+                  ) : null}
+                  {canDelete ? (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 px-2 py-1 text-left text-destructive hover:bg-accent"
+                      onClick={() => { setMenuOpen(false); onDelete(); }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Delete
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
     </li>
   );
 }
 
-/** M15: Typing indicator strip — shown below the message list */
+/** M15: Typing indicator strip — bouncing dots, WhatsApp-style */
 function TypingStrip({
   typingUsers,
 }: {
@@ -621,23 +718,36 @@ function TypingStrip({
     { handle: string; name: string | null; expiresAt: number }
   >;
 }) {
-  const names = Object.values(typingUsers).map(
-    (u) => u.name ?? `@${u.handle}`,
-  );
+  const names = Object.values(typingUsers).map((u) => u.name ?? `@${u.handle}`);
   if (names.length === 0) return null;
 
   let label: string;
   if (names.length === 1) {
-    label = `${names[0]} is typing…`;
+    label = `${names[0]}`;
   } else if (names.length === 2) {
-    label = `${names[0]} and ${names[1]} are typing…`;
+    label = `${names[0]} & ${names[1]}`;
   } else {
-    label = `${names.slice(0, 2).join(", ")} and ${names.length - 2} others are typing…`;
+    label = `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
   }
 
   return (
-    <div className="border-t border-border bg-muted/30 px-3 py-1 text-[11px] text-muted-foreground italic">
-      {label}
+    <div className="flex items-center gap-2 border-t border-border bg-card px-4 py-2">
+      {/* Bubble with bouncing dots */}
+      <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-muted px-3 py-1.5 shadow-sm dark:bg-[#2d2d2d]">
+        <span
+          className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce"
+          style={{ animationDelay: "0ms" }}
+        />
+        <span
+          className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce"
+          style={{ animationDelay: "150ms" }}
+        />
+        <span
+          className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-bounce"
+          style={{ animationDelay: "300ms" }}
+        />
+      </div>
+      <span className="text-[11px] italic text-muted-foreground">{label} is typing…</span>
     </div>
   );
 }
