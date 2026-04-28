@@ -21,6 +21,8 @@ import { CalendarGrid } from "@/components/events/CalendarGrid";
 import { UpcomingPastPanel } from "@/components/events/UpcomingPastPanel";
 import { Button } from "@/components/ui/button";
 import { db } from "@/server/db";
+import { hasMinRole, type Role } from "@/server/permissions";
+import { eligibleEventsForUser } from "@/server/event-access";
 
 type Props = {
   params: { slug: string };
@@ -35,6 +37,8 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
   if (!found) notFound();
   const { group, myMembership } = found;
   const isActive = myMembership?.state === "ACTIVE";
+  const isAdmin =
+    isActive && hasMinRole(myMembership!.role as Role, "ADMIN");
 
   const rawView = (searchParams?.view ?? "month").toLowerCase();
   const view = (rawView === "day" || rawView === "week" || rawView === "month"
@@ -56,15 +60,15 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
     rangeEnd = endOfWeek(endOfMonth(date));
   }
 
-  const [occurrences, upcoming, past, myBookings] = await Promise.all([
+  const [allOccurrences, allUpcoming, allPast, myBookings] = await Promise.all([
     listEventsForGroup({
       groupId: group.id,
       viewerId: session.user.id,
       rangeStart,
       rangeEnd,
     }),
-    listUpcoming(group.id, session.user.id, 10),
-    listPast(group.id, session.user.id, 10),
+    listUpcoming(group.id, session.user.id, 30),
+    listPast(group.id, session.user.id, 30),
     db.booking.findMany({
       where: {
         status: "CONFIRMED",
@@ -85,6 +89,30 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
       take: 20,
     }),
   ]);
+
+  // M23 audience filter — admins see everything, members see only events
+  // they're eligible for. We compute the eligible set once and trim every
+  // list to it.
+  const eligibleSet = isAdmin
+    ? null
+    : new Set(
+        await eligibleEventsForUser({
+          userId: session.user.id,
+          groupId: group.id,
+        }),
+      );
+  const occurrences =
+    eligibleSet === null
+      ? allOccurrences
+      : allOccurrences.filter((o) => eligibleSet.has(o.eventId));
+  const upcoming =
+    eligibleSet === null
+      ? allUpcoming.slice(0, 10)
+      : allUpcoming.filter((e) => eligibleSet.has(e.eventId)).slice(0, 10);
+  const past =
+    eligibleSet === null
+      ? allPast.slice(0, 10)
+      : allPast.filter((e) => eligibleSet.has(e.eventId)).slice(0, 10);
 
   const title = titleFor(view, date);
 

@@ -501,6 +501,24 @@ export async function rsvpEventAction(formData: FormData) {
   });
   if (!active) return { ok: false as const, error: "FORBIDDEN" };
 
+  // M23 audience gate on RSVP — non-admins / non-creators must be in
+  // the event's audience.
+  const isAdminOrCreator =
+    event.creatorId === session.user.id ||
+    (await isAtLeast({
+      groupId: event.groupId,
+      userId: session.user.id,
+      min: "ADMIN",
+    }));
+  if (!isAdminOrCreator) {
+    const { canSeeEvent } = await import("@/server/event-access");
+    const allowed = await canSeeEvent({
+      userId: session.user.id,
+      eventId: event.id,
+    });
+    if (!allowed) return { ok: false as const, error: "AUDIENCE" };
+  }
+
   const occ = toDateOrNull(parsed.data.occurrenceStartsAt ?? null);
 
   // Prisma's compound-unique where doesn't accept null for nullable cols, so

@@ -5,6 +5,7 @@ import { auth } from "@/server/auth";
 import { getGroupForUser } from "@/server/group-queries";
 import { getEvent } from "@/server/events";
 import { hasMinRole, type Role } from "@/server/permissions";
+import { canSeeEvent } from "@/server/event-access";
 import { formatInTZ } from "@/lib/calendar";
 import { Button } from "@/components/ui/button";
 import { RsvpButtons } from "@/components/events/RsvpButtons";
@@ -34,6 +35,15 @@ export default async function EventDetailPage({
   const isActive = myMembership?.state === "ACTIVE";
   const isAdmin = isActive && hasMinRole(myMembership!.role as Role, "ADMIN");
   const canEdit = isAdmin || event.creatorId === session.user.id;
+
+  // M23 audience gate — non-admins must match the event's audience.
+  if (!isAdmin && event.creatorId !== session.user.id) {
+    const allowed = await canSeeEvent({
+      userId: session.user.id,
+      eventId: event.id,
+    });
+    if (!allowed) notFound();
+  }
 
   // Figure out the occurrence
   let occDate: Date | null = null;
