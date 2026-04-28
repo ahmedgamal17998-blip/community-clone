@@ -5,10 +5,10 @@
  * M5: adds optional poll (question + up to 5 options).
  * M14: switched to TipTap RichTextEditor.
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
-import { X, Plus, ChevronDown, Hash, Megaphone, Lock as LockIcon, Check } from "lucide-react";
+import { X, Plus, ChevronDown, Hash, Megaphone, Lock as LockIcon, Check, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -59,6 +59,7 @@ export function Composer({ channelId, compact = true, groupSlug, crossPostChanne
   const [body, setBody] = useState("");
   // M24: device image uploads
   const [images, setImages] = useState<string[]>([]);
+  const [justPosted, setJustPosted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   // ── Cross-post (admin only) ────────────────────────────────────────────
@@ -97,11 +98,24 @@ export function Composer({ channelId, compact = true, groupSlug, crossPostChanne
         setPollOptions(["", ""]);
         setBody("");
         setImages([]);
+        // Reset cross-post selection back to just the current channel.
+        setSelectedChannels(new Set([channelId]));
+        setPickerOpen(false);
+        // Collapse immediately + flash "Posted ✓" on the compact pill.
+        if (compact) setExpanded(false);
+        setJustPosted(true);
       }
       return result ?? prev;
     },
     null,
   );
+
+  // Clear the "Posted ✓" flash after 1.5s.
+  useEffect(() => {
+    if (!justPosted) return;
+    const t = setTimeout(() => setJustPosted(false), 1500);
+    return () => clearTimeout(t);
+  }, [justPosted]);
 
   function addPollOption() {
     if (pollOptions.length < MAX_POLL_OPTIONS) {
@@ -122,9 +136,22 @@ export function Composer({ channelId, compact = true, groupSlug, crossPostChanne
       <button
         type="button"
         onClick={() => setExpanded(true)}
-        className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left text-sm text-muted-foreground transition-colors hover:border-primary hover:bg-card"
+        className={cn(
+          "flex w-full items-center gap-3 rounded-xl border bg-card px-4 py-3 text-left text-sm transition-colors",
+          justPosted
+            ? "border-green-500/50 text-green-700 dark:text-green-400"
+            : "border-border text-muted-foreground hover:border-primary hover:bg-card",
+        )}
+        disabled={justPosted}
       >
-        {t("placeholder")}
+        {justPosted ? (
+          <>
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span className="font-semibold">Posted</span>
+          </>
+        ) : (
+          t("placeholder")
+        )}
       </button>
     );
   }
