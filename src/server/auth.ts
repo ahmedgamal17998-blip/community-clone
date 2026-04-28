@@ -13,6 +13,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import Google from "next-auth/providers/google";
 import Resend from "next-auth/providers/resend";
 import { Resend as ResendClient } from "resend";
+import { headers } from "next/headers";
 import { db } from "@/server/db";
 import { generateHandle } from "@/lib/handle";
 import { enforceSessionLimit } from "@/server/session-limit";
@@ -110,17 +111,63 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         },
       });
     },
-    // M20: enforce 2-device session limit + record login history
+    // M20: enforce 2-device session limit + record login history (with IP / UA).
     async signIn({ user }) {
       if (!user?.id) return;
       try {
         await enforceSessionLimit({ userId: user.id });
+
+        // Best-effort header capture (events run inside the sign-in request).
+        let ip: string | null = null;
+        let userAgent: string | null = null;
+        try {
+          const h = await headers();
+          ip =
+            h.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+            h.get("x-real-ip") ??
+            null;
+          userAgent = h.get("user-agent") ?? null;
+        } catch {
+          /* headers() unavailable outside request — ignore */
+        }
+
         await db.loginHistory.create({
-          data: { userId: user.id },
+          data: { userId: user.id, ip, userAgent },
         });
       } catch (e) {
         // eslint-disable-next-line no-console
         console.error("signIn event error:", e);
+      }
+    },
+    // Close the most recent open login record with elapsed duration.
+    async signOut(message) {
+      try {
+        // With database sessions, message is { session: { userId, ... } }.
+        const userId =
+          "session" in message && message.session
+            ? (message.session as { userId?: string }).userId ?? null
+            : null;
+        if (!userId) return;
+
+        const last = await db.loginHistory.findFirst({
+          where: { userId, durationSec: null },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, createdAt: true },
+        });
+        if (!last) return;
+
+        const closedAt = new Date();
+        const durationSec = Math.max(
+          0,
+          Math.floor((closedAt.getTime() - last.createdAt.getTime()) / 1000),
+        );
+        await db.loginHistory.update({
+          where: { id: last.id },
+          data: { closedAt, durationSec },
+        });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("signOut event error:", e);
       }
     },
   },

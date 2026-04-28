@@ -29,7 +29,11 @@ export default async function AdminMemberPage({
       id: true,
       slug: true,
       name: true,
-      channels: { select: { id: true, name: true, slug: true, kind: true } },
+      channels: {
+        where: { archived: false },
+        orderBy: { position: "asc" },
+        select: { id: true, name: true, slug: true, kind: true },
+      },
       courses: { select: { id: true, title: true, slug: true } },
       subscriptionPlans: {
         where: { active: true },
@@ -38,6 +42,13 @@ export default async function AdminMemberPage({
     },
   });
   if (!group) notFound();
+
+  // Group chats tied to this group (kind=GROUP, has groupId).
+  const chatThreads = await db.chatThread.findMany({
+    where: { groupId: group.id, kind: "GROUP" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, title: true },
+  });
 
   const allowed = await hasCapability({
     userId: session.user.id,
@@ -123,6 +134,7 @@ export default async function AdminMemberPage({
           userId={member.id}
           channels={group.channels}
           courses={group.courses}
+          chatThreads={chatThreads}
           accesses={accesses}
         />
       </section>

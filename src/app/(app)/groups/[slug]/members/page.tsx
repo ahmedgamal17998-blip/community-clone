@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/avatar";
 import { initialsFrom } from "@/lib/initials";
 import { RoleMenu } from "@/components/group/RoleMenu";
+import { Settings2 } from "lucide-react";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { timeAgo } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -287,6 +288,15 @@ export default async function GroupMembersPage({
                     title="Book a session"
                   >
                     Book
+                  </Link>
+                ) : null}
+                {canModerate && m.userId !== session?.user?.id ? (
+                  <Link
+                    href={`/groups/${group.slug}/admin/members/${m.userId}`}
+                    title="Manage access"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    <Settings2 className="h-4 w-4" />
                   </Link>
                 ) : null}
                 {canModerate && m.userId !== session?.user?.id ? (
