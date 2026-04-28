@@ -22,18 +22,27 @@ export function LoginPopup({
   body,
   ctaUrl,
   durationSec,
+  loginAt,
 }: {
   groupSlug: string;
   title: string;
   body: string;
   ctaUrl?: string | null;
   durationSec: number;
+  /**
+   * Timestamp of the viewer's most recent sign-in (ISO or epoch ms).
+   * Used as part of the storage key so a fresh sign-in (sign-out → sign-in)
+   * re-shows the popup. Within the same login session, the popup only
+   * appears once.
+   */
+  loginAt: string | number;
 }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const key = `login-popup-seen:${groupSlug}`;
     if (typeof window === "undefined") return;
+    // Key the seen marker by login timestamp → each new sign-in is a new key.
+    const key = `login-popup-seen:${groupSlug}:${loginAt}`;
     const seen = sessionStorage.getItem(key);
     if (seen) return;
     setOpen(true);
@@ -43,7 +52,7 @@ export function LoginPopup({
       const t = setTimeout(() => setOpen(false), durationSec * 1000);
       return () => clearTimeout(t);
     }
-  }, [groupSlug, durationSec]);
+  }, [groupSlug, durationSec, loginAt]);
 
   if (!open) return null;
 

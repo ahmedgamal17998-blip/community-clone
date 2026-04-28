@@ -189,10 +189,12 @@ export default async function GroupLayout({
         </aside>
       </div>
 
-      {/* M20: login popup */}
+      {/* M20: login popup — keyed by viewer's latest sign-in so each
+          sign-out → sign-in cycle re-shows the popup. */}
       {isActiveMember && group.loginPopupEnabled && group.loginPopupTitle && group.loginPopupBody && (
-        <LoginPopup
+        <LoginPopupMount
           groupSlug={group.slug}
+          userId={session.user.id}
           title={group.loginPopupTitle}
           body={group.loginPopupBody}
           ctaUrl={group.loginPopupCtaUrl}
@@ -218,6 +220,45 @@ export default async function GroupLayout({
   );
 }
 
+/** Fetches the viewer's latest sign-in timestamp so the LoginPopup can key
+ *  its "seen" marker per-sign-in (sign out → sign in re-shows the popup). */
+async function LoginPopupMount({
+  groupSlug,
+  userId,
+  title,
+  body,
+  ctaUrl,
+  durationSec,
+}: {
+  groupSlug: string;
+  userId: string;
+  title: string;
+  body: string;
+  ctaUrl: string | null;
+  durationSec: number;
+}) {
+  const lastLogin = await db.loginHistory.findFirst({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  // Fallback: if there's no login record (e.g. legacy session pre-tracking),
+  // use a stable per-day key so the popup at least shows once per day.
+  const loginAt = lastLogin
+    ? lastLogin.createdAt.getTime()
+    : Math.floor(Date.now() / 86_400_000);
+  return (
+    <LoginPopup
+      groupSlug={groupSlug}
+      title={title}
+      body={body}
+      ctaUrl={ctaUrl}
+      durationSec={durationSec}
+      loginAt={loginAt}
+    />
+  );
+}
+
 async function OnboardingMount({ groupId }: { groupId: string }) {
   const config = await db.onboardingConfig.findUnique({ where: { groupId } });
   if (!config?.enabled) return null;
@@ -233,18 +274,23 @@ async function OnboardingMount({ groupId }: { groupId: string }) {
 
 async function AnnouncementsMount({
   groupId,
-  userId,
+  // userId is no longer used to filter — the snooze logic lives client-side
+  // in sessionStorage. We keep the prop so callers don't have to change.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  userId: _userId,
 }: {
   groupId: string;
   userId: string;
 }) {
   const now = new Date();
+  // Pick the most recent announcement that's currently within its active window.
+  // We mount it on every page load — the popup itself decides whether to show
+  // based on a 1-hour client-side snooze (sessionStorage).
   const announcements = await db.adminAnnouncement.findMany({
     where: {
       groupId,
       startsAt: { lte: now },
       OR: [{ endsAt: null }, { endsAt: { gt: now } }],
-      seen: { none: { userId } },
     },
     take: 1,
     orderBy: { createdAt: "desc" },
