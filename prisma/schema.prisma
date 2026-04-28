@@ -626,6 +626,7 @@ model Course {
   updatedAt     DateTime @updatedAt
 
   group       Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  modules     CourseModule[]
   lessons     Lesson[]
   progress    LessonProgress[]
   enrollments CourseEnrollment[]
@@ -637,6 +638,29 @@ model Course {
 
   @@unique([groupId, slug])
   @@index([groupId, published, position])
+}
+
+// Course chapter / module — wraps lessons into ordered groups.
+// releaseMode: PUBLISHED | DRIP (releases dripDays after enrollment) | LOCKED
+// (releases only after every previous module is fully completed).
+model CourseModule {
+  id          String   @id @default(cuid())
+  courseId    String
+  title       String
+  description String?
+  position    Int      @default(0)
+  // PUBLISHED | DRIP | LOCKED
+  releaseMode String   @default("PUBLISHED")
+  // When releaseMode = DRIP, days from enrollment until this module unlocks.
+  dripDays    Int?
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@index([courseId, position])
 }
 
 model CourseEnrollment {
@@ -666,20 +690,34 @@ model CourseEnrollment {
 model Lesson {
   id          String   @id @default(cuid())
   courseId    String
+  // Optional during migration; backfilled to a default "Lessons" module.
+  moduleId    String?
   slug        String
   title       String
   body        String?
   videoUrl    String?
+  thumbnailUrl String?
   durationSec Int?
+  // VIDEO | TEXT | QUIZ | ASSIGNMENT (Quiz/Assignment in Phase 2)
+  kind        String   @default("VIDEO")
+  // PUBLISHED | DRIP | LOCKED — same semantics as CourseModule.releaseMode
+  releaseMode String   @default("PUBLISHED")
+  // When releaseMode = DRIP, days from enrollment until this lesson unlocks.
+  dripDays    Int?
+  // Downloadable resources — JSON array of {url, name, size?}
+  resources   String?
+  published   Boolean  @default(true)
   position    Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   course   Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  module   CourseModule?    @relation(fields: [moduleId], references: [id], onDelete: SetNull)
   progress LessonProgress[]
 
   @@unique([courseId, slug])
   @@index([courseId, position])
+  @@index([moduleId, position])
 }
 
 model LessonProgress {
