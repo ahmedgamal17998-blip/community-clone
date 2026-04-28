@@ -374,7 +374,7 @@ export function ChatThreadView(props: ChatThreadViewProps) {
   const showPinnedBanner = pinned.length > 0 && !pinnedDismissed;
 
   return (
-    <div className="flex h-[calc(100vh-14rem)] min-h-[520px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_rgba(0,0,0,0.04)]">
+    <div className="flex h-[calc(100vh-15rem)] min-h-[520px] flex-col overflow-hidden bg-card">
       {/* Pinned banner */}
       {showPinnedBanner && (
         <PinnedBanner
@@ -384,15 +384,16 @@ export function ChatThreadView(props: ChatThreadViewProps) {
         />
       )}
 
-      {/* Message feed with dot-pattern wallpaper */}
+      {/* Message feed with dot-pattern wallpaper (soft purple tint) */}
       <div
         ref={listRef}
         onScroll={onScroll}
-        className="flex-1 overflow-y-auto px-2 py-2 sm:px-3"
+        className="flex-1 overflow-y-auto px-3 py-3 sm:px-4"
         style={{
-          backgroundImage: "radial-gradient(rgba(0,0,0,0.055) 1px, transparent 1px)",
-          backgroundSize: "18px 18px",
-          backgroundColor: "hsl(var(--muted)/0.4)",
+          backgroundImage:
+            "radial-gradient(hsl(var(--primary) / 0.13) 1px, transparent 1px)",
+          backgroundSize: "20px 20px",
+          backgroundColor: "hsl(var(--primary) / 0.04)",
           scrollbarWidth: "thin",
           overflowAnchor: "none",
         }}
@@ -493,14 +494,17 @@ function PinnedBanner({
   onDismiss: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 border-b border-primary/20 bg-primary/8 px-4 py-2.5">
-      <Pin className="h-3.5 w-3.5 shrink-0 text-primary" />
+    <div
+      className="flex items-center gap-3 border-b border-primary/15 px-4 py-3"
+      style={{ backgroundColor: "hsl(var(--primary) / 0.10)" }}
+    >
+      <Pin className="h-4 w-4 shrink-0 text-primary" />
       <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-primary/70">
+        <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-primary/70">
           Pinned by {pinned.author.name ?? `@${pinned.author.handle}`}
           {count > 1 && ` · ${count} pins`}
         </div>
-        <div className="truncate text-[13px] font-semibold text-primary">
+        <div className="truncate text-[13.5px] font-semibold text-primary">
           {pinned.body ?? (pinned.mediaType ? `[${pinned.mediaType}]` : "")}
         </div>
       </div>
@@ -508,6 +512,7 @@ function PinnedBanner({
         type="button"
         onClick={onDismiss}
         className="shrink-0 rounded-full p-1 text-primary/60 transition-colors hover:bg-primary/10 hover:text-primary"
+        aria-label="Dismiss pinned"
       >
         <X className="h-3.5 w-3.5" />
       </button>
@@ -568,9 +573,9 @@ function MessageRow({
   // Bubble border-radius: tail-style (first in run has pointed corner)
   const bubbleRadius = isHead
     ? isMine
-      ? "rounded-[14px] rounded-br-[4px]"
-      : "rounded-[14px] rounded-bl-[4px]"
-    : "rounded-[14px]";
+      ? "rounded-[16px] rounded-br-[4px]"
+      : "rounded-[16px] rounded-bl-[4px]"
+    : "rounded-[16px]";
 
   // Combine DB reactions with local optimistic ones
   const mergedReactions = { ...localReactions };
@@ -702,11 +707,11 @@ function MessageRow({
         {/* Bubble */}
         <div
           className={cn(
-            "relative px-3 py-2 text-sm leading-relaxed shadow-sm",
+            "relative px-3.5 py-2 text-[14.5px] leading-[1.42]",
             bubbleRadius,
             isMine
-              ? "bg-primary text-primary-foreground"
-              : "border border-border bg-card text-foreground dark:bg-[#2d2d2d]",
+              ? "bg-primary text-primary-foreground shadow-[0_1px_2px_rgba(124,58,237,0.18)]"
+              : "bg-card text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06)] dark:bg-[#2d2d2d]",
           )}
         >
           {/* Reply quote inside bubble */}
@@ -784,8 +789,8 @@ function MessageRow({
         {hasAnyReaction && (
           <div
             className={cn(
-              "mt-1 flex flex-wrap gap-1",
-              isMine ? "justify-end" : "justify-start",
+              "-mt-1.5 flex flex-wrap gap-1",
+              isMine ? "justify-end" : "justify-start ml-1",
             )}
           >
             {Object.entries(mergedReactions)
@@ -798,14 +803,14 @@ function MessageRow({
                     type="button"
                     onClick={() => onReact(emoji)}
                     className={cn(
-                      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors",
+                      "inline-flex items-center gap-0.5 rounded-full border px-1.5 py-px text-[11px] font-semibold shadow-sm transition-colors",
                       iReacted
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-accent",
+                        ? "border-primary bg-primary/15 text-primary"
+                        : "border-border bg-card text-foreground/80 hover:border-primary/40 hover:bg-accent",
                     )}
                   >
-                    <span className="text-sm">{emoji}</span>
-                    <span>{users.length}</span>
+                    <span className="text-[13px] leading-none">{emoji}</span>
+                    <span className="leading-none">{users.length}</span>
                   </button>
                 );
               })}
@@ -939,10 +944,10 @@ function Composer({
       {/* Pill composer row */}
       <form
         onSubmit={onSend}
-        className="flex items-end gap-1.5 rounded-2xl border border-border bg-muted/40 px-2 py-1.5"
+        className="flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2 py-1.5 transition-colors focus-within:border-primary/40 focus-within:bg-card"
       >
-        {/* Attach (wraps MediaAttach trigger) */}
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+        {/* Attach */}
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center">
           <MediaAttach value={attached} onChange={setAttached} />
         </div>
 
@@ -951,59 +956,62 @@ function Composer({
           type="button"
           onClick={() => setEmojiOpen(!emojiOpen)}
           className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent",
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
             emojiOpen && "bg-accent text-foreground",
           )}
           aria-label="Emoji"
         >
-          <Smile className="h-[18px] w-[18px] text-muted-foreground" />
+          <Smile className="h-[20px] w-[20px]" />
         </button>
 
-        {/* Textarea */}
-        {groupSlug ? (
-          <MentionTextarea
-            value={body}
-            onChange={(val) => { setBody(val); fireTyping(val); }}
-            groupSlug={groupSlug}
-            placeholder="Type a message… use @ to mention"
-            rows={1}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.defaultPrevented) {
-                e.preventDefault();
-                onSend();
-              }
-            }}
-          />
-        ) : (
-          <Textarea
-            ref={textareaRef}
-            value={body}
-            onChange={(e) => { setBody(e.target.value); fireTyping(e.target.value); }}
-            placeholder="Type a message…"
-            rows={1}
-            className="min-h-0 flex-1 resize-none border-0 bg-transparent p-1 text-sm shadow-none focus-visible:ring-0"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
-            }}
-          />
-        )}
+        {/* Textarea — flex grows to fill */}
+        <div className="flex min-w-0 flex-1 items-center">
+          {groupSlug ? (
+            <MentionTextarea
+              value={body}
+              onChange={(val) => { setBody(val); fireTyping(val); }}
+              groupSlug={groupSlug}
+              placeholder="Type a message… use @ to mention"
+              rows={1}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.defaultPrevented) {
+                  e.preventDefault();
+                  onSend();
+                }
+              }}
+            />
+          ) : (
+            <Textarea
+              ref={textareaRef}
+              value={body}
+              onChange={(e) => { setBody(e.target.value); fireTyping(e.target.value); }}
+              placeholder="Type a message…"
+              rows={1}
+              className="min-h-0 flex-1 resize-none border-0 bg-transparent px-2 py-1.5 text-[14.5px] leading-[1.4] shadow-none focus-visible:ring-0"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
+              }}
+            />
+          )}
+        </div>
 
         {/* Send or Mic */}
         {canSend ? (
           <button
             type="submit"
             disabled={sending}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-all hover:bg-primary/90 disabled:opacity-50"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_2px_6px_rgba(124,58,237,0.35)] transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-50"
+            aria-label="Send"
           >
             <Send className="h-4 w-4" />
           </button>
         ) : (
           <button
             type="button"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             aria-label="Voice message"
           >
-            <Mic className="h-[18px] w-[18px]" />
+            <Mic className="h-[20px] w-[20px]" />
           </button>
         )}
       </form>
