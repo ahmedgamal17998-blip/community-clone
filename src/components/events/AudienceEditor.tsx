@@ -46,7 +46,10 @@ type Rule = {
 };
 
 type Props = {
-  eventId: string;
+  /** Live mode: pass an existing eventId — every change hits the server.
+   *  Draft mode: omit eventId — rules stay client-side and are emitted as
+   *  hidden inputs the parent <form> can submit alongside the new event. */
+  eventId?: string;
   initialMode: string; // ALL | RESTRICTED
   initialRules: Rule[];
   channels: Channel[];
@@ -73,6 +76,7 @@ export function AudienceEditor({
   courses,
   members,
 }: Props) {
+  const isDraft = !eventId;
   const [pending, startTransition] = useTransition();
   const [mode, setMode] = useState<string>(initialMode);
   const [rules, setRules] = useState<Rule[]>(initialRules);
@@ -88,23 +92,49 @@ export function AudienceEditor({
   const switchMode = (next: "ALL" | "RESTRICTED") => {
     if (next === mode) return;
     setMode(next);
+    if (isDraft) return; // draft form will submit the value via hidden input
     startTransition(async () => {
-      await setEventAudienceModeAction({ eventId, mode: next });
+      await setEventAudienceModeAction({ eventId: eventId!, mode: next });
     });
   };
 
   const removeRule = (ruleId: string) => {
     setRules((prev) => prev.filter((r) => r.id !== ruleId));
+    if (isDraft) return; // client-only delete
     startTransition(async () => {
       await removeAudienceRuleAction({ ruleId });
     });
   };
 
   const addRule = (
-    fields: Parameters<typeof addAudienceRuleAction>[0],
+    fields: Omit<Parameters<typeof addAudienceRuleAction>[0], "eventId"> & {
+      eventId?: string;
+    },
   ) => {
+    if (isDraft) {
+      // Generate a synthetic id so React keys + UI work; the server will
+      // re-create rows on submit.
+      const draftId = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setRules((prev) => [
+        ...prev,
+        {
+          id: draftId,
+          type: fields.type,
+          channelId: fields.channelId ?? null,
+          courseId: fields.courseId ?? null,
+          minRole: fields.minRole ?? null,
+          userId: fields.userId ?? null,
+        },
+      ]);
+      setAddType("");
+      setAddOpen(false);
+      return;
+    }
     startTransition(async () => {
-      const res = await addAudienceRuleAction(fields);
+      const res = await addAudienceRuleAction({
+        ...fields,
+        eventId: eventId!,
+      });
       if (res?.ok && res.ruleId) {
         setRules((prev) => [
           ...prev,
@@ -263,7 +293,7 @@ export function AudienceEditor({
               </div>
             ) : (
               <RulePicker
-                eventId={eventId}
+                eventId={eventId ?? ""}
                 type={addType}
                 channels={channels}
                 courses={courses}
@@ -275,6 +305,26 @@ export function AudienceEditor({
             )}
           </div>
         </div>
+      )}
+
+      {/* Draft mode: emit hidden inputs the parent <form> can submit. */}
+      {isDraft && (
+        <>
+          <input type="hidden" name="audienceMode" value={mode} />
+          <input
+            type="hidden"
+            name="audienceRules"
+            value={JSON.stringify(
+              rules.map((r) => ({
+                type: r.type,
+                channelId: r.channelId,
+                courseId: r.courseId,
+                minRole: r.minRole,
+                userId: r.userId,
+              })),
+            )}
+          />
+        </>
       )}
     </div>
   );
@@ -375,6 +425,15 @@ function AddItem({
 
 // ── Rule picker (per-type) ──────────────────────────────────────────────────
 
+type RulePickerOnAdd = (fields: {
+  eventId?: string;
+  type: "ALL" | "CHANNEL" | "COURSE" | "ROLE_LEVEL" | "MEMBER";
+  channelId?: string | null;
+  courseId?: string | null;
+  minRole?: "OWNER" | "ADMIN" | "CONTRIBUTOR" | "MEMBER" | null;
+  userId?: string | null;
+}) => void;
+
 function RulePicker({
   eventId,
   type,
@@ -391,7 +450,7 @@ function RulePicker({
   courses: Course[];
   members: Member[];
   onCancel: () => void;
-  onAdd: (fields: Parameters<typeof addAudienceRuleAction>[0]) => void;
+  onAdd: RulePickerOnAdd;
   pending: boolean;
 }) {
   const [channelId, setChannelId] = useState<string>(channels[0]?.id ?? "");

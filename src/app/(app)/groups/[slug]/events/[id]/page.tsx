@@ -12,6 +12,8 @@ import { RsvpButtons } from "@/components/events/RsvpButtons";
 import { ShareButton } from "@/components/events/ShareButton";
 import { DeleteEventButton } from "@/components/events/DeleteEventButton";
 import { IcsDownloadLink } from "@/components/events/IcsDownloadLink";
+import { Copy } from "lucide-react";
+import { duplicateEventAction } from "@/server/actions/duplicate-event";
 
 export default async function EventDetailPage({
   params,
@@ -125,6 +127,13 @@ export default async function EventDetailPage({
                       Edit
                     </Link>
                   </Button>
+                  <form action={duplicateEventAction}>
+                    <input type="hidden" name="eventId" value={event.id} />
+                    <Button type="submit" variant="outline" size="sm" className="gap-1">
+                      <Copy className="h-3.5 w-3.5" />
+                      Duplicate
+                    </Button>
+                  </form>
                   <DeleteEventButton eventId={event.id} />
                 </>
               ) : null}

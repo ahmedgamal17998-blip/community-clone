@@ -60,10 +60,15 @@ export function EventForm({
   groupId,
   groupSlug,
   initial,
+  audienceSlot,
 }: {
   groupId: string;
   groupSlug: string;
   initial?: InitialEvent;
+  /** Optional content rendered inside the same <form>. Used by the new-event
+   *  page to drop in the AudienceEditor in draft mode so its hidden inputs
+   *  ride along with the create submission. */
+  audienceSlot?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -185,6 +190,17 @@ export function EventForm({
         : (initial?.recurrenceEndsAt ?? "");
       if (endsAtVal) fd.append("recurrenceEndsAt", endsAtVal);
     }
+
+    // Pick up audience inputs from the AudienceEditor draft mode (if any).
+    const formEl = e.currentTarget;
+    const audienceMode = formEl.querySelector<HTMLInputElement>(
+      'input[name="audienceMode"]',
+    )?.value;
+    const audienceRules = formEl.querySelector<HTMLInputElement>(
+      'input[name="audienceRules"]',
+    )?.value;
+    if (audienceMode) fd.append("audienceMode", audienceMode);
+    if (audienceRules) fd.append("audienceRules", audienceRules);
 
     start(async () => {
       if (initial) {
@@ -406,6 +422,12 @@ export function EventForm({
           </p>
         ) : null}
       </div>
+
+      {audienceSlot ? (
+        <div className="rounded-xl border border-border bg-muted/20 p-4">
+          {audienceSlot}
+        </div>
+      ) : null}
 
       {error ? (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">

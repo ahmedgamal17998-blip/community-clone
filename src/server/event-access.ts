@@ -12,6 +12,7 @@
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { canAccessCourse } from "@/server/course-access";
+import { hasAccess } from "@/server/access";
 
 export async function canSeeEvent(params: {
   userId: string;
@@ -45,22 +46,22 @@ export async function canSeeEvent(params: {
       return true;
 
     if (a.type === "CHANNEL" && a.channelId) {
-      const channel = await db.channel.findUnique({ where: { id: a.channelId } });
+      // Use the canonical access resolver so this respects:
+      //  • per-member DENY records (admin "Lock" in AccessMatrix)
+      //  • GRANT records (private channels with explicit access)
+      //  • default-allow for active members on PUBLIC channels
+      const channel = await db.channel.findUnique({
+        where: { id: a.channelId },
+        select: { groupId: true },
+      });
       if (!channel) continue;
-      if (channel.kind === "PRIVATE") {
-        const access = await db.channelAccess.findUnique({
-          where: {
-            channelId_userId: {
-              channelId: a.channelId,
-              userId: params.userId,
-            },
-          },
-        });
-        if (access) return true;
-      } else {
-        // PUBLIC / ANNOUNCEMENT — visible to all active members
-        return true;
-      }
+      const allowed = await hasAccess({
+        userId: params.userId,
+        groupId: channel.groupId,
+        resourceType: "CHANNEL",
+        resourceId: a.channelId,
+      });
+      if (allowed) return true;
     }
 
     if (a.type === "COURSE" && a.courseId) {

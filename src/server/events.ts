@@ -336,6 +336,59 @@ export async function createEventAction(formData: FormData) {
     },
   });
 
+  // Optional inline audience (admins setting "who can see" while creating).
+  const audienceMode = formData.get("audienceMode");
+  const audienceRulesRaw = formData.get("audienceRules");
+  if (typeof audienceMode === "string" && audienceMode === "RESTRICTED") {
+    await db.event.update({
+      where: { id: event.id },
+      data: { audienceMode: "RESTRICTED" },
+    });
+  }
+  if (typeof audienceRulesRaw === "string" && audienceRulesRaw) {
+    try {
+      const arr = JSON.parse(audienceRulesRaw);
+      if (Array.isArray(arr) && arr.length > 0) {
+        // Verify the caller is admin before persisting rules.
+        const me = await db.groupMembership.findUnique({
+          where: {
+            groupId_userId: { groupId: data.groupId, userId: session.user.id },
+          },
+          select: { role: true, state: true },
+        });
+        const isAdmin =
+          !!me && me.state === "ACTIVE" &&
+          (me.role === "OWNER" || me.role === "ADMIN");
+        if (isAdmin) {
+          await db.eventAudience.createMany({
+            data: arr
+              .filter((r: { type?: string }) =>
+                ["ALL", "CHANNEL", "COURSE", "ROLE_LEVEL", "MEMBER"].includes(
+                  r?.type ?? "",
+                ),
+              )
+              .map((r: {
+                type: string;
+                channelId?: string | null;
+                courseId?: string | null;
+                minRole?: string | null;
+                userId?: string | null;
+              }) => ({
+                eventId: event.id,
+                type: r.type,
+                channelId: r.channelId ?? null,
+                courseId: r.courseId ?? null,
+                minRole: r.minRole ?? null,
+                userId: r.userId ?? null,
+              })),
+          });
+        }
+      }
+    } catch {
+      /* ignore malformed audience payload */
+    }
+  }
+
   // Notify active group members
   const group = await db.group.findUnique({
     where: { id: data.groupId },
