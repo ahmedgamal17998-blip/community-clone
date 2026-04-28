@@ -104,8 +104,20 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("UNAUTHENTICATED");
 
+  // ── Resolve target channel(s) ───────────────────────────────────────────
+  // The composer may submit multiple `channelIds` (admin cross-post) OR a
+  // single `channelId` (regular post). Cross-post requires CROSSPOST.
+  const multiTargets = formData.getAll("channelIds").map(String).filter(Boolean);
+  const fallback = (formData.get("channelId") as string) || "";
+  const targets = (multiTargets.length > 0 ? multiTargets : [fallback]).filter(Boolean);
+
+  if (targets.length === 0) {
+    return { ok: false as const, error: "No channel selected" };
+  }
+
+  // ── Parse the rest of the post payload (channel-independent) ────────────
   const parsed = createSchema.safeParse({
-    channelId: formData.get("channelId"),
+    channelId: targets[0], // schema needs *some* cuid; we don't actually use this field for the loop below
     title: formData.get("title") || undefined,
     body: formData.get("body"),
     mediaUrls: formData.get("mediaUrls") ?? "",
@@ -120,13 +132,31 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
     };
   }
 
-  const gate = await canWriteToChannel({
-    channelId: parsed.data.channelId,
-    userId: session.user.id,
-  });
-  if (!gate.ok) return { ok: false as const, error: gate.error };
+  // ── Cross-post capability gate ──────────────────────────────────────────
+  if (targets.length > 1) {
+    const { hasCapability } = await import("@/server/capabilities");
+    // We need a groupId — derive from the first target.
+    const firstChannel = await db.channel.findUnique({
+      where: { id: targets[0] },
+      select: { groupId: true },
+    });
+    if (!firstChannel) {
+      return { ok: false as const, error: "Channel not found" };
+    }
+    const allowed = await hasCapability({
+      userId: session.user.id,
+      groupId: firstChannel.groupId,
+      capability: "CROSSPOST",
+    });
+    if (!allowed) {
+      return {
+        ok: false as const,
+        error: "Cross-posting requires admin permission",
+      };
+    }
+  }
 
-  // M24: merge device-uploaded image URLs with text-pasted media URLs.
+  // ── Merge media ─────────────────────────────────────────────────────────
   let uploaded: string[] = [];
   try {
     const raw = formData.get("uploadedImageUrls");
@@ -140,70 +170,101 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
   const hasPoll =
     !!parsed.data.pollQuestion && parsed.data.pollOptions.length >= 2;
 
-  const post = await db.post.create({
-    data: {
-      channelId: parsed.data.channelId,
-      authorId: session.user.id,
-      title: parsed.data.title,
-      body: parsed.data.body,
-      mediaUrls: encodeMedia(mergedMedia),
-      ...(hasPoll
-        ? {
-            poll: {
-              create: {
-                question: parsed.data.pollQuestion!,
-                multipleChoice: parsed.data.pollMultipleChoice === "1",
-                options: {
-                  create: parsed.data.pollOptions.map((text, i) => ({
-                    text,
-                    order: i,
-                  })),
+  // ── Create one post per target channel ──────────────────────────────────
+  const created: { postId: string; channelSlug: string; groupSlug: string }[] = [];
+  for (const channelId of targets) {
+    const gate = await canWriteToChannel({
+      channelId,
+      userId: session.user.id,
+    });
+    if (!gate.ok) {
+      // For cross-post with mixed permissions, skip channels we can't post to
+      // rather than failing the entire batch. Log so the user can debug.
+      if (targets.length > 1) {
+        // eslint-disable-next-line no-console
+        console.warn(`cross-post: skipped ${channelId} — ${gate.error}`);
+        continue;
+      }
+      return { ok: false as const, error: gate.error };
+    }
+
+    const post = await db.post.create({
+      data: {
+        channelId,
+        authorId: session.user.id,
+        title: parsed.data.title,
+        body: parsed.data.body,
+        mediaUrls: encodeMedia(mergedMedia),
+        ...(hasPoll
+          ? {
+              poll: {
+                create: {
+                  question: parsed.data.pollQuestion!,
+                  multipleChoice: parsed.data.pollMultipleChoice === "1",
+                  options: {
+                    create: parsed.data.pollOptions.map((text, i) => ({
+                      text,
+                      order: i,
+                    })),
+                  },
                 },
               },
-            },
-          }
-        : {}),
-    },
-    select: { id: true },
-  });
-
-  revalidatePath(`/groups/${gate.channel.group.slug}`);
-  revalidatePath(
-    `/groups/${gate.channel.group.slug}/channels/${gate.channel.slug}`,
-  );
-
-  // Points (best-effort).
-  try {
-    await addPoints({
-      userId: session.user.id,
-      groupId: gate.channel.groupId,
-      delta: 1,
-      reason: "POST",
-      refType: "post",
-      refId: post.id,
+            }
+          : {}),
+      },
+      select: { id: true },
     });
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.error("addPoints (post) failed", e);
-  }
 
-  // Fire @mention notifications (best-effort; don't block the response).
-  try {
-    await notifyMentions({
-      text: parsed.data.body,
-      actorId: session.user.id,
-      groupId: gate.channel.groupId,
-      href: `/groups/${gate.channel.group.slug}/channels/${gate.channel.slug}#post-${post.id}`,
-      snippet: parsed.data.body,
+    created.push({
       postId: post.id,
+      channelSlug: gate.channel.slug,
+      groupSlug: gate.channel.group.slug,
     });
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.error("notifyMentions (post) failed", e);
+
+    revalidatePath(`/groups/${gate.channel.group.slug}`);
+    revalidatePath(
+      `/groups/${gate.channel.group.slug}/channels/${gate.channel.slug}`,
+    );
+
+    // Points: only credit the first one to avoid points farming via cross-post.
+    if (created.length === 1) {
+      try {
+        await addPoints({
+          userId: session.user.id,
+          groupId: gate.channel.groupId,
+          delta: 1,
+          reason: "POST",
+          refType: "post",
+          refId: post.id,
+        });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("addPoints (post) failed", e);
+      }
+    }
+
+    // Mention notifications fire on every cross-post (so mentioned users get
+    // pinged once per channel).
+    try {
+      await notifyMentions({
+        text: parsed.data.body,
+        actorId: session.user.id,
+        groupId: gate.channel.groupId,
+        href: `/groups/${gate.channel.group.slug}/channels/${gate.channel.slug}#post-${post.id}`,
+        snippet: parsed.data.body,
+        postId: post.id,
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("notifyMentions (post) failed", e);
+    }
   }
 
-  // Return ok so the composer can clear.
-  return { ok: true as const, postId: post.id };
+  if (created.length === 0) {
+    return { ok: false as const, error: "Could not post to any channel" };
+  }
+
+  return { ok: true as const, postId: created[0].postId };
 }
 
 // ─── Edit post ─────────────────────────────────────────────────────────────

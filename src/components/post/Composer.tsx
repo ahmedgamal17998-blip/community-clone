@@ -5,10 +5,10 @@
  * M5: adds optional poll (question + up to 5 options).
  * M14: switched to TipTap RichTextEditor.
  */
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { useTranslations } from "next-intl";
-import { X, Plus } from "lucide-react";
+import { X, Plus, ChevronDown, Hash, Megaphone, Lock as LockIcon, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,17 +19,37 @@ import { ImageUploader } from "@/components/post/ImageUploader";
 
 type State = { ok: boolean; error?: string; postId?: string } | null;
 
+type CrossPostChannel = {
+  id: string;
+  slug: string;
+  name: string;
+  kind: string; // PUBLIC | PRIVATE | ANNOUNCEMENT
+};
+
 type Props = {
   channelId: string;
   /** Compact mode collapses the composer to a single-line trigger until focused. */
   compact?: boolean;
   /** When provided, the body textarea enables @mention autocomplete. */
   groupSlug?: string;
+  /**
+   * Admin-only cross-post: when supplied, the composer renders a channel
+   * picker and lets the admin post to multiple channels in one go.
+   * Pass the full list of channels in the group; the current `channelId`
+   * is auto-selected by default.
+   */
+  crossPostChannels?: CrossPostChannel[];
 };
 
 const MAX_POLL_OPTIONS = 5;
 
-export function Composer({ channelId, compact = true, groupSlug }: Props) {
+function ChannelKindIcon({ kind, className }: { kind: string; className?: string }) {
+  if (kind === "PRIVATE") return <LockIcon className={className} />;
+  if (kind === "ANNOUNCEMENT") return <Megaphone className={className} />;
+  return <Hash className={className} />;
+}
+
+export function Composer({ channelId, compact = true, groupSlug, crossPostChannels }: Props) {
   const t = useTranslations("posts.composer");
   const tc = useTranslations("composer");
   const [expanded, setExpanded] = useState(!compact);
@@ -40,6 +60,32 @@ export function Composer({ channelId, compact = true, groupSlug }: Props) {
   // M24: device image uploads
   const [images, setImages] = useState<string[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // ── Cross-post (admin only) ────────────────────────────────────────────
+  const canCrossPost = !!crossPostChannels && crossPostChannels.length > 1;
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [selectedChannels, setSelectedChannels] = useState<Set<string>>(
+    () => new Set([channelId]),
+  );
+  const channelById = useMemo(() => {
+    const m = new Map<string, CrossPostChannel>();
+    (crossPostChannels ?? []).forEach((c) => m.set(c.id, c));
+    return m;
+  }, [crossPostChannels]);
+
+  function toggleChannel(id: string) {
+    setSelectedChannels((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        // Don't allow removing the last channel — must post somewhere.
+        if (next.size <= 1) return prev;
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
 
   const [state, formAction] = useFormState<State, FormData>(
     async (prev, formData) => {
@@ -90,6 +136,16 @@ export function Composer({ channelId, compact = true, groupSlug }: Props) {
       className="space-y-3 rounded-xl border border-border bg-card p-4"
     >
       <input type="hidden" name="channelId" value={channelId} />
+      {/* When admin selects multiple channels, the server treats `channelIds`
+          as the source of truth (cross-post). For a single channel the
+          fallback `channelId` above is used. */}
+      {canCrossPost && (
+        <>
+          {[...selectedChannels].map((id) => (
+            <input key={id} type="hidden" name="channelIds" value={id} />
+          ))}
+        </>
+      )}
 
       <Input
         name="title"
@@ -97,6 +153,101 @@ export function Composer({ channelId, compact = true, groupSlug }: Props) {
         maxLength={160}
         className="border-0 bg-transparent px-0 text-base font-medium shadow-none focus-visible:ring-0"
       />
+
+      {/* Admin-only cross-post channel picker */}
+      {canCrossPost && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Post to:
+          </span>
+          {/* Compact summary chips for selected channels */}
+          {[...selectedChannels].map((id) => {
+            const c = channelById.get(id);
+            if (!c) return null;
+            const removable = selectedChannels.size > 1;
+            return (
+              <span
+                key={id}
+                className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary"
+              >
+                <ChannelKindIcon kind={c.kind} className="h-3 w-3" />
+                <span>#{c.slug}</span>
+                {removable && (
+                  <button
+                    type="button"
+                    onClick={() => toggleChannel(id)}
+                    aria-label={`Remove #${c.slug}`}
+                    className="rounded-full p-0.5 text-primary/70 hover:bg-primary/15 hover:text-primary"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </span>
+            );
+          })}
+
+          {/* Picker dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setPickerOpen((v) => !v)}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+            >
+              <Plus className="h-3 w-3" />
+              <span>Add channel</span>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+            {pickerOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setPickerOpen(false)}
+                />
+                <div className="absolute left-0 top-full z-40 mt-1 max-h-72 w-64 overflow-y-auto rounded-xl border border-border bg-card py-1 shadow-xl">
+                  {(crossPostChannels ?? []).map((c) => {
+                    const checked = selectedChannels.has(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => toggleChannel(c.id)}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+                      >
+                        <span
+                          className={cn(
+                            "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                            checked
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-input",
+                          )}
+                        >
+                          {checked && <Check className="h-3 w-3" />}
+                        </span>
+                        <ChannelKindIcon
+                          kind={c.kind}
+                          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                        />
+                        <span className="flex-1 truncate">{c.name}</span>
+                        {c.id === channelId && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Current
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+
+          {selectedChannels.size > 1 && (
+            <span className="text-[11px] text-muted-foreground">
+              · posting to {selectedChannels.size} channels
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Hidden input carries the JSON body for form submission */}
       <input type="hidden" name="body" value={body} />

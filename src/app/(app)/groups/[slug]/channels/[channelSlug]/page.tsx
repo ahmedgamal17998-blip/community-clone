@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
+import { hasCapability } from "@/server/capabilities";
 import { listChannelPosts, buildPostReactions, buildPollData } from "@/server/posts";
 import { PostCard } from "@/components/post/PostCard";
 import { FeedClient } from "@/components/post/FeedClient";
@@ -42,9 +43,33 @@ export default async function ChannelPostsPage({
   const feed = await listChannelPosts({ channelId: channel.id, viewerId });
   const isEmpty = feed.pinned.length === 0 && feed.items.length === 0;
 
+  // Cross-post: admins/owners with CROSSPOST capability get a channel picker.
+  // Owner always passes; admins gated by capability.
+  const canCrossPost = isAdmin
+    ? await hasCapability({
+        userId: session.user.id,
+        groupId: channel.groupId,
+        capability: "CROSSPOST",
+      })
+    : false;
+
+  const groupChannels = canCrossPost
+    ? await db.channel.findMany({
+        where: { groupId: channel.groupId, archived: false },
+        orderBy: { position: "asc" },
+        select: { id: true, slug: true, name: true, kind: true },
+      })
+    : [];
+
   return (
     <div className="space-y-4">
-      {canPost ? <Composer channelId={channel.id} groupSlug={params.slug} /> : null}
+      {canPost ? (
+        <Composer
+          channelId={channel.id}
+          groupSlug={params.slug}
+          crossPostChannels={canCrossPost ? groupChannels : undefined}
+        />
+      ) : null}
 
       {isEmpty ? (
         <section className="rounded-xl border border-dashed border-border bg-card/40 p-8 text-center">
