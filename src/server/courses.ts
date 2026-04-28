@@ -594,6 +594,18 @@ export async function markLessonCompleteAction(formData: FormData) {
       // eslint-disable-next-line no-console
       console.error("addPoints (lesson) failed", e);
     }
+
+    // Phase 2: auto-award completion certificate if course is now 100% done.
+    try {
+      const { checkCourseCompletionAction } = await import("@/server/credentials");
+      await checkCourseCompletionAction({
+        userId: session.user.id,
+        courseId: lesson.courseId,
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("checkCourseCompletion failed", e);
+    }
   }
 
   // Find next lesson (by position).

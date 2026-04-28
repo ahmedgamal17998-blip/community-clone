@@ -164,6 +164,12 @@ model User {
   // M26 relations
   announcementsCreated AdminAnnouncement[] @relation("AnnouncementAuthor")
   announcementsSeen    AnnouncementSeen[]
+
+  // Phase 2 (Quiz/Assignment/Credentials) relations
+  quizAttempts          QuizAttempt[]
+  assignmentSubmissions AssignmentSubmission[]
+  assignmentsGraded     AssignmentSubmission[] @relation("AssignmentGrader")
+  earnedCredentials     EarnedCredential[]
 }
 
 // Single row per user. Updated by a debounced heartbeat (M6).
@@ -636,6 +642,9 @@ model Course {
   manualGrants CourseManualGrant[]
   audiences    EventAudience[]
 
+  // Phase 2 relations
+  credentials Credential[]
+
   @@unique([groupId, slug])
   @@index([groupId, published, position])
 }
@@ -711,9 +720,11 @@ model Lesson {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  course   Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  module   CourseModule?    @relation(fields: [moduleId], references: [id], onDelete: SetNull)
-  progress LessonProgress[]
+  course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  module     CourseModule?    @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  progress   LessonProgress[]
+  quiz       Quiz?
+  assignment Assignment?
 
   @@unique([courseId, slug])
   @@index([courseId, position])
@@ -734,6 +745,136 @@ model LessonProgress {
 
   @@unique([userId, lessonId])
   @@index([userId, courseId])
+}
+
+// ─── Phase 2: Quiz / Assignment / Credentials ──────────────────────────────
+
+// Quiz attached to a Lesson (1:1 when lesson.kind = QUIZ).
+model Quiz {
+  id               String    @id @default(cuid())
+  lessonId         String    @unique
+  passingScore     Int       @default(70) // percentage 0–100
+  shuffleQuestions Boolean   @default(false)
+  allowRetake      Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  lesson    Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+}
+
+model QuizQuestion {
+  id     String       @id @default(cuid())
+  quizId String
+  text   String
+  // SINGLE | MULTIPLE — single chooses one option, multiple allows several.
+  type   String       @default("SINGLE")
+  order  Int          @default(0)
+
+  quiz    Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  options QuizOption[]
+
+  @@index([quizId, order])
+}
+
+model QuizOption {
+  id         String  @id @default(cuid())
+  questionId String
+  text       String
+  isCorrect  Boolean @default(false)
+  order      Int     @default(0)
+
+  question QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId, order])
+}
+
+model QuizAttempt {
+  id          String   @id @default(cuid())
+  userId      String
+  quizId      String
+  // Score is the raw correct count; passed is computed against passingScore.
+  score       Int
+  total       Int
+  passed      Boolean
+  // JSON: { questionId: optionId | optionId[] } — stored for audit / review.
+  answersJson String
+  completedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@index([userId, quizId])
+  @@index([quizId])
+}
+
+// Assignment attached to a Lesson (1:1 when lesson.kind = ASSIGNMENT).
+model Assignment {
+  id             String   @id @default(cuid())
+  lessonId       String   @unique
+  instructions   String?
+  // TEXT | FILE | BOTH
+  submissionType String   @default("TEXT")
+  maxScore       Int      @default(100)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  lesson      Lesson                 @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  submissions AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id           String    @id @default(cuid())
+  userId       String
+  assignmentId String
+  textAnswer   String?
+  fileUrl      String?
+  // Filled by an admin reviewer.
+  score        Int?
+  feedback     String?
+  gradedAt     DateTime?
+  gradedById   String?
+  submittedAt  DateTime  @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  gradedBy   User?      @relation("AssignmentGrader", fields: [gradedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, assignmentId])
+  @@index([assignmentId])
+}
+
+// Credentials = welcome badge + course completion certificate.
+// kind: WELCOME (auto-awarded on enrollment) | COMPLETION (auto-awarded
+// when 100% of lessons are complete).
+model Credential {
+  id          String   @id @default(cuid())
+  courseId    String
+  kind        String // WELCOME | COMPLETION
+  title       String
+  description String?
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  earned EarnedCredential[]
+
+  @@unique([courseId, kind])
+}
+
+model EarnedCredential {
+  id           String   @id @default(cuid())
+  userId       String
+  credentialId String
+  earnedAt     DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credential Credential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, credentialId])
+  @@index([userId])
 }
 
 // ─── Events + RSVP (M10) ────────────────────────────────────────────────────

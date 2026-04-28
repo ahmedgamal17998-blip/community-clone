@@ -89,6 +89,18 @@ export async function createFreeEnrollmentAction(formData: FormData): Promise<
     update: { status: "ACTIVE" },
   });
 
+  // Phase 2: auto-award welcome badge on enrollment (best-effort).
+  try {
+    const { awardWelcomeOnEnrollAction } = await import("@/server/credentials");
+    await awardWelcomeOnEnrollAction({
+      userId: session.user.id,
+      courseId: course.id,
+    });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("awardWelcomeOnEnroll failed", e);
+  }
+
   revalidatePath(`/groups/${course.group.slug}/learning/${course.slug}`);
   return { ok: true };
 }

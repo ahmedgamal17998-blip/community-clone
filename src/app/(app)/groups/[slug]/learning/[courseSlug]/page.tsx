@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { LessonSidebar } from "@/components/courses/LessonSidebar";
 import { CourseAccessGate } from "@/components/courses/CourseAccessGate";
 import { AdminEnrollmentPanel } from "@/components/courses/AdminEnrollmentPanel";
+import { CredentialsRow } from "@/components/courses/CredentialsRow";
 
 export default async function CoursePage({
   params,
@@ -71,6 +72,29 @@ export default async function CoursePage({
     })),
   }));
   const hasAnyLessons = sidebarModules.some((m) => m.lessons.length > 0);
+
+  // Phase 2: load credentials + viewer's earned status (best-effort).
+  const credentials = await db.credential.findMany({
+    where: { courseId: course.id },
+    orderBy: { kind: "asc" },
+  });
+  const earnedRows = await db.earnedCredential.findMany({
+    where: {
+      userId: session.user.id,
+      credentialId: { in: credentials.map((c) => c.id) },
+    },
+    select: { credentialId: true, earnedAt: true },
+  });
+  const earnedMap = new Map(earnedRows.map((r) => [r.credentialId, r.earnedAt]));
+  const credentialViews = credentials.map((c) => ({
+    id: c.id,
+    kind: c.kind,
+    title: c.title,
+    description: c.description,
+    imageUrl: c.imageUrl,
+    earned: earnedMap.has(c.id),
+    earnedAt: earnedMap.get(c.id) ?? null,
+  }));
 
   // For admin enrollment panel, load all enrollments.
   const adminEnrollments = isAdmin
@@ -141,6 +165,10 @@ export default async function CoursePage({
             This is a paid course. Enroll below to access lessons.
           </div>
         ) : null}
+
+        {credentialViews.length > 0 && (
+          <CredentialsRow credentials={credentialViews} />
+        )}
 
         <header className="space-y-3">
           {course.coverUrl ? (

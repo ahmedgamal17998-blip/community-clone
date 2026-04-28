@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { LessonSidebar } from "@/components/courses/LessonSidebar";
 import { LessonPlayer } from "@/components/courses/LessonPlayer";
 import { CompleteContinueButton } from "@/components/courses/CompleteContinueButton";
+import { QuizBlock } from "@/components/courses/QuizBlock";
+import { AssignmentBlock } from "@/components/courses/AssignmentBlock";
 
 export default async function LessonPage({
   params,
@@ -55,6 +57,68 @@ export default async function LessonPage({
   });
   if (!lessonData) notFound();
   const { lesson, prev, next, completed } = lessonData;
+
+  // Phase 2 — fetch quiz/assignment payload based on lesson kind.
+  const lessonRow = await db.lesson.findUnique({
+    where: { id: lesson.id },
+    select: { kind: true },
+  });
+  const lessonKind = lessonRow?.kind ?? "VIDEO";
+
+  type QuizWithQuestions = Awaited<
+    ReturnType<
+      typeof db.quiz.findUnique<{
+        where: { lessonId: string };
+        include: {
+          questions: { include: { options: true }; orderBy: { order: "asc" } };
+        };
+      }>
+    >
+  >;
+  let quizData: QuizWithQuestions = null;
+  let bestAttempt: { correct: number; total: number; passed: boolean } | null = null;
+  if (lessonKind === "QUIZ") {
+    quizData = await db.quiz.findUnique({
+      where: { lessonId: lesson.id },
+      include: {
+        questions: { include: { options: true }, orderBy: { order: "asc" } },
+      },
+    });
+    if (quizData && !isAdmin) {
+      const att = await db.quizAttempt.findFirst({
+        where: { userId: session.user.id, quizId: quizData.id },
+        orderBy: [{ passed: "desc" }, { score: "desc" }],
+      });
+      if (att) {
+        bestAttempt = {
+          correct: att.score,
+          total: att.total,
+          passed: att.passed,
+        };
+      }
+    }
+  }
+
+  let assignmentData: Awaited<ReturnType<typeof db.assignment.findUnique>> | null =
+    null;
+  let mySubmission: Awaited<
+    ReturnType<typeof db.assignmentSubmission.findUnique>
+  > | null = null;
+  if (lessonKind === "ASSIGNMENT") {
+    assignmentData = await db.assignment.findUnique({
+      where: { lessonId: lesson.id },
+    });
+    if (assignmentData && !isAdmin) {
+      mySubmission = await db.assignmentSubmission.findUnique({
+        where: {
+          userId_assignmentId: {
+            userId: session.user.id,
+            assignmentId: assignmentData.id,
+          },
+        },
+      });
+    }
+  }
 
   // Touch lastSeenAt (fire-and-forget — we don't block render).
   // Upsert directly here so we don't need a server-action round-trip.
@@ -103,6 +167,68 @@ export default async function LessonPage({
           body={lesson.body}
         />
 
+        {/* Phase 2: quiz/assignment blocks render below the lesson player. */}
+        {lessonKind === "QUIZ" && (
+          <QuizBlock
+            lessonId={lesson.id}
+            mode={isAdmin ? "edit" : "play"}
+            initialQuiz={
+              quizData
+                ? {
+                    id: quizData.id,
+                    passingScore: quizData.passingScore,
+                    shuffleQuestions: quizData.shuffleQuestions,
+                    allowRetake: quizData.allowRetake,
+                    questions: quizData.questions.map((q) => ({
+                      id: q.id,
+                      text: q.text,
+                      type: q.type,
+                      order: q.order,
+                      options: q.options.map((o) => ({
+                        id: o.id,
+                        text: o.text,
+                        isCorrect: o.isCorrect,
+                        order: o.order,
+                      })),
+                    })),
+                  }
+                : null
+            }
+            alreadyPassed={!!bestAttempt?.passed}
+            bestScore={bestAttempt}
+          />
+        )}
+
+        {lessonKind === "ASSIGNMENT" && (
+          <AssignmentBlock
+            lessonId={lesson.id}
+            mode={isAdmin ? "edit" : "play"}
+            initialAssignment={
+              assignmentData
+                ? {
+                    id: assignmentData.id,
+                    instructions: assignmentData.instructions,
+                    submissionType: assignmentData.submissionType,
+                    maxScore: assignmentData.maxScore,
+                  }
+                : null
+            }
+            mySubmission={
+              mySubmission
+                ? {
+                    id: mySubmission.id,
+                    textAnswer: mySubmission.textAnswer,
+                    fileUrl: mySubmission.fileUrl,
+                    score: mySubmission.score,
+                    feedback: mySubmission.feedback,
+                    gradedAt: mySubmission.gradedAt,
+                    submittedAt: mySubmission.submittedAt,
+                  }
+                : null
+            }
+          />
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
           <div className="flex items-center gap-2">
             {prev ? (
@@ -129,6 +255,15 @@ export default async function LessonPage({
           <div className="flex items-center gap-2">
             {isAdmin ? (
               <>
+                {lessonKind === "ASSIGNMENT" && (
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      href={`/groups/${group.slug}/learning/${course.slug}/lessons/${lesson.slug}/submissions`}
+                    >
+                      Submissions
+                    </Link>
+                  </Button>
+                )}
                 <Button asChild size="sm" variant="outline">
                   <Link
                     href={`/groups/${group.slug}/learning/${course.slug}/lessons/${lesson.slug}/edit`}
