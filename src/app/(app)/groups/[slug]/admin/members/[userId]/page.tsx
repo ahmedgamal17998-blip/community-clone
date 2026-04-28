@@ -35,6 +35,12 @@ export default async function AdminMemberPage({
         select: { id: true, name: true, slug: true, kind: true },
       },
       courses: { select: { id: true, title: true, slug: true } },
+      events: {
+        where: { startsAt: { gte: new Date(Date.now() - 86_400_000) } }, // upcoming + last 24h
+        orderBy: { startsAt: "asc" },
+        take: 50,
+        select: { id: true, title: true, startsAt: true },
+      },
       subscriptionPlans: {
         where: { active: true },
         select: { id: true, name: true, durationDays: true, priceCents: true },
@@ -136,6 +142,7 @@ export default async function AdminMemberPage({
           channels={group.channels}
           courses={group.courses}
           chatThreads={chatThreads}
+          events={group.events}
           accesses={accessRecords}
         />
       </section>

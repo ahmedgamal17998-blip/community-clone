@@ -12,7 +12,7 @@
  */
 import { db } from "@/server/db";
 
-export type ResourceType = "GROUP" | "CHANNEL" | "CHAT" | "COURSE";
+export type ResourceType = "GROUP" | "CHANNEL" | "CHAT" | "COURSE" | "EVENT";
 
 export interface AccessContext {
   userId: string;

@@ -8,7 +8,8 @@ import { GroupHeader } from "@/components/group/GroupHeader";
 import { GroupTabs } from "@/components/group/GroupTabs";
 import { GroupRightRail } from "@/components/group/GroupRightRail";
 import { ChannelSidebar } from "@/components/channel/ChannelSidebar";
-import { hasAccessBulk } from "@/server/access";
+import { hasAccess, hasAccessBulk } from "@/server/access";
+import { GroupLockedView } from "@/components/access/GroupLockedView";
 import { LoginPopup } from "@/components/layout/LoginPopup";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { AnnouncementPopup } from "@/components/layout/AnnouncementPopup";
@@ -39,6 +40,52 @@ export default async function GroupLayout({
   const canManage = isActiveMember
     ? hasMinRole(myMembership!.role as Role, "ADMIN")
     : false;
+
+  // Group-level access gate: a member can be locked or expired by an admin
+  // even though their state is ACTIVE. Admins/Owners always bypass.
+  // We render a friendly locked view instead of 404 so the member can find
+  // the renew/contact CTA on their subscription page.
+  const isGroupAccessAllowed =
+    !isActiveMember || canManage
+      ? true
+      : await hasAccess({
+          userId: session.user.id,
+          groupId: group.id,
+          resourceType: "GROUP",
+          resourceId: group.id,
+        });
+
+  if (isActiveMember && !canManage && !isGroupAccessAllowed) {
+    const reason: "LOCKED" | "EXPIRED" = myMembership?.lockedAt
+      ? "LOCKED"
+      : "EXPIRED";
+    return (
+      <GroupThemeProvider primaryHsl={group.primaryHsl}>
+        <div className="border-b border-border bg-card">
+          <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-4">
+            <GroupHeader
+              group={{
+                id: group.id,
+                name: group.name,
+                slug: group.slug,
+                description: group.description,
+                logoUrl: group.logoUrl,
+                primaryHsl: group.primaryHsl,
+                visibility: group.visibility,
+                memberCount: group._count.memberships,
+              }}
+              myMembership={myMembership}
+            />
+          </div>
+        </div>
+        <GroupLockedView
+          groupSlug={group.slug}
+          groupName={group.name}
+          reason={reason}
+        />
+      </GroupThemeProvider>
+    );
+  }
 
   const channels = isActiveMember
     ? await listVisibleChannels(group.id, session.user.id)

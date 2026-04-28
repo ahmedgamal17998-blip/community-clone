@@ -6,6 +6,7 @@ import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { listCoursesForGroup } from "@/server/courses";
 import { CourseCard } from "@/components/courses/CourseCard";
+import { hasAccessBulk } from "@/server/access";
 
 export default async function GroupLearningPage({
   params,
@@ -44,6 +45,17 @@ export default async function GroupLearningPage({
     : [];
   const enrolledSet = new Set(enrollments.map((e) => e.courseId));
 
+  // Per-member explicit DENY locks (admin-set). Admins bypass.
+  const courseAccess =
+    !canManage && courseIds.length > 0
+      ? await hasAccessBulk({
+          userId: session.user.id,
+          groupId: group.id,
+          resourceType: "COURSE",
+          resourceIds: courseIds,
+        })
+      : new Map<string, boolean>();
+
   if (courses.length === 0 && !canManage) {
     return (
       <section className="rounded-xl border border-dashed border-border bg-card/40 p-8 text-center">
@@ -80,6 +92,7 @@ export default async function GroupLearningPage({
             published={c.published}
             progressPercent={c.progressPercent}
             enrolled={enrolledSet.has(c.id)}
+            accessLocked={!canManage && courseAccess.get(c.id) === false}
           />
         ))}
         {canManage ? (

@@ -5,6 +5,7 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { getCourse, deleteCourseAction } from "@/server/courses";
 import { getEnrollmentStatus } from "@/server/stripe-actions";
+import { hasAccess } from "@/server/access";
 import { getStripePK } from "@/lib/stripe";
 import { Button } from "@/components/ui/button";
 import { LessonSidebar } from "@/components/courses/LessonSidebar";
@@ -34,6 +35,17 @@ export default async function CoursePage({
   });
   if (!data) notFound();
   const { course, lessons, progressPercent, isAdmin, nextLesson } = data;
+
+  // Per-member explicit DENY (admin-set in AccessMatrix). Admins bypass.
+  if (!isAdmin) {
+    const allowed = await hasAccess({
+      userId: session.user.id,
+      groupId: group.id,
+      resourceType: "COURSE",
+      resourceId: course.id,
+    });
+    if (!allowed) notFound();
+  }
 
   const enrollment = await getEnrollmentStatus(session.user.id, course.id);
   const enrolled = enrollment?.status === "ACTIVE";
