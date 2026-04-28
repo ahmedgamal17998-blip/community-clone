@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
+import { hasAccess } from "@/server/access";
 import { ChannelTabs } from "@/components/channel/ChannelTabs";
 import { Hash, Lock, Megaphone } from "lucide-react";
 
@@ -39,6 +40,18 @@ export default async function ChannelLayout({
     const isAdmin = hasMinRole(membership.role as Role, "ADMIN");
     const hasGrant = channel.accesses.length > 0;
     if (!isAdmin && !hasGrant) notFound();
+  }
+
+  // Per-member explicit DENY (set in admin → AccessMatrix). Admins bypass.
+  const isAdminOrAbove = hasMinRole(membership.role as Role, "ADMIN");
+  if (!isAdminOrAbove) {
+    const allowed = await hasAccess({
+      userId: session.user.id,
+      groupId: channel.group.id,
+      resourceType: "CHANNEL",
+      resourceId: channel.id,
+    });
+    if (!allowed) notFound();
   }
 
   const KindIcon =

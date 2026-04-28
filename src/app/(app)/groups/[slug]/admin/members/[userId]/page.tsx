@@ -75,8 +75,9 @@ export default async function AdminMemberPage({
   });
   if (!membership) notFound();
 
-  const accesses = await db.memberAccess.findMany({
+  const accessRecords = await db.memberAccess.findMany({
     where: { userId: member.id, groupId: group.id },
+    select: { resourceType: true, resourceId: true, mode: true, expiresAt: true },
   });
 
   const subs = await db.subscription.findMany({
@@ -135,7 +136,7 @@ export default async function AdminMemberPage({
           channels={group.channels}
           courses={group.courses}
           chatThreads={chatThreads}
-          accesses={accesses}
+          accesses={accessRecords}
         />
       </section>
 

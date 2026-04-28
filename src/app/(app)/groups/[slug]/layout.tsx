@@ -8,6 +8,7 @@ import { GroupHeader } from "@/components/group/GroupHeader";
 import { GroupTabs } from "@/components/group/GroupTabs";
 import { GroupRightRail } from "@/components/group/GroupRightRail";
 import { ChannelSidebar } from "@/components/channel/ChannelSidebar";
+import { hasAccessBulk } from "@/server/access";
 import { LoginPopup } from "@/components/layout/LoginPopup";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { AnnouncementPopup } from "@/components/layout/AnnouncementPopup";
@@ -42,6 +43,17 @@ export default async function GroupLayout({
   const channels = isActiveMember
     ? await listVisibleChannels(group.id, session.user.id)
     : [];
+
+  // Compute per-channel access for the viewer so the sidebar can dim/lock rows
+  // the admin has explicitly DENY'd.
+  const channelAccess = isActiveMember && channels.length > 0
+    ? await hasAccessBulk({
+        userId: session.user.id,
+        groupId: group.id,
+        resourceType: "CHANNEL",
+        resourceIds: channels.map((c) => c.id),
+      })
+    : new Map<string, boolean>();
 
   // Fetch recently-joined members for the right-rail avatar stack.
   const recentMemberships = isActiveMember
@@ -94,6 +106,9 @@ export default async function GroupLayout({
                 name: c.name,
                 emoji: c.emoji,
                 kind: c.kind,
+                // Admins always see all channels active (so they can manage).
+                // Locked = explicit DENY for non-managers only.
+                locked: !canManage && channelAccess.get(c.id) === false,
               }))}
               canManage={canManage}
             />

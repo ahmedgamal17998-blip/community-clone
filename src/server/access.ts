@@ -32,24 +32,38 @@ export interface AccessContext {
 export async function hasAccess(ctx: AccessContext): Promise<boolean> {
   const now = new Date();
 
-  // 1. Direct grant
+  // 0. Explicit DENY record on this exact resource → always blocks.
+  const denied = await db.memberAccess.findFirst({
+    where: {
+      userId: ctx.userId,
+      resourceType: ctx.resourceType,
+      resourceId: ctx.resourceId,
+      mode: "DENY",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+  });
+  if (denied) return false;
+
+  // 1. Direct GRANT
   const direct = await db.memberAccess.findFirst({
     where: {
       userId: ctx.userId,
       resourceType: ctx.resourceType,
       resourceId: ctx.resourceId,
+      mode: "GRANT",
       OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
     },
   });
   if (direct) return true;
 
-  // 2. Group-level grant covers all children
+  // 2. Group-level GRANT covers all children
   if (ctx.resourceType !== "GROUP") {
     const groupGrant = await db.memberAccess.findFirst({
       where: {
         userId: ctx.userId,
         resourceType: "GROUP",
         resourceId: ctx.groupId,
+        mode: "GRANT",
         OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
       },
     });
@@ -100,15 +114,44 @@ export async function hasAccessBulk(params: {
 
   const now = new Date();
 
-  // Group-level grant?
-  const groupCovered = await db.memberAccess.findFirst({
+  // Pull every relevant access record in one go (GRANT or DENY).
+  const records = await db.memberAccess.findMany({
     where: {
       userId: params.userId,
-      resourceType: "GROUP",
-      resourceId: params.groupId,
       OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      AND: [
+        {
+          OR: [
+            // Direct records on the listed resources
+            {
+              resourceType: params.resourceType,
+              resourceId: { in: params.resourceIds },
+            },
+            // Group-level record (covers all)
+            { resourceType: "GROUP", resourceId: params.groupId },
+          ],
+        },
+      ],
     },
+    select: { resourceType: true, resourceId: true, mode: true },
   });
+
+  const directDeny = new Set(
+    records
+      .filter((r) => r.resourceType === params.resourceType && r.mode === "DENY")
+      .map((r) => r.resourceId),
+  );
+  const directGrant = new Set(
+    records
+      .filter((r) => r.resourceType === params.resourceType && r.mode === "GRANT")
+      .map((r) => r.resourceId),
+  );
+  const groupGrant = records.some(
+    (r) =>
+      r.resourceType === "GROUP" &&
+      r.resourceId === params.groupId &&
+      r.mode === "GRANT",
+  );
 
   // Active subscription?
   const sub = await db.subscription.findFirst({
@@ -120,36 +163,31 @@ export async function hasAccessBulk(params: {
     },
   });
 
-  // Membership
+  // Membership default-allow?
   const membership = await db.groupMembership.findUnique({
     where: { groupId_userId: { groupId: params.groupId, userId: params.userId } },
   });
+  const membershipDefault =
+    !!membership &&
+    membership.state === "ACTIVE" &&
+    !membership.lockedAt &&
+    (!membership.accessExpiresAt || membership.accessExpiresAt > now);
 
-  const blanket =
-    !!groupCovered ||
-    !!sub ||
-    (!!membership &&
-      membership.state === "ACTIVE" &&
-      !membership.lockedAt &&
-      (!membership.accessExpiresAt || membership.accessExpiresAt > now));
+  const blanket = groupGrant || !!sub || membershipDefault;
 
-  if (blanket) {
-    for (const id of params.resourceIds) result.set(id, true);
-    return result;
+  for (const id of params.resourceIds) {
+    // DENY beats everything (admin can lock specific resources even on
+    // members with blanket access).
+    if (directDeny.has(id)) {
+      result.set(id, false);
+      continue;
+    }
+    if (directGrant.has(id) || blanket) {
+      result.set(id, true);
+      continue;
+    }
+    result.set(id, false);
   }
-
-  // Otherwise check direct grants
-  const grants = await db.memberAccess.findMany({
-    where: {
-      userId: params.userId,
-      resourceType: params.resourceType,
-      resourceId: { in: params.resourceIds },
-      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-    },
-    select: { resourceId: true },
-  });
-  const granted = new Set(grants.map((g) => g.resourceId));
-  for (const id of params.resourceIds) result.set(id, granted.has(id));
   return result;
 }
 

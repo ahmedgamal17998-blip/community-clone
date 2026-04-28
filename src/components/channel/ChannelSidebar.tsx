@@ -17,6 +17,8 @@ type ChannelRow = {
   name: string;
   emoji: string | null;
   kind: string;
+  /** Set true when the viewer has been explicitly locked out of this channel. */
+  locked?: boolean;
 };
 
 type Props = {
@@ -92,6 +94,33 @@ export function ChannelSidebar({ groupSlug, groupId, channels, canManage }: Prop
         <ul className="space-y-0.5">
           {channels.map((c) => {
             const active = c.slug === activeChannelSlug;
+
+            // Locked channels: render as a non-clickable dimmed row with a
+            // small lock icon instead of a Link.
+            if (c.locked) {
+              return (
+                <li key={c.id}>
+                  <div
+                    className="flex cursor-not-allowed items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground/50"
+                    title="You don't have access to this channel"
+                    aria-disabled="true"
+                  >
+                    {c.emoji ? (
+                      <span className="text-base leading-none opacity-60">
+                        {c.emoji}
+                      </span>
+                    ) : (
+                      <KindIcon kind={c.kind} />
+                    )}
+                    <span className="truncate line-through decoration-muted-foreground/30">
+                      {c.name}
+                    </span>
+                    <Lock className="ms-auto h-3 w-3 shrink-0 opacity-70" />
+                  </div>
+                </li>
+              );
+            }
+
             return (
               <li key={c.id}>
                 <Link

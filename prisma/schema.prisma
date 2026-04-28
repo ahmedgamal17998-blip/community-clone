@@ -872,6 +872,7 @@ model MemberAccess {
   groupId      String
   resourceType String // GROUP | CHANNEL | CHAT | COURSE
   resourceId   String // matches Group.id / Channel.id / ChatThread.id / Course.id
+  mode         String    @default("GRANT") // GRANT (allow) | DENY (explicit lock)
   grantedAt    DateTime  @default(now())
   expiresAt    DateTime?
   source       String    @default("MANUAL") // MANUAL | PAYMENT | RULE

@@ -9,6 +9,10 @@ import { requireCapability } from "@/server/capabilities";
 import { revalidatePath } from "next/cache";
 import type { ResourceType } from "@/server/access";
 
+/**
+ * GRANT access: explicitly allow this user on this resource.
+ * Useful for premium content where the default is locked.
+ */
 export async function grantAccessAction(params: {
   groupId: string;
   userId: string;
@@ -34,6 +38,7 @@ export async function grantAccessAction(params: {
       },
     },
     update: {
+      mode: "GRANT",
       expiresAt: params.expiresAt ?? null,
       grantedById: session.user.id,
       note: params.note,
@@ -44,6 +49,7 @@ export async function grantAccessAction(params: {
       groupId: params.groupId,
       resourceType: params.resourceType,
       resourceId: params.resourceId,
+      mode: "GRANT",
       expiresAt: params.expiresAt ?? null,
       grantedById: session.user.id,
       note: params.note,
@@ -54,6 +60,61 @@ export async function grantAccessAction(params: {
   revalidatePath(`/groups/[slug]/admin/members/${params.userId}`, "page");
 }
 
+/**
+ * LOCK (DENY) access: explicitly block this user on this resource even if they
+ * would otherwise have access via membership/subscription/group-level grant.
+ */
+export async function lockAccessAction(params: {
+  groupId: string;
+  userId: string;
+  resourceType: ResourceType;
+  resourceId: string;
+  expiresAt?: Date | null;
+  note?: string;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
+  await requireCapability({
+    userId: session.user.id,
+    groupId: params.groupId,
+    capability: "SUBS_MANAGE",
+  });
+
+  await db.memberAccess.upsert({
+    where: {
+      userId_resourceType_resourceId: {
+        userId: params.userId,
+        resourceType: params.resourceType,
+        resourceId: params.resourceId,
+      },
+    },
+    update: {
+      mode: "DENY",
+      expiresAt: params.expiresAt ?? null,
+      grantedById: session.user.id,
+      note: params.note,
+      source: "MANUAL",
+    },
+    create: {
+      userId: params.userId,
+      groupId: params.groupId,
+      resourceType: params.resourceType,
+      resourceId: params.resourceId,
+      mode: "DENY",
+      expiresAt: params.expiresAt ?? null,
+      grantedById: session.user.id,
+      note: params.note,
+      source: "MANUAL",
+    },
+  });
+
+  revalidatePath(`/groups/[slug]/admin/members/${params.userId}`, "page");
+}
+
+/**
+ * Clear any explicit access record (GRANT or DENY) — falls back to default
+ * access rules (membership, subscription, etc.).
+ */
 export async function revokeAccessAction(params: {
   groupId: string;
   userId: string;
