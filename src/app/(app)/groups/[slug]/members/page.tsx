@@ -53,6 +53,11 @@ export default async function GroupMembersPage({
     me?.state === "ACTIVE" && hasMinRole(me.role as Role, "ADMIN");
   const amOwner = me?.role === "OWNER" && me?.state === "ACTIVE";
 
+  // Members directory is admin-only — regular members hitting the URL get 404.
+  if (!canModerate) {
+    notFound();
+  }
+
   const tab: Tab = (["all", "admins", "contributors", "requested", "banned"].includes(
     searchParams.tab ?? "",
   )

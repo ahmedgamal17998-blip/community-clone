@@ -135,7 +135,7 @@ export default async function GroupLayout({
             }}
             myMembership={myMembership}
           />
-          <GroupTabs slug={group.slug} />
+          <GroupTabs slug={group.slug} canManage={canManage} />
         </div>
       </div>
 

@@ -9,9 +9,13 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
-type Props = { slug: string };
+type Props = {
+  slug: string;
+  /** When true (admin/owner), the Members tab is shown. Members can't see it. */
+  canManage?: boolean;
+};
 
-export function GroupTabs({ slug }: Props) {
+export function GroupTabs({ slug, canManage = false }: Props) {
   const pathname = usePathname();
   const t = useTranslations("groups.tabs");
 
@@ -21,7 +25,10 @@ export function GroupTabs({ slug }: Props) {
     { href: `${base}/learning`, label: t("learning"),   match: (p: string) => p.startsWith(`${base}/learning`) },
     { href: `${base}/events`,   label: t("events"),     match: (p: string) => p.startsWith(`${base}/events`) },
     { href: `${base}/leaderboard`, label: t("leaderboard"), match: (p: string) => p.startsWith(`${base}/leaderboard`) },
-    { href: `${base}/members`,  label: t("members"),    match: (p: string) => p.startsWith(`${base}/members`) },
+    // Members tab is admin-only — regular members don't see who's in the group.
+    ...(canManage
+      ? [{ href: `${base}/members`,  label: t("members"),    match: (p: string) => p.startsWith(`${base}/members`) }]
+      : []),
     { href: `${base}/about`,    label: t("about"),      match: (p: string) => p.startsWith(`${base}/about`) },
   ];
 
