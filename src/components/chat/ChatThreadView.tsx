@@ -388,7 +388,7 @@ export function ChatThreadView(props: ChatThreadViewProps) {
       <div
         ref={listRef}
         onScroll={onScroll}
-        className="flex-1 overflow-y-auto px-3 py-3 sm:px-4"
+        className="flex-1 overflow-y-auto px-2 py-2 sm:px-3"
         style={{
           backgroundImage: "radial-gradient(rgba(0,0,0,0.055) 1px, transparent 1px)",
           backgroundSize: "18px 18px",
@@ -579,50 +579,47 @@ function MessageRow({
 
   return (
     <div
-      className={cn("group relative mb-1 flex items-end gap-2", isMine ? "flex-row-reverse" : "flex-row")}
+      className={cn("group relative mb-0.5 flex items-end gap-1.5", isMine ? "flex-row-reverse" : "flex-row")}
       onMouseEnter={() => setActionsVisible(true)}
       onMouseLeave={() => { setActionsVisible(false); setMenuOpen(false); }}
     >
-      {/* Avatar gutter */}
-      <div className="w-8 shrink-0">
-        {!isMine && isHead && (
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm"
-            style={{
-              background: `linear-gradient(135deg, hsl(${hue} 75% 65%), hsl(${(hue + 30) % 360} 65% 55%))`,
-            }}
-          >
-            {msg.author.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={msg.author.image} alt="" className="h-full w-full rounded-full object-cover" />
-            ) : (
-              initials(msg.author.name, msg.author.handle)
-            )}
-          </div>
-        )}
-      </div>
+      {/* Avatar gutter — only for others; mine gets no spacer */}
+      {!isMine && (
+        <div className="w-8 shrink-0 self-end">
+          {isHead && (
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm"
+              style={{
+                background: `linear-gradient(135deg, hsl(${hue} 75% 65%), hsl(${(hue + 30) % 360} 65% 55%))`,
+              }}
+            >
+              {msg.author.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={msg.author.image} alt="" className="h-full w-full rounded-full object-cover" />
+              ) : (
+                initials(msg.author.name, msg.author.handle)
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Bubble column */}
+      {/* Bubble column — mine gets more width since no avatar gutter */}
       <div
         className={cn(
-          "flex max-w-[72%] flex-col",
-          isMine ? "items-end" : "items-start",
+          "flex flex-col",
+          isMine ? "items-end max-w-[85%]" : "items-start max-w-[78%]",
         )}
       >
         {/* Sender name (others only, head only) */}
         {!isMine && isHead && (
           <div
-            className="mb-1 ml-1 text-[12.5px] font-bold"
+            className="mb-0.5 ml-1 text-[12.5px] font-bold leading-tight"
             style={{ color: `hsl(${hue} 50% 42%)` }}
           >
             <Link href={`/profile/${msg.author.handle}`} className="hover:underline">
               {msg.author.name ?? `@${msg.author.handle}`}
             </Link>
-            {isChannel && (
-              <span className="ml-2 text-[10px] font-semibold text-primary/70 bg-primary/8 rounded px-1.5 py-0.5">
-                {msg.author.handle}
-              </span>
-            )}
           </div>
         )}
 
@@ -631,7 +628,7 @@ function MessageRow({
           <div
             className={cn(
               "absolute -top-8 z-20 flex items-center gap-0.5 rounded-full border border-border bg-card px-1.5 py-1 shadow-md",
-              isMine ? "right-8" : "left-8",
+              isMine ? "right-0" : "left-0",
             )}
           >
             {QUICK_EMOJIS.map((em) => (
