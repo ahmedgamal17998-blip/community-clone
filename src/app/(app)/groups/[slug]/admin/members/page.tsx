@@ -33,7 +33,7 @@ export default async function AdminMembersPage({
           Select members to apply bulk role or moderation actions.
         </p>
       </div>
-      <BulkMemberActions groupId={group.id} memberships={memberships} />
+      <BulkMemberActions groupId={group.id} groupSlug={group.slug} memberships={memberships} />
     </section>
   );
 }

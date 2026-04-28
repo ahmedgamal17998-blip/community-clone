@@ -56,6 +56,11 @@ const config: Config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      // M27: design tokens from Canva designs (FB-style)
+      boxShadow: {
+        card: "0 1px 2px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04)",
+        bubble: "0 1px 2px rgba(0,0,0,0.08)",
+      },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
       },

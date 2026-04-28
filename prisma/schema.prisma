@@ -44,7 +44,14 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
+  // M20: device + session limit
+  deviceLabel  String?
+  ip           String?
+  userAgent    String?
+  lastSeenAt   DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lastSeenAt])
 }
 
 model VerificationToken {
@@ -65,22 +72,22 @@ model User {
   image         String?
 
   // Profile fields (M1)
-  handle        String    @unique            // e.g. "mohamed-abdullah-x9Fk2L"
-  bio           String?
-  locale        String    @default("en")     // "en" | "ar"
+  handle      String  @unique // e.g. "mohamed-abdullah-x9Fk2L"
+  bio         String?
+  locale      String  @default("en") // "en" | "ar"
   // Visibility toggles (default: hidden)
-  emailPublic   Boolean   @default(false)
-  phonePublic   Boolean   @default(false)
-  phone         String?
+  emailPublic Boolean @default(false)
+  phonePublic Boolean @default(false)
+  phone       String?
   // Socials (JSON blob — SQLite friendly; typed at the application layer)
-  socials       String?                      // JSON: { twitter?: string, ig?: string, li?: string, yt?: string, web?: string }
+  socials     String? // JSON: { twitter?: string, ig?: string, li?: string, yt?: string, web?: string }
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
-  presence      Presence?
+  accounts Account[]
+  sessions Session[]
+  presence Presence?
 
   // M2 relations
   ownedCommunities Community[]       @relation("CommunityOwner")
@@ -91,16 +98,16 @@ model User {
   chatParticipants ChatParticipant[]
 
   // M4 relations
-  posts            Post[]
+  posts Post[]
 
   // M5 relations
-  comments         Comment[]
-  reactions        Reaction[]
-  pollVotes        PollVote[]
+  comments  Comment[]
+  reactions Reaction[]
+  pollVotes PollVote[]
 
   // M6 relations
-  invitesSent      Invite[] @relation("InvitesSent")
-  invitesAccepted  Invite[] @relation("InvitesAccepted")
+  invitesSent     Invite[] @relation("InvitesSent")
+  invitesAccepted Invite[] @relation("InvitesAccepted")
 
   // M7 relations
   notificationsReceived Notification[]          @relation("NotifRecipient")
@@ -108,14 +115,14 @@ model User {
   notificationPref      NotificationPreference?
 
   // M8 relations
-  chatMessages     ChatMessage[]
+  chatMessages ChatMessage[]
 
   // M9 relations
-  lessonProgress   LessonProgress[]
+  lessonProgress LessonProgress[]
 
   // M10 relations
-  eventsCreated    Event[]     @relation("EventCreator")
-  eventRSVPs       EventRSVP[]
+  eventsCreated Event[]     @relation("EventCreator")
+  eventRSVPs    EventRSVP[]
 
   // M11 relations
   googleAccount     GoogleAccount?
@@ -124,10 +131,34 @@ model User {
   bookingsAsInvitee Booking[]      @relation("BookingInvitee")
 
   // M12 relations
-  pointsLedger      PointsLedger[] @relation("PointsUser")
+  pointsLedger PointsLedger[] @relation("PointsUser")
 
   // M16 relations
-  enrollments       CourseEnrollment[]
+  enrollments CourseEnrollment[]
+
+  // M18 relations
+  memberAccesses  MemberAccess[]
+  subscriptions   Subscription[]
+  loginHistory    LoginHistory[]
+  grantedAccesses MemberAccess[] @relation("AccessGrantor")
+
+  // M19 relations
+  adminPermissions AdminPermission[]
+
+  // M21 relations (membership-level field added below)
+
+  // M22 relations
+  manualCourseGrants CourseManualGrant[]
+
+  // M23 relations
+  eventAudiences EventAudience[]
+
+  // M25 relations
+  chatThreadsCreated ChatThread[] @relation("ChatThreadCreator")
+
+  // M26 relations
+  announcementsCreated AdminAnnouncement[] @relation("AnnouncementAuthor")
+  announcementsSeen    AnnouncementSeen[]
 }
 
 // Single row per user. Updated by a debounced heartbeat (M6).
@@ -135,7 +166,7 @@ model User {
 model Presence {
   userId     String   @id
   lastSeenAt DateTime @default(now())
-  status     String   @default("OFFLINE")    // ONLINE | AWAY | OFFLINE
+  status     String   @default("OFFLINE") // ONLINE | AWAY | OFFLINE
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -172,32 +203,43 @@ model Community {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  groups      Group[]
+  groups Group[]
 }
 
 model Group {
-  id           String   @id @default(cuid())
-  communityId  String
-  community    Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
 
-  slug         String   @unique                 // route segment, globally unique
-  name         String
-  description  String?
-  logoUrl      String?
-  coverUrl     String?
-  primaryHsl   String   @default("263 74% 58%") // per-group override of community color
-  visibility   String   @default("PUBLIC")      // PUBLIC | PRIVATE | HIDDEN
-  active       Boolean  @default(true)
-  deletedAt    DateTime?                          // M12: soft-delete (30-day archive)
+  slug        String    @unique // route segment, globally unique
+  name        String
+  description String?
+  logoUrl     String?
+  coverUrl    String?
+  primaryHsl  String    @default("263 74% 58%") // per-group override of community color
+  visibility  String    @default("PUBLIC") // PUBLIC | PRIVATE | HIDDEN
+  active      Boolean   @default(true)
+  deletedAt   DateTime? // M12: soft-delete (30-day archive)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  // M20: default landing page + login popup
+  defaultLandingPath    String?
+  loginPopupEnabled     Boolean @default(false)
+  loginPopupTitle       String?
+  loginPopupBody        String?
+  loginPopupCtaUrl      String?
+  loginPopupDurationSec Int?
 
-  memberships  GroupMembership[]
-  channels     Channel[]
-  invites      Invite[]
-  courses      Course[]
-  events       Event[]
+  // M26: favicon
+  faviconUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships GroupMembership[]
+  channels    Channel[]
+  invites     Invite[]
+  courses     Course[]
+  events      Event[]
 
   // M11 relations
   bookingPolicy GroupBookingPolicy?
@@ -207,7 +249,21 @@ model Group {
   pointsLedger PointsLedger[]
 
   // M16 relations
-  enrollments  CourseEnrollment[]
+  enrollments CourseEnrollment[]
+
+  // M18 relations
+  memberAccesses    MemberAccess[]
+  subscriptionPlans SubscriptionPlan[]
+  subscriptions     Subscription[]
+
+  // M19 relations
+  adminPermissions AdminPermission[]
+
+  // M21 relations
+  onboardingConfig OnboardingConfig?
+
+  // M26 relations
+  announcements AdminAnnouncement[]
 
   @@index([communityId])
 }
@@ -226,26 +282,33 @@ model Invite {
   revokedAt    DateTime?
   createdAt    DateTime  @default(now())
 
-  group        Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  invitedBy    User  @relation("InvitesSent", fields: [invitedById], references: [id], onDelete: Cascade)
-  acceptedBy   User? @relation("InvitesAccepted", fields: [acceptedById], references: [id], onDelete: SetNull)
+  group      Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  invitedBy  User  @relation("InvitesSent", fields: [invitedById], references: [id], onDelete: Cascade)
+  acceptedBy User? @relation("InvitesAccepted", fields: [acceptedById], references: [id], onDelete: SetNull)
 
   @@index([groupId])
   @@index([email])
 }
 
 model GroupMembership {
-  id        String   @id @default(cuid())
-  groupId   String
-  userId    String
-  role      String   @default("MEMBER")   // OWNER | ADMIN | CONTRIBUTOR | MEMBER
-  state     String   @default("ACTIVE")   // REQUESTED | ACTIVE | BANNED
-  joinedAt  DateTime @default(now())
+  id       String   @id @default(cuid())
+  groupId  String
+  userId   String
+  role     String   @default("MEMBER") // OWNER | ADMIN | CONTRIBUTOR | MEMBER
+  state    String   @default("ACTIVE") // REQUESTED | ACTIVE | BANNED
+  joinedAt DateTime @default(now())
   // Free-text reason for moderators when state = BANNED or REQUESTED notes.
-  note      String?
+  note     String?
 
-  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // M18: membership-level access expiry & lock
+  accessExpiresAt DateTime?
+  lockedAt        DateTime?
+
+  // M21: onboarding tour completion
+  onboardingCompletedAt DateTime?
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, userId])
   @@index([userId])
@@ -265,24 +328,28 @@ model GroupMembership {
 // message UI lands in M8 — M3 just stands up the substrate.
 
 model Channel {
-  id          String   @id @default(cuid())
-  groupId     String
-  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  slug        String                               // unique within the group
+  slug        String // unique within the group
   name        String
-  emoji       String?                              // optional prefix like 🎯
+  emoji       String? // optional prefix like 🎯
   description String?
-  kind        String   @default("PUBLIC")          // PUBLIC | PRIVATE | ANNOUNCEMENT
-  position    Int      @default(0)                 // sidebar ordering (lower = higher)
-  archived    Boolean  @default(false)
+  kind        String  @default("PUBLIC") // PUBLIC | PRIVATE | ANNOUNCEMENT
+  position    Int     @default(0) // sidebar ordering (lower = higher)
+  archived    Boolean @default(false)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  accesses    ChannelAccess[]
-  chatThread  ChatThread?
-  posts       Post[]
+  accesses   ChannelAccess[]
+  chatThread ChatThread?
+  posts      Post[]
+
+  // M22 / M23 relations
+  courseAccessRules CourseAccessRule[]
+  eventAudiences    EventAudience[]
 
   @@unique([groupId, slug])
   @@index([groupId, archived, position])
@@ -296,8 +363,8 @@ model ChannelAccess {
   userId    String
   grantedAt DateTime @default(now())
 
-  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([channelId, userId])
   @@index([userId])
@@ -307,52 +374,57 @@ model ChannelAccess {
 // ChatMessage and the UI. Keeping it generic across DIRECT / GROUP / CHANNEL
 // means the chat layer in M8 has one schema to render against.
 model ChatThread {
-  id         String   @id @default(cuid())
-  kind       String                                 // DIRECT | GROUP | CHANNEL
-  title      String?                                // optional for GROUP chats
-  channelId  String?  @unique                       // set iff kind = CHANNEL
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(cuid())
+  kind        String // DIRECT | GROUP | CHANNEL
+  title       String? // optional for GROUP chats
+  channelId   String?  @unique // set iff kind = CHANNEL
+  // M25: who created this thread (used for capability checks on group chats)
+  createdById String?
+  groupId     String? // optional scope for group chats
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   channel      Channel?          @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  createdBy    User?             @relation("ChatThreadCreator", fields: [createdById], references: [id], onDelete: SetNull)
   participants ChatParticipant[]
   messages     ChatMessage[]
 
   @@index([kind])
+  @@index([groupId])
 }
 
 // ─── Chat messages (M8) ─────────────────────────────────────────────────────
 model ChatMessage {
-  id         String   @id @default(cuid())
-  threadId   String
-  authorId   String
-  body       String?
-  mediaUrl   String?
-  mediaType  String?     // "image" | "audio" | "file"
-  replyToId  String?     // inline replies
-  pinned     Boolean  @default(false)
-  editedAt   DateTime?
-  createdAt  DateTime @default(now())
-  deletedAt  DateTime?
+  id        String    @id @default(cuid())
+  threadId  String
+  authorId  String
+  body      String?
+  mediaUrl  String?
+  mediaType String? // "image" | "audio" | "file"
+  replyToId String? // inline replies
+  pinned    Boolean   @default(false)
+  editedAt  DateTime?
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
 
-  thread     ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  replyTo    ChatMessage? @relation("ReplyTo", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies    ChatMessage[] @relation("ReplyTo")
+  thread  ChatThread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author  User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  replyTo ChatMessage?  @relation("ReplyTo", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies ChatMessage[] @relation("ReplyTo")
 
   @@index([threadId, createdAt])
   @@index([authorId])
 }
 
 model ChatParticipant {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   threadId   String
   userId     String
-  joinedAt   DateTime @default(now())
+  joinedAt   DateTime  @default(now())
   lastReadAt DateTime?
 
-  thread     ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([threadId, userId])
   @@index([userId])
@@ -371,24 +443,24 @@ model ChatParticipant {
 // `body` holds either plain text or a TipTap JSON blob (stringified). For now
 // we're plain-text; M4b swaps to TipTap JSON and the PostCard renders it.
 model Post {
-  id          String   @id @default(cuid())
-  channelId   String
-  authorId    String
-  title       String?                               // optional headline
-  body        String                                // plain text in M4a; TipTap JSON in M4b
-  mediaUrls   String   @default("[]")               // JSON-encoded string[]
-  pinned      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  editedAt    DateTime?
+  id        String    @id @default(cuid())
+  channelId String
+  authorId  String
+  title     String? // optional headline
+  body      String // plain text in M4a; TipTap JSON in M4b
+  mediaUrls String    @default("[]") // JSON-encoded string[]
+  pinned    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  editedAt  DateTime?
 
-  channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   // M5 relations
-  comments    Comment[]
-  reactions   Reaction[]
-  poll        Poll?
+  comments  Comment[]
+  reactions Reaction[]
+  poll      Poll?
 
   @@index([channelId, pinned, createdAt])
   @@index([authorId])
@@ -400,21 +472,21 @@ model Post {
 // (parentId = top-level commentId). Replies cannot be nested further.
 
 model Comment {
-  id        String   @id @default(cuid())
-  postId    String
-  authorId  String
-  parentId  String?                          // null = top-level; set = reply
-  body      String?
+  id               String    @id @default(cuid())
+  postId           String
+  authorId         String
+  parentId         String? // null = top-level; set = reply
+  body             String?
   audioUrl         String?
   audioDurationSec Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  editedAt  DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  editedAt         DateTime?
 
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   Comment[] @relation("CommentReplies")
+  post      Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]  @relation("CommentReplies")
   reactions Reaction[]
 
   @@index([postId, createdAt])
@@ -430,15 +502,15 @@ model Comment {
 
 model Reaction {
   id        String   @id @default(cuid())
-  emoji     String                           // one of the 5 supported emoji strings
+  emoji     String // one of the 5 supported emoji strings
   authorId  String
   postId    String?
   commentId String?
   createdAt DateTime @default(now())
 
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  author  User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
   @@unique([authorId, emoji, postId])
   @@unique([authorId, emoji, commentId])
@@ -451,36 +523,36 @@ model Reaction {
 // One poll per post (optional). Viewer votes on one or more options.
 
 model Poll {
-  id             String       @id @default(cuid())
-  postId         String       @unique
+  id             String    @id @default(cuid())
+  postId         String    @unique
   question       String
-  multipleChoice Boolean      @default(false)
-  closedAt       DateTime?                    // null = open forever
+  multipleChoice Boolean   @default(false)
+  closedAt       DateTime? // null = open forever
 
-  post           Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
-  options        PollOption[]
+  post    Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  options PollOption[]
 }
 
 model PollOption {
-  id     String     @id @default(cuid())
+  id     String @id @default(cuid())
   pollId String
   text   String
-  order  Int        @default(0)
+  order  Int    @default(0)
 
-  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
-  votes  PollVote[]
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
 
   @@index([pollId, order])
 }
 
 model PollVote {
-  id       String     @id @default(cuid())
+  id       String   @id @default(cuid())
   optionId String
   userId   String
-  votedAt  DateTime   @default(now())
+  votedAt  DateTime @default(now())
 
-  option   PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
-  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([optionId, userId])
   @@index([userId])
@@ -494,37 +566,37 @@ model PollVote {
 // `snippet` is a denormalized preview (≤ 140 chars) of the source text.
 
 model Notification {
-  id             String    @id @default(cuid())
-  userId         String    // recipient
-  actorId        String?   // who caused it
-  type           String    // MENTION | COMMENT_ON_POST | REPLY | REACTION_ON_POST | MEMBERSHIP_APPROVED | INVITE_ACCEPTED
-  groupId        String?
-  postId         String?
-  commentId      String?
-  membershipId   String?
-  inviteId       String?
-  snippet        String?
-  href           String
-  readAt         DateTime?
-  createdAt      DateTime  @default(now())
+  id           String    @id @default(cuid())
+  userId       String // recipient
+  actorId      String? // who caused it
+  type         String // MENTION | COMMENT_ON_POST | REPLY | REACTION_ON_POST | MEMBERSHIP_APPROVED | INVITE_ACCEPTED
+  groupId      String?
+  postId       String?
+  commentId    String?
+  membershipId String?
+  inviteId     String?
+  snippet      String?
+  href         String
+  readAt       DateTime?
+  createdAt    DateTime  @default(now())
 
-  user   User  @relation("NotifRecipient", fields: [userId], references: [id], onDelete: Cascade)
-  actor  User? @relation("NotifActor", fields: [actorId], references: [id], onDelete: SetNull)
+  user  User  @relation("NotifRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor User? @relation("NotifActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([userId, readAt, createdAt])
   @@index([userId, createdAt])
 }
 
 model NotificationPreference {
-  id       String @id @default(cuid())
-  userId   String @unique
+  id                 String @id @default(cuid())
+  userId             String @unique
   // Each field below: "IN_APP" | "EMAIL" | "BOTH" | "OFF"
-  mention              String @default("BOTH")
-  commentOnPost        String @default("BOTH")
-  replyOnComment       String @default("BOTH")
-  reactionOnPost       String @default("IN_APP")
-  membershipApproved   String @default("BOTH")
-  inviteAccepted       String @default("IN_APP")
+  mention            String @default("BOTH")
+  commentOnPost      String @default("BOTH")
+  replyOnComment     String @default("BOTH")
+  reactionOnPost     String @default("IN_APP")
+  membershipApproved String @default("BOTH")
+  inviteAccepted     String @default("IN_APP")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -538,20 +610,25 @@ model Course {
   title         String
   description   String?
   coverUrl      String?
-  priceType     String   @default("FREE")   // FREE | PAID
+  priceType     String   @default("FREE") // FREE | PAID
   priceLabel    String?
-  stripePriceId String?                     // Stripe Price ID (optional — if set, used directly)
-  priceAmount   Int?                        // in cents (e.g. 2900 = $29.00)
+  stripePriceId String? // Stripe Price ID (optional — if set, used directly)
+  priceAmount   Int? // in cents (e.g. 2900 = $29.00)
   currency      String   @default("usd")
   published     Boolean  @default(false)
   position      Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  group         Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  lessons       Lesson[]
-  progress      LessonProgress[]
-  enrollments   CourseEnrollment[]
+  group       Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  lessons     Lesson[]
+  progress    LessonProgress[]
+  enrollments CourseEnrollment[]
+
+  // M22 relations
+  accessRules  CourseAccessRule[]
+  manualGrants CourseManualGrant[]
+  audiences    EventAudience[]
 
   @@unique([groupId, slug])
   @@index([groupId, published, position])
@@ -562,18 +639,18 @@ model CourseEnrollment {
   userId                String
   courseId              String
   groupId               String
-  status                String    @default("ACTIVE")     // ACTIVE | REFUNDED | CANCELLED
+  status                String    @default("ACTIVE") // ACTIVE | REFUNDED | CANCELLED
   stripeSessionId       String?   @unique
   stripePaymentIntentId String?
-  amountPaid            Int?                              // in cents
+  amountPaid            Int? // in cents
   currency              String?   @default("usd")
   enrolledAt            DateTime  @default(now())
   expiresAt             DateTime?
   refundedAt            DateTime?
 
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  group  Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
   @@index([courseId])
@@ -582,19 +659,19 @@ model CourseEnrollment {
 }
 
 model Lesson {
-  id           String   @id @default(cuid())
-  courseId     String
-  slug         String
-  title        String
-  body         String?
-  videoUrl     String?
-  durationSec  Int?
-  position     Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(cuid())
+  courseId    String
+  slug        String
+  title       String
+  body        String?
+  videoUrl    String?
+  durationSec Int?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  progress     LessonProgress[]
+  course   Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress LessonProgress[]
 
   @@unique([courseId, slug])
   @@index([courseId, position])
@@ -608,9 +685,9 @@ model LessonProgress {
   completedAt DateTime?
   lastSeenAt  DateTime  @default(now())
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
   @@unique([userId, lessonId])
   @@index([userId, courseId])
@@ -619,36 +696,39 @@ model LessonProgress {
 // ─── Events + RSVP (M10) ────────────────────────────────────────────────────
 
 model Event {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   groupId          String
   creatorId        String
   title            String
   description      String?
   startsAt         DateTime
   endsAt           DateTime
-  timezone         String   @default("UTC")
-  color            String   @default("#6d56f0")
+  timezone         String    @default("UTC")
+  color            String    @default("#6d56f0")
   category         String?
   locationUrl      String?
-  recurrence       String   @default("NONE")     // NONE | WEEKLY
+  recurrence       String    @default("NONE") // NONE | WEEKLY
   recurrenceEndsAt DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  // M23: audience targeting mode
+  audienceMode     String    @default("ALL") // ALL | RESTRICTED
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  group    Group       @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  creator  User        @relation("EventCreator", fields: [creatorId], references: [id], onDelete: Cascade)
-  rsvps    EventRSVP[]
+  group     Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  creator   User            @relation("EventCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  rsvps     EventRSVP[]
+  audiences EventAudience[]
 
   @@index([groupId, startsAt])
 }
 
 model EventRSVP {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   eventId            String
   userId             String
-  status             String   // GOING | MAYBE | DECLINED
+  status             String // GOING | MAYBE | DECLINED
   occurrenceStartsAt DateTime?
-  createdAt          DateTime @default(now())
+  createdAt          DateTime  @default(now())
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -662,7 +742,7 @@ model EventReminderSent {
   eventId            String
   userId             String
   occurrenceStartsAt DateTime
-  kind               String   // T_24H | T_1H
+  kind               String // T_24H | T_1H
   sentAt             DateTime @default(now())
 
   @@unique([eventId, userId, occurrenceStartsAt, kind])
@@ -710,30 +790,30 @@ model GroupBookingPolicy {
 }
 
 model Booking {
-  id               String    @id @default(cuid())
-  hostId           String
-  inviteeId        String?
-  inviteeEmail     String
-  inviteeName      String?
-  title            String
-  description      String?
-  startsAt         DateTime
-  endsAt           DateTime
-  timezone         String    @default("UTC")
-  status           String    @default("CONFIRMED") // CONFIRMED | CANCELLED | RESCHEDULED
-  googleEventId    String?
-  googleCalendarId String?
-  meetLink         String?
-  meetConferenceId String?
-  cancelReason     String?
-  cancelledAt      DateTime?
-  cancelledById    String?
-  groupId          String?
+  id                String    @id @default(cuid())
+  hostId            String
+  inviteeId         String?
+  inviteeEmail      String
+  inviteeName       String?
+  title             String
+  description       String?
+  startsAt          DateTime
+  endsAt            DateTime
+  timezone          String    @default("UTC")
+  status            String    @default("CONFIRMED") // CONFIRMED | CANCELLED | RESCHEDULED
+  googleEventId     String?
+  googleCalendarId  String?
+  meetLink          String?
+  meetConferenceId  String?
+  cancelReason      String?
+  cancelledAt       DateTime?
+  cancelledById     String?
+  groupId           String?
   // M17: reschedule chain
   rescheduledFromId String?
   rescheduledToId   String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   host    User   @relation("BookingHost", fields: [hostId], references: [id], onDelete: Cascade)
   invitee User?  @relation("BookingInvitee", fields: [inviteeId], references: [id], onDelete: SetNull)
@@ -759,19 +839,227 @@ model Booking {
 // the (userId, groupId, reason, refType, refId) tuple.
 
 model PointsLedger {
-  id          String   @id @default(cuid())
-  userId      String
-  groupId     String
-  delta       Int
-  reason      String
-  refType     String?
-  refId       String?
-  note        String?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  groupId   String
+  delta     Int
+  reason    String
+  refType   String?
+  refId     String?
+  note      String?
+  createdAt DateTime @default(now())
 
-  user        User  @relation("PointsUser", fields: [userId], references: [id], onDelete: Cascade)
-  group       Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation("PointsUser", fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@index([groupId, userId, createdAt])
   @@index([groupId, createdAt])
+}
+
+// ─── M18: Member Access + Subscriptions + Login History ────────────────────
+
+// Per-resource access grant for a user inside a group. Resource types:
+//   GROUP    — whole-community access (gates all child channels by default)
+//   CHANNEL  — specific channel access
+//   CHAT     — specific chat thread access
+//   COURSE   — specific course access
+//
+// `expiresAt` null = perpetual; set = time-limited (auto-locks on expiry).
+// `source`: MANUAL = admin grant, PAYMENT = subscription/purchase, RULE = computed.
+model MemberAccess {
+  id           String    @id @default(cuid())
+  userId       String
+  groupId      String
+  resourceType String // GROUP | CHANNEL | CHAT | COURSE
+  resourceId   String // matches Group.id / Channel.id / ChatThread.id / Course.id
+  grantedAt    DateTime  @default(now())
+  expiresAt    DateTime?
+  source       String    @default("MANUAL") // MANUAL | PAYMENT | RULE
+  grantedById  String?
+  note         String?
+
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("AccessGrantor", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, resourceType, resourceId])
+  @@index([userId, groupId])
+  @@index([resourceType, resourceId])
+  @@index([expiresAt])
+}
+
+model SubscriptionPlan {
+  id           String   @id @default(cuid())
+  groupId      String
+  name         String
+  description  String?
+  durationDays Int // length of period granted on payment
+  priceCents   Int // store in cents
+  currency     String   @default("usd")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  group         Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+
+  @@index([groupId, active])
+}
+
+model Subscription {
+  id               String   @id @default(cuid())
+  userId           String
+  groupId          String
+  planId           String
+  startedAt        DateTime @default(now())
+  currentPeriodEnd DateTime
+  status           String   @default("ACTIVE") // ACTIVE | EXPIRED | CANCELED
+  externalRef      String? // future: link to custom payment system tx id
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  plan  SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([userId, groupId, status])
+  @@index([groupId, status])
+}
+
+model LoginHistory {
+  id          String    @id @default(cuid())
+  userId      String
+  ip          String?
+  userAgent   String?
+  country     String?
+  createdAt   DateTime  @default(now())
+  closedAt    DateTime?
+  durationSec Int?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// ─── M19: Granular Admin Permissions ────────────────────────────────────────
+//
+// Capabilities is a JSON-encoded string array (SQLite-friendly). Examples:
+//   ["MEMBERS_ADD","POSTS_PIN","NOTIFY_SEND","CROSSPOST"]
+// Owner bypasses; this only meaningful for ADMIN-role users with restricted scope.
+
+model AdminPermission {
+  id           String   @id @default(cuid())
+  groupId      String
+  userId       String
+  capabilities String   @default("[]") // JSON-encoded string[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+}
+
+// ─── M21: Onboarding Tour ──────────────────────────────────────────────────
+
+model OnboardingConfig {
+  id        String   @id @default(cuid())
+  groupId   String   @unique
+  enabled   Boolean  @default(false)
+  steps     String   @default("[]") // JSON: [{target,title,body,order}]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+// ─── M22: Course Access Rules ──────────────────────────────────────────────
+
+model CourseAccessRule {
+  id         String   @id @default(cuid())
+  courseId   String
+  type       String // CHANNEL | ROLE_LEVEL | TENURE | PAID | MANUAL
+  channelId  String?
+  minRole    String? // OWNER | ADMIN | CONTRIBUTOR | MEMBER
+  tenureDays Int?
+  priceCents Int?
+  createdAt  DateTime @default(now())
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  channel Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+}
+
+model CourseManualGrant {
+  id        String   @id @default(cuid())
+  courseId  String
+  userId    String
+  grantedAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, userId])
+  @@index([userId])
+}
+
+// ─── M23: Event Audience Targeting ─────────────────────────────────────────
+
+model EventAudience {
+  id        String   @id @default(cuid())
+  eventId   String
+  type      String // ALL | CHANNEL | COURSE | ROLE_LEVEL | MEMBER
+  channelId String?
+  courseId  String?
+  minRole   String? // OWNER | ADMIN | CONTRIBUTOR | MEMBER
+  userId    String? // when type = MEMBER
+  createdAt DateTime @default(now())
+
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  channel Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  course  Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([userId])
+}
+
+// ─── M26: Admin Announcements (login popup notifications) ──────────────────
+
+model AdminAnnouncement {
+  id          String    @id @default(cuid())
+  groupId     String
+  title       String
+  body        String
+  ctaUrl      String?
+  durationSec Int       @default(8)
+  startsAt    DateTime  @default(now())
+  endsAt      DateTime?
+  createdById String
+  audience    String    @default("ALL") // ALL | CHANNEL | ROLE
+  audienceRef String? // channelId | role string
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  group     Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy User               @relation("AnnouncementAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+  seen      AnnouncementSeen[]
+
+  @@index([groupId, startsAt])
+}
+
+model AnnouncementSeen {
+  id             String   @id @default(cuid())
+  announcementId String
+  userId         String
+  seenAt         DateTime @default(now())
+
+  announcement AdminAnnouncement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId])
 }

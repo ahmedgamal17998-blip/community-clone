@@ -8,6 +8,10 @@ import { GroupHeader } from "@/components/group/GroupHeader";
 import { GroupTabs } from "@/components/group/GroupTabs";
 import { GroupRightRail } from "@/components/group/GroupRightRail";
 import { ChannelSidebar } from "@/components/channel/ChannelSidebar";
+import { LoginPopup } from "@/components/layout/LoginPopup";
+import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
+import { AnnouncementPopup } from "@/components/layout/AnnouncementPopup";
+import { db } from "@/server/db";
 
 export default async function GroupLayout({
   children,
@@ -92,6 +96,78 @@ export default async function GroupLayout({
           />
         </aside>
       </div>
+
+      {/* M20: login popup */}
+      {isActiveMember && group.loginPopupEnabled && group.loginPopupTitle && group.loginPopupBody && (
+        <LoginPopup
+          groupSlug={group.slug}
+          title={group.loginPopupTitle}
+          body={group.loginPopupBody}
+          ctaUrl={group.loginPopupCtaUrl}
+          durationSec={group.loginPopupDurationSec ?? 8}
+        />
+      )}
+
+      {/* M21: onboarding tour (loaded async) */}
+      {isActiveMember && myMembership && !myMembership.onboardingCompletedAt && (
+        <OnboardingMount groupId={group.id} />
+      )}
+
+      {/* M26: admin announcements (loaded async) */}
+      {isActiveMember && (
+        <AnnouncementsMount groupId={group.id} userId={session.user.id} />
+      )}
+
+      {/* M26: dynamic favicon */}
+      {group.faviconUrl && (
+        <link rel="icon" href={group.faviconUrl} />
+      )}
     </GroupThemeProvider>
+  );
+}
+
+async function OnboardingMount({ groupId }: { groupId: string }) {
+  const config = await db.onboardingConfig.findUnique({ where: { groupId } });
+  if (!config?.enabled) return null;
+  let steps: Array<{ target: string; title: string; body: string; order: number }> = [];
+  try {
+    steps = JSON.parse(config.steps);
+  } catch {
+    steps = [];
+  }
+  if (steps.length === 0) return null;
+  return <OnboardingTour groupId={groupId} steps={steps} />;
+}
+
+async function AnnouncementsMount({
+  groupId,
+  userId,
+}: {
+  groupId: string;
+  userId: string;
+}) {
+  const now = new Date();
+  const announcements = await db.adminAnnouncement.findMany({
+    where: {
+      groupId,
+      startsAt: { lte: now },
+      OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+      seen: { none: { userId } },
+    },
+    take: 1,
+    orderBy: { createdAt: "desc" },
+  });
+  if (announcements.length === 0) return null;
+  const a = announcements[0];
+  return (
+    <AnnouncementPopup
+      announcement={{
+        id: a.id,
+        title: a.title,
+        body: a.body,
+        ctaUrl: a.ctaUrl,
+        durationSec: a.durationSec,
+      }}
+    />
   );
 }

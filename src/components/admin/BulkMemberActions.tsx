@@ -7,6 +7,7 @@ import { ROLES } from "@/server/permissions";
 
 type Props = {
   groupId: string;
+  groupSlug?: string;
   memberships: Array<{
     id: string;
     role: string;
@@ -16,7 +17,7 @@ type Props = {
   }>;
 };
 
-export function BulkMemberActions({ groupId, memberships }: Props) {
+export function BulkMemberActions({ groupId, groupSlug, memberships }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [action, setAction] = useState<"ROLE" | "BAN" | "UNBAN" | "REMOVE">("BAN");
@@ -115,6 +116,7 @@ export function BulkMemberActions({ groupId, memberships }: Props) {
               <th className="p-2">Member</th>
               <th className="p-2">Role</th>
               <th className="p-2">State</th>
+              <th className="p-2"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -135,6 +137,16 @@ export function BulkMemberActions({ groupId, memberships }: Props) {
                 </td>
                 <td className="p-2">{m.role}</td>
                 <td className="p-2">{m.state}</td>
+                <td className="p-2 text-right">
+                  {groupSlug && (
+                    <a
+                      href={`/groups/${groupSlug}/admin/members/${m.userId}`}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Manage
+                    </a>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

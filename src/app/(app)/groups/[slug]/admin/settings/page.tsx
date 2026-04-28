@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { SettingsForm } from "@/components/admin/SettingsForm";
+import { LandingPageSelector } from "./_components/LandingPageSelector";
+import { LoginPopupForm } from "./_components/LoginPopupForm";
 
 export default async function AdminSettingsPage({
   params,
@@ -18,6 +20,12 @@ export default async function AdminSettingsPage({
       description: true,
       visibility: true,
       active: true,
+      defaultLandingPath: true,
+      loginPopupEnabled: true,
+      loginPopupTitle: true,
+      loginPopupBody: true,
+      loginPopupCtaUrl: true,
+      loginPopupDurationSec: true,
     },
   });
   if (!group || !session?.user) notFound();
@@ -29,7 +37,7 @@ export default async function AdminSettingsPage({
   const isOwner = me?.role === "OWNER";
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">
@@ -47,6 +55,29 @@ export default async function AdminSettingsPage({
           active: group.active,
         }}
       />
+
+      <div className="rounded-xl border bg-card p-4">
+        <h2 className="mb-3 text-sm font-semibold">Default landing page</h2>
+        <LandingPageSelector
+          groupId={group.id}
+          groupSlug={group.slug}
+          initial={group.defaultLandingPath ?? ""}
+        />
+      </div>
+
+      <div className="rounded-xl border bg-card p-4">
+        <h2 className="mb-3 text-sm font-semibold">Login popup</h2>
+        <LoginPopupForm
+          groupId={group.id}
+          initial={{
+            enabled: group.loginPopupEnabled,
+            title: group.loginPopupTitle ?? "",
+            body: group.loginPopupBody ?? "",
+            ctaUrl: group.loginPopupCtaUrl ?? "",
+            durationSec: group.loginPopupDurationSec ?? 8,
+          }}
+        />
+      </div>
     </section>
   );
 }

@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { createPostAction } from "@/server/post-actions";
 import { cn } from "@/lib/utils";
 import { RichTextEditor } from "@/components/editor/RichTextEditor";
+import { ImageUploader } from "@/components/post/ImageUploader";
 
 type State = { ok: boolean; error?: string; postId?: string } | null;
 
@@ -36,6 +37,8 @@ export function Composer({ channelId, compact = true, groupSlug }: Props) {
   const [pollOpen, setPollOpen] = useState(false);
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
   const [body, setBody] = useState("");
+  // M24: device image uploads
+  const [images, setImages] = useState<string[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
 
   const [state, formAction] = useFormState<State, FormData>(
@@ -47,6 +50,7 @@ export function Composer({ channelId, compact = true, groupSlug }: Props) {
         setPollOpen(false);
         setPollOptions(["", ""]);
         setBody("");
+        setImages([]);
       }
       return result ?? prev;
     },
@@ -106,21 +110,31 @@ export function Composer({ channelId, compact = true, groupSlug }: Props) {
         className="border-0 bg-transparent shadow-none focus-within:ring-0"
       />
 
-      {/* Media section */}
+      {/* Media section — M24: device upload + URL fallback */}
       {mediaOpen ? (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label className="text-xs font-medium text-muted-foreground">
             {t("mediaLabel")}
           </label>
+          <ImageUploader value={images} onChange={setImages} max={4} />
           <Textarea
             name="mediaUrls"
             rows={2}
             placeholder={t("mediaPlaceholder")}
             className="text-xs"
           />
+          {/* Hidden field syncs uploaded URLs into form payload (server merges these with mediaUrls textarea) */}
+          <input
+            type="hidden"
+            name="uploadedImageUrls"
+            value={JSON.stringify(images)}
+          />
         </div>
       ) : (
-        <input type="hidden" name="mediaUrls" value="" />
+        <>
+          <input type="hidden" name="mediaUrls" value="" />
+          <input type="hidden" name="uploadedImageUrls" value="[]" />
+        </>
       )}
 
       {/* Poll section */}

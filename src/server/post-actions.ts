@@ -126,6 +126,17 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
   });
   if (!gate.ok) return { ok: false as const, error: gate.error };
 
+  // M24: merge device-uploaded image URLs with text-pasted media URLs.
+  let uploaded: string[] = [];
+  try {
+    const raw = formData.get("uploadedImageUrls");
+    if (typeof raw === "string" && raw) uploaded = JSON.parse(raw);
+    if (!Array.isArray(uploaded)) uploaded = [];
+  } catch {
+    uploaded = [];
+  }
+  const mergedMedia = [...parsed.data.mediaUrls, ...uploaded];
+
   const hasPoll =
     !!parsed.data.pollQuestion && parsed.data.pollOptions.length >= 2;
 
@@ -135,7 +146,7 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
       authorId: session.user.id,
       title: parsed.data.title,
       body: parsed.data.body,
-      mediaUrls: encodeMedia(parsed.data.mediaUrls),
+      mediaUrls: encodeMedia(mergedMedia),
       ...(hasPoll
         ? {
             poll: {

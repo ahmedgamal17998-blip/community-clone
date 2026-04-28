@@ -82,7 +82,8 @@
       "events": "Events",
       "leaderboard": "Leaderboard",
       "members": "Members",
-      "about": "About"
+      "about": "About",
+      "mySubscription": "My Subscription"
     },
     "empty": {
       "discussionTitle": "The feed lights up soon",

@@ -15,6 +15,7 @@ import Resend from "next-auth/providers/resend";
 import { Resend as ResendClient } from "resend";
 import { db } from "@/server/db";
 import { generateHandle } from "@/lib/handle";
+import { enforceSessionLimit } from "@/server/session-limit";
 
 const hasGoogle = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
 const hasResend = Boolean(process.env.AUTH_RESEND_KEY);
@@ -108,6 +109,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           presence: { create: { status: "OFFLINE" } },
         },
       });
+    },
+    // M20: enforce 2-device session limit + record login history
+    async signIn({ user }) {
+      if (!user?.id) return;
+      try {
+        await enforceSessionLimit({ userId: user.id });
+        await db.loginHistory.create({
+          data: { userId: user.id },
+        });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("signIn event error:", e);
+      }
     },
   },
 });
