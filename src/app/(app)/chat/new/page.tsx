@@ -11,14 +11,20 @@ export default async function NewChatPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  // Everyone the viewer shares an ACTIVE group with.
-  const myGroups = await db.groupMembership.findMany({
+  // Groups the viewer is an ACTIVE member of.
+  const myMemberships = await db.groupMembership.findMany({
     where: { userId: session.user.id, state: "ACTIVE" },
-    select: { groupId: true },
+    select: {
+      groupId: true,
+      group: { select: { id: true, name: true, slug: true } },
+    },
+    orderBy: { joinedAt: "desc" },
   });
-  const groupIds = myGroups.map((g) => g.groupId);
+  const myGroups = myMemberships.map((m) => m.group);
+  const groupIds = myMemberships.map((m) => m.groupId);
 
-  const mutualMembers = groupIds.length
+  // Build a per-group candidate list (member of each group, minus self).
+  const otherMemberships = groupIds.length
     ? await db.groupMembership.findMany({
         where: {
           groupId: { in: groupIds },
@@ -26,19 +32,24 @@ export default async function NewChatPage() {
           userId: { not: session.user.id },
         },
         select: {
+          groupId: true,
           user: { select: { id: true, name: true, handle: true, image: true } },
         },
       })
     : [];
 
-  const seen = new Set<string>();
-  const unique = mutualMembers
-    .map((m) => m.user)
-    .filter((u) => {
-      if (seen.has(u.id)) return false;
-      seen.add(u.id);
-      return true;
-    });
+  // Group the candidates by groupId for client-side filtering.
+  const candidatesByGroup: Record<
+    string,
+    Array<{ id: string; name: string | null; handle: string; image: string | null }>
+  > = {};
+  for (const m of otherMemberships) {
+    if (!candidatesByGroup[m.groupId]) candidatesByGroup[m.groupId] = [];
+    // De-dupe within a group (defensive).
+    if (!candidatesByGroup[m.groupId].some((c) => c.id === m.user.id)) {
+      candidatesByGroup[m.groupId].push(m.user);
+    }
+  }
 
   return (
     <section className="mx-auto max-w-2xl space-y-4">
@@ -52,7 +63,10 @@ export default async function NewChatPage() {
         </Link>
         <h1 className="text-lg font-semibold">New group chat</h1>
       </div>
-      <NewGroupThreadForm candidates={unique} />
+      <NewGroupThreadForm
+        groups={myGroups}
+        candidatesByGroup={candidatesByGroup}
+      />
     </section>
   );
 }

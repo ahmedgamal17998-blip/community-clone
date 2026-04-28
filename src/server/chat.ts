@@ -706,6 +706,7 @@ export async function startDirectThreadAction(formData: FormData) {
 const groupThreadSchema = z.object({
   title: z.string().trim().min(1).max(80),
   participantIds: z.array(z.string().cuid()).min(2).max(50),
+  groupId: z.string().cuid(),
 });
 
 export async function createGroupThreadAction(formData: FormData) {
@@ -716,6 +717,7 @@ export async function createGroupThreadAction(formData: FormData) {
   const parsed = groupThreadSchema.safeParse({
     title: formData.get("title"),
     participantIds: rawIds,
+    groupId: formData.get("groupId"),
   });
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -728,10 +730,28 @@ export async function createGroupThreadAction(formData: FormData) {
     return { ok: false as const, error: "Need at least 2 other members" };
   }
 
+  // Verify creator + all participants are ACTIVE members of the chosen group.
+  const allUserIds = [session.user.id, ...ids];
+  const memberships = await db.groupMembership.findMany({
+    where: {
+      groupId: parsed.data.groupId,
+      userId: { in: allUserIds },
+      state: "ACTIVE",
+    },
+    select: { userId: true },
+  });
+  if (memberships.length !== allUserIds.length) {
+    return {
+      ok: false as const,
+      error: "All members must be active in the selected group",
+    };
+  }
+
   const created = await db.chatThread.create({
     data: {
       kind: "GROUP",
       title: parsed.data.title,
+      groupId: parsed.data.groupId,
       participants: {
         create: [
           { userId: session.user.id },
@@ -741,5 +761,6 @@ export async function createGroupThreadAction(formData: FormData) {
     },
   });
   revalidatePath("/chat");
+  revalidatePath(`/groups/[slug]/me`, "page");
   return { ok: true as const, threadId: created.id };
 }
