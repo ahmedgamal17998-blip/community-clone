@@ -23,7 +23,6 @@ export function GroupTabs({ slug }: Props) {
     { href: `${base}/leaderboard`, label: t("leaderboard"), match: (p: string) => p.startsWith(`${base}/leaderboard`) },
     { href: `${base}/members`,  label: t("members"),    match: (p: string) => p.startsWith(`${base}/members`) },
     { href: `${base}/about`,    label: t("about"),      match: (p: string) => p.startsWith(`${base}/about`) },
-    { href: `${base}/me`,       label: t("mySubscription"), match: (p: string) => p.startsWith(`${base}/me`) },
   ];
 
   return (

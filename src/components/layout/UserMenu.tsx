@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { signOut } from "next-auth/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -23,6 +24,13 @@ type Props = {
 
 export function UserMenu({ name, email, image, handle }: Props) {
   const t = useTranslations("nav");
+  const tabs = useTranslations("groups.tabs");
+  const pathname = usePathname();
+
+  // Detect current group context: /groups/<slug>/...
+  const groupMatch = pathname.match(/^\/groups\/([^/]+)/);
+  const currentGroupSlug = groupMatch ? groupMatch[1] : null;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -34,7 +42,7 @@ export function UserMenu({ name, email, image, handle }: Props) {
           <AvatarFallback>{initialsFrom(name ?? email)}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[12rem]">
+      <DropdownMenuContent align="end" className="min-w-[14rem]">
         <DropdownMenuLabel className="flex flex-col gap-0.5">
           <span className="text-sm font-semibold text-foreground">{name ?? email}</span>
           <span className="text-xs text-muted-foreground">@{handle}</span>
@@ -43,6 +51,11 @@ export function UserMenu({ name, email, image, handle }: Props) {
         <DropdownMenuItem asChild>
           <Link href={`/profile/${handle}`}>{t("profile")}</Link>
         </DropdownMenuItem>
+        {currentGroupSlug && (
+          <DropdownMenuItem asChild>
+            <Link href={`/groups/${currentGroupSlug}/me`}>{tabs("mySubscription")}</Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem asChild>
           <Link href="/settings/profile">{t("settings")}</Link>
         </DropdownMenuItem>
