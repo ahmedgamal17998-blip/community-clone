@@ -116,7 +116,11 @@ export default async function GroupLayout({
 
   return (
     <GroupThemeProvider primaryHsl={group.primaryHsl}>
-      <div className="border-b border-border bg-card">
+      {/*
+        Sticky group chrome (sits below the TopNav which is sticky top-0 h-14).
+        TopNav h-14 = 56px → this bar sits at top-14 (3.5rem).
+      */}
+      <div className="sticky top-14 z-30 border-b border-border bg-card">
         <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-4">
           <GroupHeader
             group={{
@@ -135,15 +139,23 @@ export default async function GroupLayout({
         </div>
       </div>
 
+      {/*
+        Three-column shell.
+        - `items-start` → sidebars act as sticky columns (their height is their
+          natural height, not stretched to the grid row).
+        - Left + right `aside` use `sticky top-[<topnav + header>]` so they
+          park just under the chrome when the page scrolls.
+        - Middle column is the only thing that grows tall and triggers scroll.
+      */}
       <div
         className={
           isActiveMember
-            ? "mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-6 px-3 py-6 sm:px-4 lg:grid-cols-[240px_1fr_280px]"
-            : "mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-6 px-3 py-6 sm:px-4 lg:grid-cols-[1fr_280px]"
+            ? "mx-auto grid w-full max-w-[1280px] grid-cols-1 items-start gap-6 px-3 py-6 sm:px-4 lg:grid-cols-[240px_1fr_280px]"
+            : "mx-auto grid w-full max-w-[1280px] grid-cols-1 items-start gap-6 px-3 py-6 sm:px-4 lg:grid-cols-[1fr_280px]"
         }
       >
         {isActiveMember ? (
-          <aside className="hidden lg:block">
+          <aside className="hidden lg:sticky lg:top-[13rem] lg:block lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto">
             <ChannelSidebar
               groupSlug={group.slug}
               groupId={group.id}
@@ -162,7 +174,7 @@ export default async function GroupLayout({
           </aside>
         ) : null}
         <div className="min-w-0">{children}</div>
-        <aside className="hidden lg:block">
+        <aside className="hidden lg:sticky lg:top-[13rem] lg:block lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto">
           <GroupRightRail
             memberCount={group._count.memberships}
             visibility={group.visibility}
