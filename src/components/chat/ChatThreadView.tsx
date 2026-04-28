@@ -973,6 +973,7 @@ function Composer({
               groupSlug={groupSlug}
               placeholder="Type a message… use @ to mention"
               rows={1}
+              className="min-h-0 w-full resize-none border-0 bg-transparent px-2 py-2 text-[14.5px] leading-[1.4] shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey && !e.defaultPrevented) {
                   e.preventDefault();

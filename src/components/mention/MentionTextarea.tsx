@@ -41,7 +41,7 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, Props>(
     });
 
     return (
-      <div className="relative">
+      <div className="relative w-full">
         <Textarea
           {...rest}
           ref={innerRef}
