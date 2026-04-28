@@ -1,7 +1,18 @@
 "use client";
 
+/**
+ * LoginPopup configuration form — visually mirrors the popup it produces:
+ *   • Group-primary accent ring on focused inputs (harmonizes with theme)
+ *   • Solid 100% opacity inputs, high contrast in light + dark
+ *   • Clear labels, generous spacing, professional and uncluttered
+ */
+
 import { useState, useTransition } from "react";
+import { Check } from "lucide-react";
 import { setLoginPopupAction } from "../actions";
+
+const inputBase =
+  "w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50";
 
 export function LoginPopupForm({
   groupId,
@@ -40,60 +51,103 @@ export function LoginPopupForm({
   };
 
   return (
-    <div className="space-y-3">
-      <label className="flex items-center gap-2 text-sm">
+    <div className="space-y-4">
+      {/* Enable toggle */}
+      <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-background p-3 transition-colors hover:border-primary/40">
         <input
           type="checkbox"
           checked={enabled}
           onChange={(e) => setEnabled(e.target.checked)}
+          className="mt-0.5 h-4 w-4 cursor-pointer accent-primary"
         />
-        Enable login popup (shown on login & on each session start)
+        <div className="flex-1">
+          <div className="text-sm font-semibold text-foreground">
+            Enable login popup
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Shown once on sign-in and at each new session start.
+          </div>
+        </div>
       </label>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <input
-          type="text"
-          placeholder="Popup title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="rounded-md border bg-background px-3 py-2 text-sm"
-        />
-        <input
-          type="number"
-          min={3}
-          max={60}
-          value={durationSec}
-          onChange={(e) => setDurationSec(Number(e.target.value))}
-          placeholder="Auto-close (sec)"
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+      <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
+        {/* Title */}
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+            Title
+          </label>
+          <input
+            type="text"
+            placeholder="Welcome back!"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className={inputBase}
+            disabled={!enabled}
+          />
+        </div>
+
+        {/* Auto-close duration */}
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+            Auto-close (sec)
+          </label>
+          <input
+            type="number"
+            min={3}
+            max={60}
+            value={durationSec}
+            onChange={(e) => setDurationSec(Number(e.target.value))}
+            className={inputBase}
+            disabled={!enabled}
+          />
+        </div>
+      </div>
+
+      {/* Body */}
+      <div>
+        <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+          Body
+        </label>
+        <textarea
+          placeholder="Tell members what's new, where to head, or just say hi…"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={3}
+          className={inputBase + " resize-y"}
+          disabled={!enabled}
         />
       </div>
 
-      <textarea
-        placeholder="Popup body (markdown allowed)"
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        rows={3}
-        className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-      />
+      {/* CTA */}
+      <div>
+        <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+          CTA link <span className="font-normal">(optional)</span>
+        </label>
+        <input
+          type="url"
+          placeholder="https://..."
+          value={ctaUrl}
+          onChange={(e) => setCtaUrl(e.target.value)}
+          className={inputBase}
+          disabled={!enabled}
+        />
+      </div>
 
-      <input
-        type="url"
-        placeholder="CTA link (optional)"
-        value={ctaUrl}
-        onChange={(e) => setCtaUrl(e.target.value)}
-        className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-      />
-
-      <div className="flex items-center gap-2">
+      {/* Save row */}
+      <div className="flex items-center gap-3 pt-1">
         <button
           onClick={save}
           disabled={pending}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-[0.98] disabled:opacity-50"
         >
           {pending ? "Saving…" : "Save"}
         </button>
-        {saved && <span className="text-xs text-green-600">Saved ✓</span>}
+        {saved && (
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600 dark:text-green-400">
+            <Check className="h-3.5 w-3.5" />
+            Saved
+          </span>
+        )}
       </div>
     </div>
   );

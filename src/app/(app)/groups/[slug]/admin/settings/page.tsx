@@ -56,27 +56,55 @@ export default async function AdminSettingsPage({
         }}
       />
 
-      <div className="rounded-xl border bg-card p-4">
-        <h2 className="mb-3 text-sm font-semibold">Default landing page</h2>
-        <LandingPageSelector
-          groupId={group.id}
-          groupSlug={group.slug}
-          initial={group.defaultLandingPath ?? ""}
-        />
-      </div>
-
-      <div className="rounded-xl border bg-card p-4">
-        <h2 className="mb-3 text-sm font-semibold">Login popup</h2>
-        <LoginPopupForm
-          groupId={group.id}
-          initial={{
-            enabled: group.loginPopupEnabled,
-            title: group.loginPopupTitle ?? "",
-            body: group.loginPopupBody ?? "",
-            ctaUrl: group.loginPopupCtaUrl ?? "",
-            durationSec: group.loginPopupDurationSec ?? 8,
+      {/* Default landing page — themed card */}
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div
+          className="h-1.5 w-full"
+          style={{
+            background:
+              "linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.7) 100%)",
           }}
         />
+        <div className="p-5">
+          <h2 className="mb-1 text-sm font-bold text-foreground">
+            Default landing page
+          </h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Where members land after sign-in.
+          </p>
+          <LandingPageSelector
+            groupId={group.id}
+            groupSlug={group.slug}
+            initial={group.defaultLandingPath ?? ""}
+          />
+        </div>
+      </div>
+
+      {/* Login popup — themed card matching the actual popup it configures */}
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div
+          className="h-1.5 w-full"
+          style={{
+            background:
+              "linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.7) 100%)",
+          }}
+        />
+        <div className="p-5">
+          <h2 className="mb-1 text-sm font-bold text-foreground">Login popup</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Greet members with a short message every time they sign in.
+          </p>
+          <LoginPopupForm
+            groupId={group.id}
+            initial={{
+              enabled: group.loginPopupEnabled,
+              title: group.loginPopupTitle ?? "",
+              body: group.loginPopupBody ?? "",
+              ctaUrl: group.loginPopupCtaUrl ?? "",
+              durationSec: group.loginPopupDurationSec ?? 8,
+            }}
+          />
+        </div>
       </div>
     </section>
   );
