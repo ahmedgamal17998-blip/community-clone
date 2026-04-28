@@ -4,6 +4,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { getCourse, deleteCourseAction } from "@/server/courses";
+import { getCourseOutline } from "@/server/course-modules";
 import { getEnrollmentStatus } from "@/server/stripe-actions";
 import { hasAccess } from "@/server/access";
 import { getStripePK } from "@/lib/stripe";
@@ -51,6 +52,26 @@ export default async function CoursePage({
   const enrolled = enrollment?.status === "ACTIVE";
   const stripeConfigured = !!getStripePK();
 
+  // Module outline + release evaluation for the sidebar.
+  const outline = await getCourseOutline({
+    courseId: course.id,
+    viewerId: session.user.id,
+    isAdmin,
+  });
+  const sidebarModules = outline.map((m) => ({
+    id: m.id,
+    title: m.title,
+    release: m.release,
+    lessons: m.lessons.map((l) => ({
+      id: l.id,
+      slug: l.slug,
+      title: l.title,
+      completed: l.completed,
+      release: l.release,
+    })),
+  }));
+  const hasAnyLessons = sidebarModules.some((m) => m.lessons.length > 0);
+
   // For admin enrollment panel, load all enrollments.
   const adminEnrollments = isAdmin
     ? await db.courseEnrollment.findMany({
@@ -70,18 +91,25 @@ export default async function CoursePage({
       <aside className="space-y-4">
         <div className="rounded-lg border border-border bg-card p-3">
           <h2 className="mb-3 text-sm font-semibold">Lessons</h2>
-          {lessons.length === 0 ? (
+          {!hasAnyLessons ? (
             <p className="text-xs text-muted-foreground">No lessons yet.</p>
           ) : (
             <LessonSidebar
               groupSlug={group.slug}
               courseSlug={course.slug}
-              lessons={lessons}
+              modules={sidebarModules}
               progressPercent={progressPercent}
             />
           )}
           {isAdmin ? (
-            <div className="mt-3 border-t border-border pt-3">
+            <div className="mt-3 space-y-2 border-t border-border pt-3">
+              <Button asChild size="sm" className="w-full">
+                <Link
+                  href={`/groups/${group.slug}/learning/${course.slug}/outline`}
+                >
+                  Edit outline
+                </Link>
+              </Button>
               <Button asChild size="sm" variant="outline" className="w-full">
                 <Link
                   href={`/groups/${group.slug}/learning/${course.slug}/lessons/new`}
