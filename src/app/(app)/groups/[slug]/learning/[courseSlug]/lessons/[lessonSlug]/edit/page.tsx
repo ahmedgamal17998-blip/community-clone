@@ -52,6 +52,8 @@ export default async function EditLessonPage({
           title: lesson.title,
           body: lesson.body,
           videoUrl: lesson.videoUrl,
+          thumbnailUrl: lesson.thumbnailUrl,
+          resources: lesson.resources,
           durationSec: lesson.durationSec,
         }}
       />

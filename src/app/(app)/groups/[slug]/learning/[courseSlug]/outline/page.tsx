@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Settings as SettingsIcon, Lock as LockIcon } from "lucide-react";
+import { ArrowLeft, ExternalLink, Settings as SettingsIcon, Lock as LockIcon, BarChart3 } from "lucide-react";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
@@ -65,6 +65,13 @@ export default async function CourseOutlinePage({
           </p>
         </div>
         <div className="flex items-center gap-1.5">
+          <Link
+            href={`${courseHref}/insights`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-accent"
+          >
+            <BarChart3 className="h-3.5 w-3.5" />
+            Insights
+          </Link>
           <Link
             href={`${courseHref}/edit`}
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-accent"

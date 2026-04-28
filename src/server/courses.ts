@@ -371,6 +371,8 @@ const createLessonSchema = z.object({
   title: z.string().trim().min(2).max(140),
   body: z.string().trim().max(40000).optional(),
   videoUrl: z.string().trim().url().optional().or(z.literal("")),
+  thumbnailUrl: z.string().trim().url().optional().or(z.literal("")),
+  resources: z.string().trim().max(20_000).optional().or(z.literal("")),
   durationSec: z.coerce.number().int().min(0).max(60 * 60 * 24).optional(),
 });
 
@@ -383,6 +385,8 @@ export async function createLessonAction(formData: FormData) {
     title: formData.get("title"),
     body: formData.get("body") || undefined,
     videoUrl: formData.get("videoUrl") || undefined,
+    thumbnailUrl: formData.get("thumbnailUrl") || undefined,
+    resources: formData.get("resources") || undefined,
     durationSec: formData.get("durationSec") || undefined,
   });
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid input");
@@ -411,6 +415,8 @@ export async function createLessonAction(formData: FormData) {
       title: parsed.data.title,
       body: parsed.data.body,
       videoUrl: parsed.data.videoUrl || null,
+      thumbnailUrl: parsed.data.thumbnailUrl || null,
+      resources: parsed.data.resources || null,
       durationSec: parsed.data.durationSec,
       position,
     },
@@ -425,6 +431,8 @@ const updateLessonSchema = z.object({
   title: z.string().trim().min(2).max(140),
   body: z.string().trim().max(40000).optional(),
   videoUrl: z.string().trim().url().optional().or(z.literal("")),
+  thumbnailUrl: z.string().trim().url().optional().or(z.literal("")),
+  resources: z.string().trim().max(20_000).optional().or(z.literal("")),
   durationSec: z.coerce.number().int().min(0).max(60 * 60 * 24).optional(),
 });
 
@@ -437,6 +445,8 @@ export async function updateLessonAction(formData: FormData) {
     title: formData.get("title"),
     body: formData.get("body") || undefined,
     videoUrl: formData.get("videoUrl") || undefined,
+    thumbnailUrl: formData.get("thumbnailUrl") || undefined,
+    resources: formData.get("resources") || undefined,
     durationSec: formData.get("durationSec") || undefined,
   });
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid input");
@@ -459,6 +469,8 @@ export async function updateLessonAction(formData: FormData) {
       title: parsed.data.title,
       body: parsed.data.body,
       videoUrl: parsed.data.videoUrl || null,
+      thumbnailUrl: parsed.data.thumbnailUrl || null,
+      resources: parsed.data.resources || null,
       durationSec: parsed.data.durationSec,
     },
   });

@@ -3,6 +3,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { VideoUpload } from "@/components/courses/VideoUpload";
+import { CoverUpload } from "@/components/courses/CoverUpload";
+import { ResourceUpload } from "@/components/courses/ResourceUpload";
 import {
   createLessonAction,
   updateLessonAction,
@@ -13,6 +15,8 @@ type LessonShape = {
   title: string;
   body: string | null;
   videoUrl: string | null;
+  thumbnailUrl?: string | null;
+  resources?: string | null;
   durationSec: number | null;
 };
 
@@ -47,6 +51,12 @@ export function LessonForm(props: Props) {
 
       <VideoUpload name="videoUrl" defaultValue={l?.videoUrl} />
 
+      <CoverUpload
+        name="thumbnailUrl"
+        defaultValue={l?.thumbnailUrl ?? null}
+        label="Lesson thumbnail (optional)"
+      />
+
       <div className="space-y-1.5">
         <Label htmlFor="durationSec">Duration (seconds, optional)</Label>
         <Input
@@ -70,6 +80,8 @@ export function LessonForm(props: Props) {
           placeholder="# Heading&#10;&#10;Write the lesson content in **markdown**."
         />
       </div>
+
+      <ResourceUpload name="resources" defaultValue={l?.resources ?? null} />
 
       <div className="flex items-center gap-2">
         <Button type="submit">{isEdit ? "Save lesson" : "Create lesson"}</Button>

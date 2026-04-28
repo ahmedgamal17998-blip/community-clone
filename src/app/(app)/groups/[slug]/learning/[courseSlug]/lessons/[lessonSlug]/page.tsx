@@ -165,6 +165,7 @@ export default async function LessonPage({
           title={lesson.title}
           videoUrl={lesson.videoUrl}
           body={lesson.body}
+          resources={lesson.resources ?? null}
         />
 
         {/* Phase 2: quiz/assignment blocks render below the lesson player. */}
