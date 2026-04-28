@@ -730,6 +730,21 @@ export async function createGroupThreadAction(formData: FormData) {
     return { ok: false as const, error: "Need at least 2 other members" };
   }
 
+  // Server-side capability gate: members can DM but only admins with
+  // CHATS_MANAGE can create group chats. Owner bypasses.
+  const { hasCapability } = await import("@/server/capabilities");
+  const allowed = await hasCapability({
+    userId: session.user.id,
+    groupId: parsed.data.groupId,
+    capability: "CHATS_MANAGE",
+  });
+  if (!allowed) {
+    return {
+      ok: false as const,
+      error: "Only admins can create group chats in this community",
+    };
+  }
+
   // Verify creator + all participants are ACTIVE members of the chosen group.
   const allUserIds = [session.user.id, ...ids];
   const memberships = await db.groupMembership.findMany({

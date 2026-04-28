@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Plus, Compass } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/server/auth";
+import { db } from "@/server/db";
 import { listMyGroups } from "@/server/group-queries";
 import { GroupAvatar } from "@/components/group/GroupAvatar";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,13 @@ export default async function HomePage() {
   const tg = await getTranslations("groups");
 
   const mine = session?.user ? await listMyGroups(session.user.id) : [];
+  const me = session?.user
+    ? await db.user.findUnique({
+        where: { id: session.user.id },
+        select: { canCreateGroups: true },
+      })
+    : null;
+  const canCreate = !!me?.canCreateGroups;
 
   return (
     <section className="mx-auto max-w-3xl space-y-8">
@@ -31,12 +39,14 @@ export default async function HomePage() {
                 {tg("discover")}
               </Link>
             </Button>
-            <Button asChild size="sm">
-              <Link href="/groups/new" className="gap-2">
-                <Plus className="h-4 w-4" />
-                {tg("create")}
-              </Link>
-            </Button>
+            {canCreate && (
+              <Button asChild size="sm">
+                <Link href="/groups/new" className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  {tg("create")}
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
 

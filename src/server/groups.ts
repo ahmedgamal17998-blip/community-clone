@@ -84,6 +84,20 @@ export async function createGroupAction(_prev: unknown, formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("UNAUTHENTICATED");
 
+  // SaaS gate: only users with canCreateGroups (paying subscribers / pre-
+  // seeded owners) can create top-level communities. Members get a clear
+  // error so the UI can surface it.
+  const me = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { canCreateGroups: true },
+  });
+  if (!me?.canCreateGroups) {
+    return {
+      ok: false as const,
+      error: "Creating a community requires an owner subscription. Contact support to upgrade.",
+    };
+  }
+
   const parsed = createGroupSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description") || undefined,

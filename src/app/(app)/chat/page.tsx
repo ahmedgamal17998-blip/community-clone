@@ -2,7 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MessageCircle, Plus } from "lucide-react";
 import { auth } from "@/server/auth";
+import { db } from "@/server/db";
 import { listInboxThreads } from "@/server/chat";
+import { hasCapability } from "@/server/capabilities";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -21,16 +23,41 @@ export default async function ChatInboxPage() {
 
   const threads = await listInboxThreads(session.user.id);
 
+  // Group chats can only be created by admins of any group with CHATS_MANAGE.
+  // Members see no "+ New group" button — they can only DM.
+  const myAdminMemberships = await db.groupMembership.findMany({
+    where: {
+      userId: session.user.id,
+      state: "ACTIVE",
+      role: { in: ["OWNER", "ADMIN"] },
+    },
+    select: { groupId: true },
+  });
+  let canCreateGroupChat = false;
+  for (const m of myAdminMemberships) {
+    const allowed = await hasCapability({
+      userId: session.user.id,
+      groupId: m.groupId,
+      capability: "CHATS_MANAGE",
+    });
+    if (allowed) {
+      canCreateGroupChat = true;
+      break;
+    }
+  }
+
   return (
     <section className="mx-auto max-w-3xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Chat</h1>
-        <Button asChild size="sm" variant="outline">
-          <Link href="/chat/new" className="gap-1">
-            <Plus className="h-4 w-4" />
-            New group
-          </Link>
-        </Button>
+        {canCreateGroupChat && (
+          <Button asChild size="sm" variant="outline">
+            <Link href="/chat/new" className="gap-1">
+              <Plus className="h-4 w-4" />
+              New group
+            </Link>
+          </Button>
+        )}
       </div>
 
       {threads.length === 0 ? (
@@ -38,11 +65,15 @@ export default async function ChatInboxPage() {
           <MessageCircle className="mx-auto h-10 w-10 text-muted-foreground" />
           <h2 className="mt-3 text-base font-semibold">No conversations yet</h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Visit a profile and hit Message, or start a new group chat.
+            {canCreateGroupChat
+              ? "Visit a profile and hit Message, or start a new group chat."
+              : "Visit a member's profile and hit Message to start a conversation."}
           </p>
-          <Button asChild className="mt-4">
-            <Link href="/chat/new">Start a conversation</Link>
-          </Button>
+          {canCreateGroupChat && (
+            <Button asChild className="mt-4">
+              <Link href="/chat/new">Start a conversation</Link>
+            </Button>
+          )}
         </div>
       ) : (
         <ul className="divide-y divide-border rounded-xl border border-border bg-card">

@@ -9,6 +9,7 @@ import Link from "next/link";
 import { ChevronsUpDown, Plus, Compass } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/server/auth";
+import { db } from "@/server/db";
 import { listMyGroups } from "@/server/group-queries";
 import { GroupAvatar } from "@/components/group/GroupAvatar";
 import {
@@ -29,7 +30,14 @@ export async function GroupSwitcher({ activeSlug }: Props) {
   if (!session?.user) return null;
   const t = await getTranslations("groups");
 
-  const myGroups = await listMyGroups(session.user.id);
+  const [myGroups, me] = await Promise.all([
+    listMyGroups(session.user.id),
+    db.user.findUnique({
+      where: { id: session.user.id },
+      select: { canCreateGroups: true },
+    }),
+  ]);
+  const canCreate = !!me?.canCreateGroups;
   const active = activeSlug
     ? myGroups.find((g) => g.slug === activeSlug)
     : undefined;
@@ -83,12 +91,14 @@ export async function GroupSwitcher({ activeSlug }: Props) {
             <span>{t("discover")}</span>
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild className="gap-2">
-          <Link href="/groups/new">
-            <Plus className="h-4 w-4" />
-            <span>{t("create")}</span>
-          </Link>
-        </DropdownMenuItem>
+        {canCreate && (
+          <DropdownMenuItem asChild className="gap-2">
+            <Link href="/groups/new">
+              <Plus className="h-4 w-4" />
+              <span>{t("create")}</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -82,6 +82,11 @@ model User {
   // Socials (JSON blob — SQLite friendly; typed at the application layer)
   socials     String? // JSON: { twitter?: string, ig?: string, li?: string, yt?: string, web?: string }
 
+  // SaaS tier — only paying subscribers (or pre-seeded owners) can create
+  // top-level communities. Defaults to false; flipped true by the future
+  // subscription webhook OR backfilled for users who already own a group.
+  canCreateGroups Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

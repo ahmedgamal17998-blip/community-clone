@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/server/auth";
+import { db } from "@/server/db";
 import { listMyGroups, listDiscoverableGroups } from "@/server/group-queries";
 import { GroupAvatar } from "@/components/group/GroupAvatar";
 import { Button } from "@/components/ui/button";
@@ -12,10 +13,15 @@ export default async function GroupsDirectoryPage() {
   if (!session?.user) redirect("/login");
   const t = await getTranslations("groups");
 
-  const [mine, discover] = await Promise.all([
+  const [me, mine, discover] = await Promise.all([
+    db.user.findUnique({
+      where: { id: session.user.id },
+      select: { canCreateGroups: true },
+    }),
     listMyGroups(session.user.id),
     listDiscoverableGroups(session.user.id),
   ]);
+  const canCreate = !!me?.canCreateGroups;
 
   return (
     <div className="space-y-10">
@@ -24,12 +30,14 @@ export default async function GroupsDirectoryPage() {
           <h1 className="text-2xl font-semibold tracking-tight">{t("directory.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("directory.subtitle")}</p>
         </div>
-        <Button asChild>
-          <Link href="/groups/new" className="gap-2">
-            <Plus className="h-4 w-4" />
-            {t("create")}
-          </Link>
-        </Button>
+        {canCreate && (
+          <Button asChild>
+            <Link href="/groups/new" className="gap-2">
+              <Plus className="h-4 w-4" />
+              {t("create")}
+            </Link>
+          </Button>
+        )}
       </header>
 
       <section className="space-y-3">
