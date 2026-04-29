@@ -49,6 +49,7 @@ export default async function EditCoursePage({
           stripePriceId: course.stripePriceId,
           priceAmount: course.priceAmount,
           currency: course.currency,
+          tier: course.tier,
           published: course.published,
         }}
       />

@@ -23,6 +23,8 @@ import { Button } from "@/components/ui/button";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { eligibleEventsForUser } from "@/server/event-access";
+import { hasGroupSubscriptionAccess } from "@/server/access";
+import { EventsLockedView } from "@/components/events/EventsLockedView";
 
 type Props = {
   params: { slug: string };
@@ -39,6 +41,19 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
   const isActive = myMembership?.state === "ACTIVE";
   const isAdmin =
     isActive && hasMinRole(myMembership!.role as Role, "ADMIN");
+
+  // Monetization gate: non-admin members need an active sub / trial to
+  // see the Events tab at all. Otherwise we render a dimmed placeholder
+  // that opens the paywall on click.
+  if (isActive && !isAdmin) {
+    const hasSubAccess = await hasGroupSubscriptionAccess({
+      userId: session.user.id,
+      groupId: found.group.id,
+    });
+    if (!hasSubAccess) {
+      return <EventsLockedView groupSlug={found.group.slug} />;
+    }
+  }
 
   const rawView = (searchParams?.view ?? "month").toLowerCase();
   const view = (rawView === "day" || rawView === "week" || rawView === "month"
@@ -127,7 +142,7 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
         </div>
         <div className="flex items-center gap-2">
           <ViewToggle view={view} date={date} />
-          {isActive ? (
+          {isActive && isAdmin ? (
             <Button asChild size="sm">
               <Link href={`/groups/${group.slug}/events/new`}>+ New Event</Link>
             </Button>

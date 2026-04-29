@@ -55,6 +55,43 @@ export async function setLoginPopupAction(params: {
   revalidatePath(`/groups/[slug]/admin/settings`, "page");
 }
 
+// Leave-attempt popup configuration.
+export async function setLeavePopupAction(params: {
+  groupId: string;
+  enabled: boolean;
+  body: string | null;
+  fontFamily: string | null;
+  fontSizePx: number | null;
+  color: string | null;
+  bold: boolean;
+  stayLabel: string | null;
+  leaveLabel: string | null;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
+  await requireRole({
+    groupId: params.groupId,
+    userId: session.user.id,
+    min: "ADMIN",
+  });
+
+  await db.group.update({
+    where: { id: params.groupId },
+    data: {
+      leavePopupEnabled: params.enabled,
+      leavePopupBody: params.body || null,
+      leavePopupFontFamily: params.fontFamily || null,
+      leavePopupFontSizePx: params.fontSizePx ?? null,
+      leavePopupColor: params.color || null,
+      leavePopupBold: params.bold,
+      leavePopupStayLabel: params.stayLabel || null,
+      leavePopupLeaveLabel: params.leaveLabel || null,
+    },
+  });
+
+  revalidatePath(`/groups/[slug]/admin/settings`, "page");
+}
+
 // Phase 1: free trial setting. 0 / null = no trial.
 export async function setFreeTrialDaysAction(params: {
   groupId: string;

@@ -8,6 +8,7 @@ import { GroupAvatar } from "@/components/group/GroupAvatar";
 import { Button } from "@/components/ui/button";
 import { joinGroupAction, leaveGroupAction } from "@/server/groups";
 import { hasMinRole, type Role } from "@/server/permissions";
+import { LeavePopup } from "@/components/group/LeavePopup";
 
 type Props = {
   group: {
@@ -19,6 +20,14 @@ type Props = {
     primaryHsl: string;
     visibility: string;
     memberCount: number;
+    leavePopupEnabled?: boolean;
+    leavePopupBody?: string | null;
+    leavePopupFontFamily?: string | null;
+    leavePopupFontSizePx?: number | null;
+    leavePopupColor?: string | null;
+    leavePopupBold?: boolean;
+    leavePopupStayLabel?: string | null;
+    leavePopupLeaveLabel?: string | null;
   };
   myMembership: {
     role: string;
@@ -79,12 +88,31 @@ export async function GroupHeader({ group, myMembership }: Props) {
             {t("pending")}
           </Button>
         ) : isMember && myMembership.role !== "OWNER" ? (
-          <form action={leaveGroupAction}>
-            <input type="hidden" name="groupId" value={group.id} />
-            <Button type="submit" variant="ghost" size="sm">
-              {t("leave")}
-            </Button>
-          </form>
+          group.leavePopupEnabled ? (
+            <LeavePopup
+              enabled
+              body={group.leavePopupBody ?? null}
+              fontFamily={group.leavePopupFontFamily ?? null}
+              fontSizePx={group.leavePopupFontSizePx ?? null}
+              color={group.leavePopupColor ?? null}
+              bold={group.leavePopupBold ?? false}
+              stayLabel={group.leavePopupStayLabel ?? null}
+              leaveLabel={group.leavePopupLeaveLabel ?? t("leave")}
+              onLeaveAction={async () => {
+                "use server";
+                const fd = new FormData();
+                fd.set("groupId", group.id);
+                await leaveGroupAction(fd);
+              }}
+            />
+          ) : (
+            <form action={leaveGroupAction}>
+              <input type="hidden" name="groupId" value={group.id} />
+              <Button type="submit" variant="ghost" size="sm">
+                {t("leave")}
+              </Button>
+            </form>
+          )
         ) : null}
       </div>
     </div>

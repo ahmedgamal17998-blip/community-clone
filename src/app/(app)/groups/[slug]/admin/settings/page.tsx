@@ -5,6 +5,7 @@ import { SettingsForm } from "@/components/admin/SettingsForm";
 import { LandingPageSelector } from "./_components/LandingPageSelector";
 import { LoginPopupForm } from "./_components/LoginPopupForm";
 import { FreeTrialForm } from "./_components/FreeTrialForm";
+import { LeavePopupForm } from "./_components/LeavePopupForm";
 
 export default async function AdminSettingsPage({
   params,
@@ -28,6 +29,14 @@ export default async function AdminSettingsPage({
       loginPopupCtaUrl: true,
       loginPopupDurationSec: true,
       freeTrialDays: true,
+      leavePopupEnabled: true,
+      leavePopupBody: true,
+      leavePopupFontFamily: true,
+      leavePopupFontSizePx: true,
+      leavePopupColor: true,
+      leavePopupBold: true,
+      leavePopupStayLabel: true,
+      leavePopupLeaveLabel: true,
     },
   });
   if (!group || !session?.user) notFound();
@@ -101,6 +110,40 @@ export default async function AdminSettingsPage({
           <FreeTrialForm
             groupId={group.id}
             initial={group.freeTrialDays ?? 0}
+          />
+        </div>
+      </div>
+
+      {/* Leave-attempt popup — retention dialog when a member taps Leave */}
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div
+          className="h-1.5 w-full"
+          style={{
+            background:
+              "linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.7) 100%)",
+          }}
+        />
+        <div className="p-5">
+          <h2 className="mb-1 text-sm font-bold text-foreground">
+            Leave-attempt popup
+          </h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Retention dialog shown when a member taps Leave. Customize the
+            message, font, color, and button labels. Use <code>**word**</code>{" "}
+            to bold a phrase.
+          </p>
+          <LeavePopupForm
+            groupId={group.id}
+            initial={{
+              enabled: group.leavePopupEnabled,
+              body: group.leavePopupBody ?? "",
+              fontFamily: group.leavePopupFontFamily ?? "",
+              fontSizePx: group.leavePopupFontSizePx ?? 16,
+              color: group.leavePopupColor ?? "",
+              bold: group.leavePopupBold,
+              stayLabel: group.leavePopupStayLabel ?? "",
+              leaveLabel: group.leavePopupLeaveLabel ?? "",
+            }}
           />
         </div>
       </div>

@@ -248,6 +248,48 @@ export async function hasAccessBulk(params: {
 }
 
 /**
+ * "Does this user have premium-level access on the group?"
+ *
+ * Returns true iff one of:
+ *   • A non-expired GROUP-level MemberAccess GRANT exists (this is the free
+ *     trial mechanism — admin can also grant manually).
+ *   • An ACTIVE subscription on the group is present.
+ *
+ * Used by features that gate the *entire* experience (Events tab, DM send,
+ * etc.) on subscription rather than per-resource. Plain ACTIVE membership
+ * is NOT enough.
+ */
+export async function hasGroupSubscriptionAccess(params: {
+  userId: string;
+  groupId: string;
+}): Promise<boolean> {
+  const now = new Date();
+
+  const grant = await db.memberAccess.findFirst({
+    where: {
+      userId: params.userId,
+      resourceType: "GROUP",
+      resourceId: params.groupId,
+      mode: "GRANT",
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+    select: { id: true },
+  });
+  if (grant) return true;
+
+  const sub = await db.subscription.findFirst({
+    where: {
+      userId: params.userId,
+      groupId: params.groupId,
+      status: "ACTIVE",
+      currentPeriodEnd: { gt: now },
+    },
+    select: { id: true },
+  });
+  return !!sub;
+}
+
+/**
  * Compute the user's "remaining days" on the group — used by the member self
  * subscription card. Returns null if no active subscription.
  */

@@ -21,6 +21,7 @@ type CourseShape = {
   stripePriceId: string | null;
   priceAmount: number | null;
   currency: string;
+  tier?: string;
   published: boolean;
 };
 
@@ -128,6 +129,42 @@ export function CourseForm(props: Props) {
           </div>
         </div>
       ) : null}
+
+      <div className="space-y-1.5">
+        <Label>Access tier</Label>
+        <div className="flex gap-2">
+          <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-md border border-border bg-background p-3 text-sm transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+            <input
+              type="radio"
+              name="tier"
+              value="FREE"
+              defaultChecked={(c?.tier ?? "FREE") === "FREE"}
+              className="h-4 w-4"
+            />
+            <span>
+              <span className="block font-semibold">Free</span>
+              <span className="block text-[11px] text-muted-foreground">
+                Open to every active member.
+              </span>
+            </span>
+          </label>
+          <label className="flex flex-1 cursor-pointer items-center gap-2 rounded-md border border-border bg-background p-3 text-sm transition-colors has-[:checked]:border-amber-500 has-[:checked]:bg-amber-500/10">
+            <input
+              type="radio"
+              name="tier"
+              value="PREMIUM"
+              defaultChecked={c?.tier === "PREMIUM"}
+              className="h-4 w-4"
+            />
+            <span>
+              <span className="block font-semibold">Premium</span>
+              <span className="block text-[11px] text-muted-foreground">
+                Locked unless included in an active plan.
+              </span>
+            </span>
+          </label>
+        </div>
+      </div>
 
       <label className="flex items-center gap-2 text-sm">
         <input

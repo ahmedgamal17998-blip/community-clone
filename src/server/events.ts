@@ -300,10 +300,12 @@ export async function createEventAction(formData: FormData) {
   }
   const data = parsed.data;
 
+  // Only admins/owners can create events. Regular members can RSVP to
+  // events but cannot create them.
   const ok = await isAtLeast({
     groupId: data.groupId,
     userId: session.user.id,
-    min: "MEMBER",
+    min: "ADMIN",
   });
   if (!ok) return { ok: false as const, error: "FORBIDDEN" };
 

@@ -22,6 +22,10 @@ export default async function NewEventPage({
   }
 
   const isAdmin = hasMinRole(myMembership.role as Role, "ADMIN");
+  // Only admins can create events. Members get bounced back to the calendar.
+  if (!isAdmin) {
+    redirect(`/groups/${group.slug}/events`);
+  }
 
   // Pre-load audience picker data — admin only renders the audience editor.
   const [channels, courses, members] = isAdmin

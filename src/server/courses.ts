@@ -214,6 +214,7 @@ const createCourseSchema = z.object({
   priceLabel: z.string().trim().max(40).optional(),
   priceDollars: z.coerce.number().min(0).max(99999).optional(),
   stripePriceId: z.string().trim().max(100).optional(),
+  tier: z.enum(["FREE", "PREMIUM"]).default("FREE"),
   published: z.string().optional(), // "on" | undefined
 });
 
@@ -230,6 +231,7 @@ export async function createCourseAction(formData: FormData) {
     priceLabel: formData.get("priceLabel") || undefined,
     priceDollars: formData.get("priceDollars") || undefined,
     stripePriceId: formData.get("stripePriceId") || undefined,
+    tier: formData.get("tier") || "FREE",
     published: formData.get("published") || undefined,
   });
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid input");
@@ -271,6 +273,7 @@ export async function createCourseAction(formData: FormData) {
       priceLabel: parsed.data.priceLabel,
       priceAmount,
       stripePriceId: parsed.data.stripePriceId || null,
+      tier: parsed.data.tier,
       published: !!parsed.data.published,
       position,
     },
@@ -289,6 +292,7 @@ const updateCourseSchema = z.object({
   priceLabel: z.string().trim().max(40).optional(),
   priceDollars: z.coerce.number().min(0).max(99999).optional(),
   stripePriceId: z.string().trim().max(100).optional(),
+  tier: z.enum(["FREE", "PREMIUM"]).default("FREE"),
   published: z.string().optional(),
 });
 
@@ -305,6 +309,7 @@ export async function updateCourseAction(formData: FormData) {
     priceLabel: formData.get("priceLabel") || undefined,
     priceDollars: formData.get("priceDollars") || undefined,
     stripePriceId: formData.get("stripePriceId") || undefined,
+    tier: formData.get("tier") || "FREE",
     published: formData.get("published") || undefined,
   });
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid input");
@@ -336,6 +341,7 @@ export async function updateCourseAction(formData: FormData) {
       priceLabel: parsed.data.priceLabel,
       priceAmount: updatePriceAmount,
       stripePriceId: parsed.data.stripePriceId || null,
+      tier: parsed.data.tier,
       published: !!parsed.data.published,
     },
   });

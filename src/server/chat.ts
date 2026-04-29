@@ -19,6 +19,7 @@ import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { createNotification, notifyMentions } from "@/server/notifications";
 import { getPusherServer } from "@/lib/pusher-server";
+import { hasGroupSubscriptionAccess } from "@/server/access";
 
 const DEFAULT_PAGE = 30;
 
@@ -387,6 +388,73 @@ export async function sendMessageAction(formData: FormData) {
     },
   });
   if (!participant) throw new Error("FORBIDDEN");
+
+  // Monetization gate: DMs / group chats inside a group require an active
+  // subscription or trial. Channel chats are gated separately via the
+  // per-channel access matrix.
+  //
+  // Strategy: identify the relevant group(s):
+  //   1. thread.groupId (set for group chats and group-scoped DMs).
+  //   2. For DIRECT threads with no groupId, look at every group shared
+  //      between the two participants. If the sender lacks sub access in
+  //      *every* shared group AND is not an admin in any of them, block.
+  if (participant.thread.kind !== "CHANNEL") {
+    const otherIds = participant.thread.participants
+      .map((p) => p.userId)
+      .filter((id) => id !== session.user.id);
+
+    // Collect candidate group IDs.
+    let groupIds: string[] = [];
+    if (participant.thread.groupId) {
+      groupIds = [participant.thread.groupId];
+    } else if (
+      participant.thread.kind === "DIRECT" &&
+      otherIds.length === 1
+    ) {
+      const senderGroups = await db.groupMembership.findMany({
+        where: { userId: session.user.id, state: "ACTIVE" },
+        select: { groupId: true },
+      });
+      const otherGroups = await db.groupMembership.findMany({
+        where: { userId: otherIds[0], state: "ACTIVE" },
+        select: { groupId: true },
+      });
+      const otherSet = new Set(otherGroups.map((g) => g.groupId));
+      groupIds = senderGroups
+        .map((g) => g.groupId)
+        .filter((g) => otherSet.has(g));
+    }
+
+    if (groupIds.length > 0) {
+      // Allow if the sender is admin OR has sub/trial in *any* shared group.
+      let allowed = false;
+      for (const gid of groupIds) {
+        const m = await db.groupMembership.findUnique({
+          where: { groupId_userId: { groupId: gid, userId: session.user.id } },
+          select: { role: true },
+        });
+        if (m && hasMinRole(m.role as Role, "ADMIN")) {
+          allowed = true;
+          break;
+        }
+        const ok = await hasGroupSubscriptionAccess({
+          userId: session.user.id,
+          groupId: gid,
+        });
+        if (ok) {
+          allowed = true;
+          break;
+        }
+      }
+      if (!allowed) {
+        return {
+          ok: false as const,
+          error:
+            "Subscribe to send messages. Activate a plan or wait for your trial.",
+        };
+      }
+    }
+  }
 
   const msg = await db.chatMessage.create({
     data: {

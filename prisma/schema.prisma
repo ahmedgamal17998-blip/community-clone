@@ -246,6 +246,18 @@ model Group {
   // M26: favicon
   faviconUrl String?
 
+  // Leave-attempt popup ("are you sure?" with retention copy). When enabled,
+  // clicking Leave shows a styled dialog instead of leaving immediately.
+  // Body supports **bold** markers. Font/size/color render the body inline.
+  leavePopupEnabled    Boolean @default(false)
+  leavePopupBody       String?
+  leavePopupFontFamily String?
+  leavePopupFontSizePx Int?
+  leavePopupColor      String?
+  leavePopupBold       Boolean @default(false)
+  leavePopupStayLabel  String?
+  leavePopupLeaveLabel String?
+
   // Monetization — free trial granted to new members on first ACTIVE join.
   // 0 / null = no trial. During the trial window, premium content is
   // accessible via a group-level MemberAccess GRANT with expiresAt set
