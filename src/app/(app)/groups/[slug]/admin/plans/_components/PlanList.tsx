@@ -13,6 +13,23 @@ type Plan = {
   active: boolean;
 };
 
+// Currency code → display symbol. Falls back to the uppercase code when unknown.
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  usd: "$",
+  eur: "€",
+  gbp: "£",
+  egp: "E£",
+  sar: "﷼",
+  aed: "د.إ",
+  kwd: "د.ك",
+};
+
+function formatPrice(priceCents: number, currency: string): string {
+  const amount = (priceCents / 100).toFixed(2);
+  const sym = CURRENCY_SYMBOLS[currency.toLowerCase()] ?? currency.toUpperCase();
+  return `${sym}${amount}`;
+}
+
 export function PlanList({
   groupId,
   plans,
@@ -51,8 +68,8 @@ export function PlanList({
             <tr key={p.id} className="border-t">
               <td className="px-3 py-2 font-medium">{p.name}</td>
               <td className="px-3 py-2">{p.durationDays}d</td>
-              <td className="px-3 py-2">
-                ${(p.priceCents / 100).toFixed(2)}
+              <td className="px-3 py-2 tabular-nums">
+                {formatPrice(p.priceCents, p.currency)}
               </td>
               <td className="px-3 py-2">
                 <span
