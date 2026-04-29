@@ -32,6 +32,7 @@ import {
   deleteMessageAction,
 } from "@/server/chat";
 import { MediaAttach, type Attached } from "@/components/chat/MediaAttach";
+import { ChatVoiceMic } from "@/components/chat/ChatVoiceMic";
 import { useChannel, useEvent } from "@/lib/pusher-client";
 import { cn } from "@/lib/utils";
 
@@ -305,6 +306,50 @@ export function ChatThreadView(props: ChatThreadViewProps) {
     }
   }
 
+  // Voice note → reuses sendMessageAction with mediaType=audio.
+  async function handleSendAudio(audio: { url: string; mediaType: string; durationSec: number }) {
+    if (sending) return;
+    setSending(true);
+    const fd = new FormData();
+    fd.set("threadId", threadId);
+    fd.set("mediaUrl", audio.url);
+    fd.set("mediaType", audio.mediaType); // "audio"
+    if (replyTo) fd.set("replyToId", replyTo.id);
+
+    const tempId = `tmp-${Date.now()}`;
+    const optimistic: ChatMessageView = {
+      id: tempId,
+      threadId,
+      authorId: viewerId,
+      body: null,
+      mediaUrl: audio.url,
+      mediaType: audio.mediaType,
+      pinned: false,
+      editedAt: null,
+      createdAt: new Date().toISOString(),
+      author: { id: viewerId, name: null, handle: "you", image: null },
+      replyTo: replyTo
+        ? {
+            id: replyTo.id,
+            body: replyTo.body,
+            author: { name: replyTo.author.name, handle: replyTo.author.handle },
+          }
+        : null,
+    };
+    atBottomRef.current = true;
+    setMessages((prev) => [...prev, optimistic]);
+    setReplyTo(null);
+
+    try {
+      const result = await sendMessageAction(fd);
+      if (!result?.ok) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      }
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function handlePin(messageId: string) {
     const fd = new FormData();
     fd.set("messageId", messageId);
@@ -476,6 +521,7 @@ export function ChatThreadView(props: ChatThreadViewProps) {
         textareaRef={textareaRef}
         fireTyping={fireTyping}
         onSend={handleSend}
+        onSendAudio={handleSendAudio}
       />
     </div>
   );
@@ -908,6 +954,7 @@ function Composer({
   textareaRef,
   fireTyping,
   onSend,
+  onSendAudio,
 }: {
   body: string;
   setBody: (v: string) => void;
@@ -920,6 +967,7 @@ function Composer({
   textareaRef: React.RefObject<HTMLTextAreaElement>;
   fireTyping: (v: string) => void;
   onSend: (e?: React.FormEvent) => Promise<void>;
+  onSendAudio: (audio: { url: string; mediaType: string; durationSec: number }) => Promise<void>;
 }) {
   const canSend = body.trim() || attached;
 
@@ -1007,13 +1055,7 @@ function Composer({
             <Send className="h-4 w-4" />
           </button>
         ) : (
-          <button
-            type="button"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_2px_6px_rgba(124,58,237,0.35)] transition-all hover:bg-primary/90 active:scale-95"
-            aria-label="Voice message"
-          >
-            <Mic className="h-[18px] w-[18px]" />
-          </button>
+          <ChatVoiceMic onSend={onSendAudio} disabled={sending} />
         )}
       </form>
     </div>
