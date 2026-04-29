@@ -4,7 +4,7 @@
  * Most right-side affordances are stubbed in M1 — they light up in later milestones.
  */
 import Link from "next/link";
-import { Grid3x3, Home, Search } from "lucide-react";
+import { Bookmark, Grid3x3, Home, Search } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/server/auth";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,11 @@ export async function TopNav({ activeGroupSlug }: TopNavProps = {}) {
           {session?.user ? (
             <>
               <NotificationBell viewerId={session.user.id} />
+              <Button asChild variant="ghost" size="icon" aria-label="Saved" title="Saved">
+                <Link href="/saved">
+                  <Bookmark className="h-5 w-5" />
+                </Link>
+              </Button>
               <Button variant="ghost" size="icon" aria-label="Apps" title="Apps">
                 <Grid3x3 className="h-5 w-5" />
               </Button>

@@ -11,6 +11,7 @@ import { PostEngagementArea } from "@/components/post/PostEngagementArea";
 import { PollBlock } from "@/components/post/PollBlock";
 import { RichTextRenderer } from "@/components/editor/RichTextRenderer";
 import { getPostComments } from "@/server/comments";
+import { db } from "@/server/db";
 import type { ReactionSummary } from "@/server/comments";
 import type { PollData } from "@/server/posts";
 
@@ -40,6 +41,8 @@ type PostCardPost = {
   commentCount?: number;
   reactions?: ReactionSummary[];
   poll?: PollData | null;
+  /** Whether the viewer has saved this post (passed from server). */
+  savedByViewer?: boolean;
 };
 
 type Props = {
@@ -62,6 +65,17 @@ export async function PostCard({ post, viewerId, viewerCanModerate, hideChannelC
   const comments = await getPostComments(post.id, viewerId);
   const commentCount = post.commentCount ?? comments.reduce((n, c) => n + 1 + c.replies.length, 0);
   const reactions = post.reactions ?? [];
+
+  // savedByViewer can be passed in by feed pages that pre-batch SavedPost
+  // rows; fall back to a per-card lookup so the bookmark state is accurate
+  // even on standalone renders.
+  const savedByViewer =
+    typeof post.savedByViewer === "boolean"
+      ? post.savedByViewer
+      : !!(await db.savedPost.findUnique({
+          where: { userId_postId: { userId: viewerId, postId: post.id } },
+          select: { id: true },
+        }));
 
   return (
     <article
@@ -177,6 +191,7 @@ export async function PostCard({ post, viewerId, viewerCanModerate, hideChannelC
           comments={comments}
           viewerCanModerate={viewerCanModerate}
           groupSlug={post.channel.group.slug}
+          savedByViewer={savedByViewer}
         />
       </div>
     </article>

@@ -15,6 +15,7 @@ import { useState, useRef, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { ThumbsUp, MessageCircle, Share2, Bookmark, X } from "lucide-react";
 import { toggleReactionAction } from "@/server/reaction-actions";
+import { toggleSavePostAction } from "@/server/save-actions";
 import { CommentItem } from "@/components/post/CommentItem";
 import { CommentComposer } from "@/components/post/CommentComposer";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,8 @@ type Props = {
   comments: CommentWithReplies[];
   viewerCanModerate: boolean;
   groupSlug?: string;
+  /** Whether the viewer has already saved this post (server-rendered). */
+  savedByViewer?: boolean;
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -63,6 +66,7 @@ export function PostEngagementArea({
   comments,
   viewerCanModerate,
   groupSlug,
+  savedByViewer = false,
 }: Props) {
   const t = useTranslations("comments");
 
@@ -78,7 +82,7 @@ export function PostEngagementArea({
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(savedByViewer);
 
   // ── Derived values ──────────────────────────────────────────────────────
   const viewerReaction = EMOJI_LIST.find((e) => local.get(e)?.viewerReacted);
@@ -312,7 +316,16 @@ export function PostEngagementArea({
         {/* Save button */}
         <button
           type="button"
-          onClick={() => setSaved((v) => !v)}
+          onClick={() => {
+            // Optimistic flip; rollback if the server rejects.
+            const next = !saved;
+            setSaved(next);
+            startTransition(async () => {
+              const res = await toggleSavePostAction({ postId });
+              if (!res?.ok) setSaved(!next);
+              else setSaved(res.saved);
+            });
+          }}
           className={cn(
             "flex flex-1 items-center justify-center gap-1.5 rounded-md px-1 py-1.5 text-sm font-semibold transition-colors hover:bg-accent",
             saved ? "text-primary" : "text-muted-foreground",
