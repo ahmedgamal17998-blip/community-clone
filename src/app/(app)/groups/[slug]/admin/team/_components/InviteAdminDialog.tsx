@@ -42,11 +42,29 @@ export function InviteAdminDialog({
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-background p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+          <div
+            className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-2xl max-h-[90vh] overflow-y-auto"
+            style={{ opacity: 1 }}
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Group-primary accent strip — consistent with LoginPopup pattern */}
+            <div
+              className="h-1.5 w-full"
+              style={{
+                background:
+                  "linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.7) 100%)",
+              }}
+            />
+            <div className="p-6">
             <div className="flex items-start justify-between">
-              <h2 className="text-lg font-semibold">Add admin</h2>
-              <button onClick={() => setOpen(false)} className="rounded-md p-1 hover:bg-muted">
+              <h2 className="text-lg font-bold">Add admin</h2>
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label="Close"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -106,6 +124,7 @@ export function InviteAdminDialog({
                   {pending ? "Adding…" : "Add admin"}
                 </button>
               </div>
+            </div>
             </div>
           </div>
         </div>
