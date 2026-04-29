@@ -1009,10 +1009,10 @@ function Composer({
         ) : (
           <button
             type="button"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_2px_6px_rgba(124,58,237,0.35)] transition-all hover:bg-primary/90 active:scale-95"
             aria-label="Voice message"
           >
-            <Mic className="h-[20px] w-[20px]" />
+            <Mic className="h-[18px] w-[18px]" />
           </button>
         )}
       </form>
