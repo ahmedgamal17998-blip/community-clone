@@ -1,7 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { openPaywall } from "@/components/access/PaywallPopup";
 
 type Props = {
   href: string;
@@ -16,9 +19,11 @@ type Props = {
   progressPercent: number;
   enrolled?: boolean;
   /** Set true when the viewer has been explicitly locked out of this course
-   *  (admin DENY in the per-member access matrix). Renders dimmed,
-   *  non-clickable and shows a lock badge. */
+   *  (admin DENY in the per-member access matrix or premium without sub).
+   *  Renders dimmed and opens the paywall popup on click. */
   accessLocked?: boolean;
+  /** Group slug — required when `accessLocked` so the paywall can route to /me. */
+  groupSlug?: string;
 };
 
 export function CourseCard({
@@ -34,6 +39,7 @@ export function CourseCard({
   progressPercent,
   enrolled,
   accessLocked,
+  groupSlug,
 }: Props) {
   const isPaid = priceType === "PAID";
   const isPayLocked = isPaid && !enrolled;
@@ -47,13 +53,18 @@ export function CourseCard({
         }).format(priceAmount / 100)
       : priceLabel ?? null;
 
-  // Access-locked: render the same card but dimmed, non-clickable.
+  // Access-locked: render the same card dimmed; click opens paywall popup.
   if (accessLocked) {
     return (
-      <div
-        className="group flex cursor-not-allowed flex-col overflow-hidden rounded-xl border border-border bg-card opacity-60 shadow-sm"
-        aria-disabled="true"
-        title="You don't have access to this course"
+      <button
+        type="button"
+        onClick={() =>
+          groupSlug
+            ? openPaywall({ groupSlug, resourceLabel: title })
+            : undefined
+        }
+        className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card text-left opacity-60 shadow-sm transition-opacity hover:opacity-80"
+        title="Subscribe to unlock this course"
       >
         <div className="relative aspect-[16/9] w-full overflow-hidden">
           {coverUrl ? (
@@ -76,9 +87,9 @@ export function CourseCard({
           <h3 className="line-clamp-2 text-sm font-semibold text-muted-foreground line-through decoration-muted-foreground/40">
             {title}
           </h3>
-          <p className="text-xs text-muted-foreground">Access locked</p>
+          <p className="text-xs text-muted-foreground">Tap to unlock</p>
         </div>
-      </div>
+      </button>
     );
   }
 

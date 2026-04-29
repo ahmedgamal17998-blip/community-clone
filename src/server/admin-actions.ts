@@ -204,6 +204,78 @@ export async function setChannelKindAction(formData: FormData) {
   revalidatePath(`/groups/${channel.group.slug}/admin/channels`);
 }
 
+// ── Phase 1: monetization tier toggle ─────────────────────────────────────
+
+const setTierSchema = z.object({
+  channelId: z.string().cuid(),
+  tier: z.enum(["FREE", "PREMIUM"]),
+});
+
+export async function setChannelTierAction(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) throw new Error("UNAUTHENTICATED");
+
+  const parsed = setTierSchema.safeParse({
+    channelId: formData.get("channelId"),
+    tier: formData.get("tier"),
+  });
+  if (!parsed.success) return;
+
+  const channel = await db.channel.findUnique({
+    where: { id: parsed.data.channelId },
+    include: { group: { select: { slug: true } } },
+  });
+  if (!channel) return;
+
+  await requireRole({
+    groupId: channel.groupId,
+    userId: session.user.id,
+    min: "ADMIN",
+  });
+
+  await db.channel.update({
+    where: { id: channel.id },
+    data: { tier: parsed.data.tier },
+  });
+
+  revalidatePath(`/groups/${channel.group.slug}/admin/channels`);
+}
+
+const setCourseTierSchema = z.object({
+  courseId: z.string().cuid(),
+  tier: z.enum(["FREE", "PREMIUM"]),
+});
+
+export async function setCourseTierAction(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) throw new Error("UNAUTHENTICATED");
+
+  const parsed = setCourseTierSchema.safeParse({
+    courseId: formData.get("courseId"),
+    tier: formData.get("tier"),
+  });
+  if (!parsed.success) return;
+
+  const course = await db.course.findUnique({
+    where: { id: parsed.data.courseId },
+    include: { group: { select: { slug: true } } },
+  });
+  if (!course) return;
+
+  await requireRole({
+    groupId: course.groupId,
+    userId: session.user.id,
+    min: "ADMIN",
+  });
+
+  await db.course.update({
+    where: { id: course.id },
+    data: { tier: parsed.data.tier },
+  });
+
+  revalidatePath(`/groups/${course.group.slug}/learning`);
+}
+
 const toggleArchiveSchema = z.object({
   channelId: z.string().cuid(),
   archived: z.enum(["1", "0"]),

@@ -54,3 +54,26 @@ export async function setLoginPopupAction(params: {
 
   revalidatePath(`/groups/[slug]/admin/settings`, "page");
 }
+
+// Phase 1: free trial setting. 0 / null = no trial.
+export async function setFreeTrialDaysAction(params: {
+  groupId: string;
+  days: number;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
+  await requireRole({
+    groupId: params.groupId,
+    userId: session.user.id,
+    min: "ADMIN",
+  });
+
+  await db.group.update({
+    where: { id: params.groupId },
+    data: {
+      freeTrialDays: params.days > 0 ? params.days : null,
+    },
+  });
+
+  revalidatePath(`/groups/[slug]/admin/settings`, "page");
+}

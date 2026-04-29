@@ -93,6 +93,7 @@ export default async function GroupLearningPage({
             progressPercent={c.progressPercent}
             enrolled={enrolledSet.has(c.id)}
             accessLocked={!canManage && courseAccess.get(c.id) === false}
+            groupSlug={group.slug}
           />
         ))}
         {canManage ? (

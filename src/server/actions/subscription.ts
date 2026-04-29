@@ -160,6 +160,16 @@ export async function _activateSubscriptionInternal(params: {
     data: { lockedAt: null, accessExpiresAt: newEnd },
   });
 
+  // Auto-grant MemberAccess for every resource the plan unlocks. The
+  // member's hasAccess() now naturally returns true for those channels /
+  // courses / events until the subscription period ends.
+  await syncSubscriptionAccessGrants({
+    userId: params.userId,
+    groupId: params.groupId,
+    planId: params.planId,
+    expiresAt: newEnd,
+  });
+
   revalidatePath(`/groups/[slug]/me`, "page");
   return sub;
 }
@@ -211,7 +221,12 @@ export async function setSubscriptionStatusAction(params: {
 
   const sub = await db.subscription.findUnique({
     where: { id: params.subscriptionId },
-    select: { groupId: true, userId: true },
+    select: {
+      groupId: true,
+      userId: true,
+      planId: true,
+      currentPeriodEnd: true,
+    },
   });
   if (!sub) return { ok: false as const, error: "Subscription not found" };
 
@@ -226,9 +241,181 @@ export async function setSubscriptionStatusAction(params: {
     data: { status: params.status },
   });
 
+  // Side-effects on plan-bundled MemberAccess:
+  //   • PAUSED / CANCELED → revoke (set expiresAt = now)
+  //   • ACTIVE (re-activate) → re-sync grants with the original period end
+  //                            (or now+1day if the period already ended)
+  if (params.status === "PAUSED" || params.status === "CANCELED") {
+    await revokeSubscriptionAccessGrants({
+      userId: sub.userId,
+      planId: sub.planId,
+    });
+  } else if (params.status === "ACTIVE") {
+    const expiresAt =
+      sub.currentPeriodEnd > new Date()
+        ? sub.currentPeriodEnd
+        : new Date(Date.now() + 86_400_000); // give 1 day if expired
+    await syncSubscriptionAccessGrants({
+      userId: sub.userId,
+      groupId: sub.groupId,
+      planId: sub.planId,
+      expiresAt,
+      adminId: session.user.id,
+    });
+  }
+
   revalidatePath(`/groups/[slug]/admin/members/${sub.userId}`, "page");
   revalidatePath(`/groups/[slug]/me`, "page");
   return { ok: true as const };
+}
+
+// ─── Phase 1: Plan-includes-resources ──────────────────────────────────────
+
+/**
+ * Replace the full set of resources a plan unlocks with the provided lists.
+ * Idempotent — caller passes the desired final state, action diffs.
+ */
+export async function setPlanResourcesAction(params: {
+  groupId: string;
+  planId: string;
+  channelIds: string[];
+  courseIds: string[];
+  eventIds: string[];
+}) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
+  await requireCapability({
+    userId: session.user.id,
+    groupId: params.groupId,
+    capability: "SUBS_MANAGE",
+  });
+
+  // Verify plan belongs to the group.
+  const plan = await db.subscriptionPlan.findUnique({
+    where: { id: params.planId },
+    select: { groupId: true },
+  });
+  if (!plan || plan.groupId !== params.groupId) {
+    return { ok: false as const, error: "Plan mismatch" };
+  }
+
+  // Replace all rows in a transaction. Simpler than diffing for now.
+  await db.$transaction([
+    db.planResource.deleteMany({ where: { planId: params.planId } }),
+    db.planResource.createMany({
+      data: [
+        ...params.channelIds.map((id) => ({
+          planId: params.planId,
+          resourceType: "CHANNEL",
+          resourceId: id,
+        })),
+        ...params.courseIds.map((id) => ({
+          planId: params.planId,
+          resourceType: "COURSE",
+          resourceId: id,
+        })),
+        ...params.eventIds.map((id) => ({
+          planId: params.planId,
+          resourceType: "EVENT",
+          resourceId: id,
+        })),
+      ],
+    }),
+  ]);
+
+  // Re-sync access grants for every ACTIVE subscriber of this plan so the
+  // bundle change propagates immediately.
+  const activeSubs = await db.subscription.findMany({
+    where: { planId: params.planId, status: "ACTIVE" },
+  });
+  for (const sub of activeSubs) {
+    await syncSubscriptionAccessGrants({
+      userId: sub.userId,
+      groupId: sub.groupId,
+      planId: sub.planId,
+      expiresAt: sub.currentPeriodEnd,
+      adminId: session.user.id,
+    });
+  }
+
+  revalidatePath(`/groups/[slug]/admin/plans`, "page");
+  return { ok: true as const };
+}
+
+/**
+ * Internal helper — given a user + plan + expiry, ensure they have a
+ * MemberAccess GRANT for every PlanResource in that plan, with
+ * expiresAt set to the subscription period end.
+ */
+export async function syncSubscriptionAccessGrants(params: {
+  userId: string;
+  groupId: string;
+  planId: string;
+  expiresAt: Date;
+  adminId?: string;
+}) {
+  const resources = await db.planResource.findMany({
+    where: { planId: params.planId },
+  });
+  if (resources.length === 0) return;
+
+  for (const r of resources) {
+    await db.memberAccess.upsert({
+      where: {
+        userId_resourceType_resourceId: {
+          userId: params.userId,
+          resourceType: r.resourceType,
+          resourceId: r.resourceId,
+        },
+      },
+      update: {
+        mode: "GRANT",
+        expiresAt: params.expiresAt,
+        source: "PAYMENT",
+        grantedById: params.adminId ?? null,
+      },
+      create: {
+        userId: params.userId,
+        groupId: params.groupId,
+        resourceType: r.resourceType,
+        resourceId: r.resourceId,
+        mode: "GRANT",
+        expiresAt: params.expiresAt,
+        source: "PAYMENT",
+        grantedById: params.adminId ?? null,
+      },
+    });
+  }
+}
+
+/**
+ * Internal helper — expire all PAYMENT-sourced MemberAccess records for
+ * resources tied to this plan. Used when a subscription is paused /
+ * canceled / expired. We don't delete (history is kept) — we set
+ * expiresAt to now so hasAccess() denies.
+ */
+export async function revokeSubscriptionAccessGrants(params: {
+  userId: string;
+  planId: string;
+}) {
+  const resources = await db.planResource.findMany({
+    where: { planId: params.planId },
+    select: { resourceType: true, resourceId: true },
+  });
+  if (resources.length === 0) return;
+
+  const now = new Date();
+  for (const r of resources) {
+    await db.memberAccess.updateMany({
+      where: {
+        userId: params.userId,
+        resourceType: r.resourceType,
+        resourceId: r.resourceId,
+        source: "PAYMENT",
+      },
+      data: { expiresAt: now },
+    });
+  }
 }
 
 /**

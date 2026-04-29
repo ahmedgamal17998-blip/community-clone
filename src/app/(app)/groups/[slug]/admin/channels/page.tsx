@@ -22,6 +22,7 @@ export default async function AdminChannelsPage({
       name: true,
       emoji: true,
       kind: true,
+      tier: true,
       archived: true,
       position: true,
     },
@@ -32,7 +33,9 @@ export default async function AdminChannelsPage({
       <div>
         <h1 className="text-xl font-semibold">Channels</h1>
         <p className="text-sm text-muted-foreground">
-          Drag to reorder. Change kind or archive from the row controls.
+          Drag to reorder. Change kind, tier (Free / Premium), or archive
+          from the row controls. Premium channels are locked for members
+          without an active plan that includes them.
         </p>
       </div>
       <ChannelSortableList groupId={group.id} channels={channels} />

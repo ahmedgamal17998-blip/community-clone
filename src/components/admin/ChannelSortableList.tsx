@@ -20,6 +20,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   reorderChannelsAction,
   setChannelKindAction,
+  setChannelTierAction,
   toggleChannelArchiveAction,
 } from "@/server/admin-actions";
 
@@ -29,6 +30,7 @@ type Channel = {
   name: string;
   emoji: string | null;
   kind: string;
+  tier: string;
   archived: boolean;
   position: number;
 };
@@ -38,10 +40,12 @@ type Props = { groupId: string; channels: Channel[] };
 function SortableRow({
   channel,
   onKind,
+  onTier,
   onArchive,
 }: {
   channel: Channel;
   onKind: (id: string, kind: string) => void;
+  onTier: (id: string, tier: "FREE" | "PREMIUM") => void;
   onArchive: (id: string, archived: boolean) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -84,6 +88,25 @@ function SortableRow({
         <option value="PRIVATE">PRIVATE</option>
         <option value="ANNOUNCEMENT">ANNOUNCEMENT</option>
       </select>
+      {/* Tier toggle: FREE / PREMIUM */}
+      <button
+        type="button"
+        onClick={() =>
+          onTier(channel.id, channel.tier === "PREMIUM" ? "FREE" : "PREMIUM")
+        }
+        className={
+          channel.tier === "PREMIUM"
+            ? "h-8 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 text-xs font-bold text-amber-700 hover:border-amber-500 dark:text-amber-400"
+            : "h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground hover:border-primary"
+        }
+        title={
+          channel.tier === "PREMIUM"
+            ? "Click to make this channel free for everyone"
+            : "Click to make this channel premium (gated by plan)"
+        }
+      >
+        {channel.tier === "PREMIUM" ? "PREMIUM" : "FREE"}
+      </button>
       <button
         type="button"
         onClick={() => onArchive(channel.id, !channel.archived)}
@@ -135,6 +158,17 @@ export function ChannelSortableList({ groupId, channels: initial }: Props) {
     });
   }
 
+  function onTier(id: string, tier: "FREE" | "PREMIUM") {
+    setChannels((prev) => prev.map((c) => (c.id === id ? { ...c, tier } : c)));
+    const fd = new FormData();
+    fd.set("channelId", id);
+    fd.set("tier", tier);
+    startTransition(async () => {
+      await setChannelTierAction(fd);
+      router.refresh();
+    });
+  }
+
   function onArchive(id: string, archived: boolean) {
     setChannels((prev) =>
       prev.map((c) => (c.id === id ? { ...c, archived } : c)),
@@ -169,6 +203,7 @@ export function ChannelSortableList({ groupId, channels: initial }: Props) {
                 key={c.id}
                 channel={c}
                 onKind={onKind}
+                onTier={onTier}
                 onArchive={onArchive}
               />
             ))

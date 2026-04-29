@@ -246,6 +246,13 @@ model Group {
   // M26: favicon
   faviconUrl String?
 
+  // Monetization — free trial granted to new members on first ACTIVE join.
+  // 0 / null = no trial. During the trial window, premium content is
+  // accessible via a group-level MemberAccess GRANT with expiresAt set
+  // to (joinedAt + freeTrialDays). After it expires, hasAccess() naturally
+  // falls back to per-resource checks → premium content gets locked.
+  freeTrialDays Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -353,6 +360,10 @@ model Channel {
   kind        String  @default("PUBLIC") // PUBLIC | PRIVATE | ANNOUNCEMENT
   position    Int     @default(0) // sidebar ordering (lower = higher)
   archived    Boolean @default(false)
+  // Monetization tier — FREE channels are visible to every active member;
+  // PREMIUM channels need an active plan (or admin-granted MemberAccess) to
+  // enter. Default FREE keeps existing channels open.
+  tier        String  @default("FREE") // FREE | PREMIUM
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -667,6 +678,9 @@ model Course {
   // Phase 2 relations
   credentials Credential[]
 
+  // Monetization tier — FREE / PREMIUM. Default FREE for backward compat.
+  tier String @default("FREE")
+
   @@unique([groupId, slug])
   @@index([groupId, published, position])
 }
@@ -917,6 +931,8 @@ model Event {
   recurrenceEndsAt DateTime?
   // M23: audience targeting mode
   audienceMode     String    @default("ALL") // ALL | RESTRICTED
+  // Monetization tier — same FREE / PREMIUM model as Channel/Course.
+  tier             String    @default("FREE")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -1109,8 +1125,29 @@ model SubscriptionPlan {
 
   group         Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   subscriptions Subscription[]
+  resources     PlanResource[]
 
   @@index([groupId, active])
+}
+
+// What a plan unlocks. When a user activates a subscription to a plan,
+// the activate action loops these rows and creates MemberAccess GRANT
+// records (with expiresAt = subscription.currentPeriodEnd) for each.
+//
+// Polymorphic by (resourceType, resourceId) — no DB-level FK to the target
+// table. Cleanup of dangling rows is the deletion's job (Channel/Course/
+// Event deletion paths should remove their PlanResource entries).
+model PlanResource {
+  id           String   @id @default(cuid())
+  planId       String
+  resourceType String // CHANNEL | COURSE | EVENT
+  resourceId   String
+  createdAt    DateTime @default(now())
+
+  plan SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, resourceType, resourceId])
+  @@index([resourceType, resourceId])
 }
 
 model Subscription {

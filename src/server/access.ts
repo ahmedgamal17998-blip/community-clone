@@ -91,11 +91,35 @@ export async function hasAccess(ctx: AccessContext): Promise<boolean> {
   if (membership.lockedAt) return false;
 
   // Has explicit expiry?
-  if (membership.accessExpiresAt) {
-    return membership.accessExpiresAt > now;
+  if (membership.accessExpiresAt && membership.accessExpiresAt <= now) {
+    return false;
   }
 
-  // No expiry set => legacy access granted by default.
+  // Phase 1 monetization: tier-aware default-allow.
+  //   • GROUP / FREE channels / FREE courses / FREE events
+  //     → membership alone is enough (default-allow).
+  //   • PREMIUM resources → require an explicit GRANT (direct or via
+  //     group-level free-trial grant). Both already returned early above.
+  if (ctx.resourceType === "CHANNEL") {
+    const ch = await db.channel.findUnique({
+      where: { id: ctx.resourceId },
+      select: { tier: true },
+    });
+    if (ch?.tier === "PREMIUM") return false;
+  } else if (ctx.resourceType === "COURSE") {
+    const co = await db.course.findUnique({
+      where: { id: ctx.resourceId },
+      select: { tier: true },
+    });
+    if (co?.tier === "PREMIUM") return false;
+  } else if (ctx.resourceType === "EVENT") {
+    const ev = await db.event.findUnique({
+      where: { id: ctx.resourceId },
+      select: { tier: true },
+    });
+    if (ev?.tier === "PREMIUM") return false;
+  }
+
   return true;
 }
 
@@ -173,7 +197,33 @@ export async function hasAccessBulk(params: {
     !membership.lockedAt &&
     (!membership.accessExpiresAt || membership.accessExpiresAt > now);
 
-  const blanket = groupGrant || !!sub || membershipDefault;
+  // groupGrant (free trial / admin GROUP-level grant) and active sub both
+  // confer blanket access. Membership default-allow only covers FREE-tier
+  // resources — PREMIUM requires an explicit grant or sub.
+  const fullBlanket = groupGrant || !!sub;
+
+  // Tier lookup for the requested resources (only CHANNEL/COURSE/EVENT have
+  // a tier column today). For unsupported types we treat as FREE.
+  const premiumIds = new Set<string>();
+  if (params.resourceType === "CHANNEL") {
+    const rows = await db.channel.findMany({
+      where: { id: { in: params.resourceIds } },
+      select: { id: true, tier: true },
+    });
+    for (const r of rows) if (r.tier === "PREMIUM") premiumIds.add(r.id);
+  } else if (params.resourceType === "COURSE") {
+    const rows = await db.course.findMany({
+      where: { id: { in: params.resourceIds } },
+      select: { id: true, tier: true },
+    });
+    for (const r of rows) if (r.tier === "PREMIUM") premiumIds.add(r.id);
+  } else if (params.resourceType === "EVENT") {
+    const rows = await db.event.findMany({
+      where: { id: { in: params.resourceIds } },
+      select: { id: true, tier: true },
+    });
+    for (const r of rows) if (r.tier === "PREMIUM") premiumIds.add(r.id);
+  }
 
   for (const id of params.resourceIds) {
     // DENY beats everything (admin can lock specific resources even on
@@ -182,7 +232,13 @@ export async function hasAccessBulk(params: {
       result.set(id, false);
       continue;
     }
-    if (directGrant.has(id) || blanket) {
+    if (directGrant.has(id) || fullBlanket) {
+      result.set(id, true);
+      continue;
+    }
+    // No explicit grant + no full blanket. Membership default-allow only
+    // unlocks FREE-tier resources.
+    if (membershipDefault && !premiumIds.has(id)) {
       result.set(id, true);
       continue;
     }

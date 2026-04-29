@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Hash, Lock, Megaphone, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { openPaywall } from "@/components/access/PaywallPopup";
 
 type ChannelRow = {
   id: string;
@@ -95,15 +96,23 @@ export function ChannelSidebar({ groupSlug, groupId, channels, canManage }: Prop
           {channels.map((c) => {
             const active = c.slug === activeChannelSlug;
 
-            // Locked channels: render as a non-clickable dimmed row with a
-            // small lock icon instead of a Link.
+            // Locked channels: render as a clickable button that opens the
+            // paywall popup. The row is dimmed + has a lock badge so the
+            // visual lock is obvious; clicking explains why.
             if (c.locked) {
               return (
                 <li key={c.id}>
-                  <div
-                    className="flex cursor-not-allowed items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground/50"
-                    title="You don't have access to this channel"
-                    aria-disabled="true"
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openPaywall({
+                        groupSlug,
+                        resourceLabel: `#${c.slug}`,
+                      })
+                    }
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground/55 transition-colors hover:bg-accent/30"
+                    title="Subscribe to unlock this channel"
+                    aria-label={`Locked channel ${c.name}. Click to upgrade.`}
                   >
                     {c.emoji ? (
                       <span className="text-base leading-none opacity-60">
@@ -116,7 +125,7 @@ export function ChannelSidebar({ groupSlug, groupId, channels, canManage }: Prop
                       {c.name}
                     </span>
                     <Lock className="ms-auto h-3 w-3 shrink-0 opacity-70" />
-                  </div>
+                  </button>
                 </li>
               );
             }

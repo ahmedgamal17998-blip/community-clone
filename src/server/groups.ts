@@ -167,13 +167,26 @@ export async function joinGroupAction(formData: FormData) {
 
   const group = await db.group.findUnique({
     where: { id: parsed.data.groupId },
-    select: { id: true, slug: true, visibility: true },
+    select: {
+      id: true,
+      slug: true,
+      visibility: true,
+      freeTrialDays: true,
+    },
   });
   if (!group) throw new Error("NOT_FOUND");
   if (group.visibility === "HIDDEN") throw new Error("FORBIDDEN");
 
   // PUBLIC → join directly; PRIVATE → REQUESTED state for admin approval.
   const state = group.visibility === "PUBLIC" ? "ACTIVE" : "REQUESTED";
+
+  // Has the user joined this group before? We only want the free trial to
+  // fire ONCE per (group, user) — re-joining shouldn't grant a fresh trial.
+  const existing = await db.groupMembership.findUnique({
+    where: { groupId_userId: { groupId: group.id, userId: session.user.id } },
+    select: { id: true },
+  });
+  const isNewMember = !existing;
 
   await db.groupMembership.upsert({
     where: { groupId_userId: { groupId: group.id, userId: session.user.id } },
@@ -189,6 +202,51 @@ export async function joinGroupAction(formData: FormData) {
   // Keep CHANNEL chat participants in sync whenever a new ACTIVE member appears.
   if (state === "ACTIVE") {
     await syncAllChannelsForGroup(db, group.id);
+
+    // Phase 1 monetization: grant a free trial if configured.
+    // Implementation: a GROUP-level MemberAccess GRANT with expiresAt set
+    // to (now + freeTrialDays). hasAccess() will treat them as having
+    // full access until that date, then naturally fall back to per-
+    // resource gating once the grant expires.
+    if (
+      isNewMember &&
+      group.freeTrialDays != null &&
+      group.freeTrialDays > 0
+    ) {
+      const expiresAt = new Date(
+        Date.now() + group.freeTrialDays * 86_400_000,
+      );
+      try {
+        await db.memberAccess.upsert({
+          where: {
+            userId_resourceType_resourceId: {
+              userId: session.user.id,
+              resourceType: "GROUP",
+              resourceId: group.id,
+            },
+          },
+          update: {
+            mode: "GRANT",
+            expiresAt,
+            source: "RULE",
+            note: "Free trial",
+          },
+          create: {
+            userId: session.user.id,
+            groupId: group.id,
+            resourceType: "GROUP",
+            resourceId: group.id,
+            mode: "GRANT",
+            expiresAt,
+            source: "RULE",
+            note: "Free trial",
+          },
+        });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("free-trial grant failed", e);
+      }
+    }
   }
 
   revalidatePath(`/groups/${group.slug}`);

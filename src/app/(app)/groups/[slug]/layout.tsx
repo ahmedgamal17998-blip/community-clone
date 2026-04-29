@@ -11,6 +11,7 @@ import { ChannelSidebar } from "@/components/channel/ChannelSidebar";
 import { hasAccess, hasAccessBulk } from "@/server/access";
 import { GroupLockedView } from "@/components/access/GroupLockedView";
 import { GroupShell } from "@/components/group/GroupShell";
+import { PaywallPopupMount } from "@/components/access/PaywallPopup";
 import { LoginPopup } from "@/components/layout/LoginPopup";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { AnnouncementPopup } from "@/components/layout/AnnouncementPopup";
@@ -231,6 +232,11 @@ export default async function GroupLayout({
       {group.faviconUrl && (
         <link rel="icon" href={group.faviconUrl} />
       )}
+
+      {/* Phase 1 monetization: paywall popup mount (listens for the
+          "paywall:open" custom event so any locked-content click can
+          open it without prop-drilling). */}
+      {isActiveMember && <PaywallPopupMount />}
     </GroupThemeProvider>
   );
 }

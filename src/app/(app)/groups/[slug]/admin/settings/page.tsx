@@ -4,6 +4,7 @@ import { db } from "@/server/db";
 import { SettingsForm } from "@/components/admin/SettingsForm";
 import { LandingPageSelector } from "./_components/LandingPageSelector";
 import { LoginPopupForm } from "./_components/LoginPopupForm";
+import { FreeTrialForm } from "./_components/FreeTrialForm";
 
 export default async function AdminSettingsPage({
   params,
@@ -26,6 +27,7 @@ export default async function AdminSettingsPage({
       loginPopupBody: true,
       loginPopupCtaUrl: true,
       loginPopupDurationSec: true,
+      freeTrialDays: true,
     },
   });
   if (!group || !session?.user) notFound();
@@ -76,6 +78,29 @@ export default async function AdminSettingsPage({
             groupId={group.id}
             groupSlug={group.slug}
             initial={group.defaultLandingPath ?? ""}
+          />
+        </div>
+      </div>
+
+      {/* Free trial — monetization */}
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div
+          className="h-1.5 w-full"
+          style={{
+            background:
+              "linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.7) 100%)",
+          }}
+        />
+        <div className="p-5">
+          <h2 className="mb-1 text-sm font-bold text-foreground">Free trial</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Give every brand-new member free access to all premium content for
+            this many days. After the trial ends, premium content is locked
+            until they subscribe to a plan. Set 0 to disable.
+          </p>
+          <FreeTrialForm
+            groupId={group.id}
+            initial={group.freeTrialDays ?? 0}
           />
         </div>
       </div>
