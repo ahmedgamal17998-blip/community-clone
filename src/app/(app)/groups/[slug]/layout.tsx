@@ -10,6 +10,7 @@ import { GroupRightRail } from "@/components/group/GroupRightRail";
 import { ChannelSidebar } from "@/components/channel/ChannelSidebar";
 import { hasAccess, hasAccessBulk } from "@/server/access";
 import { GroupLockedView } from "@/components/access/GroupLockedView";
+import { GroupShell } from "@/components/group/GroupShell";
 import { LoginPopup } from "@/components/layout/LoginPopup";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { AnnouncementPopup } from "@/components/layout/AnnouncementPopup";
@@ -102,17 +103,35 @@ export default async function GroupLayout({
       })
     : new Map<string, boolean>();
 
-  // Fetch recently-joined members for the right-rail avatar stack.
-  const recentMemberships = isActiveMember
+  // Real online members for the right-rail avatar stack — anyone whose
+  // Presence.lastSeenAt has been updated in the last 5 minutes (matches the
+  // heartbeat cadence) AND who is an ACTIVE member of this group.
+  const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+  const onlineSince = new Date(Date.now() - ONLINE_WINDOW_MS);
+  const onlineMemberships = isActiveMember
     ? await db.groupMembership.findMany({
-        where: { groupId: group.id, state: "ACTIVE" },
-        orderBy: { joinedAt: "desc" },
-        take: 10,
+        where: {
+          groupId: group.id,
+          state: "ACTIVE",
+          user: {
+            presence: {
+              lastSeenAt: { gt: onlineSince },
+            },
+          },
+        },
+        orderBy: { user: { presence: { lastSeenAt: "desc" } } },
+        take: 30,
         include: { user: { select: { id: true, name: true, image: true } } },
       })
     : [];
-  const onlineMembers = recentMemberships.slice(0, 6).map((m) => m.user);
-  const extraOnlineCount = Math.max(0, recentMemberships.length - 6);
+  const onlineMembers = onlineMemberships.slice(0, 6).map((m) => m.user);
+  const extraOnlineCount = Math.max(0, onlineMemberships.length - 6);
+  const onlineTotal = onlineMemberships.length;
+
+  // Real post count for the rail.
+  const postCount = isActiveMember
+    ? await db.post.count({ where: { channel: { groupId: group.id } } })
+    : 0;
 
   return (
     <GroupThemeProvider primaryHsl={group.primaryHsl}>
@@ -140,54 +159,50 @@ export default async function GroupLayout({
       </div>
 
       {/*
-        Three-column shell.
-        - `items-start` → sidebars act as sticky columns (their height is their
-          natural height, not stretched to the grid row).
-        - Left + right `aside` use `sticky top-[<topnav + header>]` so they
-          park just under the chrome when the page scrolls.
-        - Middle column is the only thing that grows tall and triggers scroll.
+        GroupShell decides whether to render the left ChannelSidebar based
+        on the current pathname (Discussion only). It also handles the
+        2-vs-3 column grid switch.
       */}
-      <div
-        className={
-          isActiveMember
-            ? "mx-auto grid w-full max-w-[1280px] grid-cols-1 items-start gap-6 px-3 py-6 sm:px-4 lg:grid-cols-[240px_1fr_280px]"
-            : "mx-auto grid w-full max-w-[1280px] grid-cols-1 items-start gap-6 px-3 py-6 sm:px-4 lg:grid-cols-[1fr_280px]"
+      <GroupShell
+        groupSlug={group.slug}
+        leftSidebar={
+          isActiveMember ? (
+            <aside className="hidden lg:sticky lg:top-[13rem] lg:block lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto">
+              <ChannelSidebar
+                groupSlug={group.slug}
+                groupId={group.id}
+                channels={channels.map((c) => ({
+                  id: c.id,
+                  slug: c.slug,
+                  name: c.name,
+                  emoji: c.emoji,
+                  kind: c.kind,
+                  locked: !canManage && channelAccess.get(c.id) === false,
+                }))}
+                canManage={canManage}
+              />
+            </aside>
+          ) : null
         }
-      >
-        {isActiveMember ? (
+        rightRail={
           <aside className="hidden lg:sticky lg:top-[13rem] lg:block lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto">
-            <ChannelSidebar
-              groupSlug={group.slug}
-              groupId={group.id}
-              channels={channels.map((c) => ({
-                id: c.id,
-                slug: c.slug,
-                name: c.name,
-                emoji: c.emoji,
-                kind: c.kind,
-                // Admins always see all channels active (so they can manage).
-                // Locked = explicit DENY for non-managers only.
-                locked: !canManage && channelAccess.get(c.id) === false,
-              }))}
-              canManage={canManage}
+            <GroupRightRail
+              memberCount={group._count.memberships}
+              postCount={postCount}
+              onlineCount={onlineTotal}
+              name={group.name}
+              logoUrl={group.logoUrl}
+              coverUrl={group.coverUrl}
+              primaryHsl={group.primaryHsl}
+              description={group.description}
+              onlineMembers={onlineMembers}
+              extraOnlineCount={extraOnlineCount}
             />
           </aside>
-        ) : null}
-        <div className="min-w-0">{children}</div>
-        <aside className="hidden lg:sticky lg:top-[13rem] lg:block lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto">
-          <GroupRightRail
-            memberCount={group._count.memberships}
-            visibility={group.visibility}
-            createdAt={group.createdAt}
-            name={group.name}
-            logoUrl={group.logoUrl}
-            primaryHsl={group.primaryHsl}
-            description={group.description}
-            onlineMembers={onlineMembers}
-            extraOnlineCount={extraOnlineCount}
-          />
-        </aside>
-      </div>
+        }
+      >
+        {children}
+      </GroupShell>
 
       {/* M20: login popup — keyed by viewer's latest sign-in so each
           sign-out → sign-in cycle re-shows the popup. */}
