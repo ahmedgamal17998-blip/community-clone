@@ -155,9 +155,13 @@ export async function listUpcoming(
   groupId: string,
   _viewerId: string,
   limit = 10,
+  // Only events that start within the next `windowDays` days. Default 7 so
+  // the rail's "Upcoming" widget shows just the coming week — keeps the
+  // list focused (anything farther shows up in the calendar grid above).
+  windowDays = 7,
 ): Promise<ExpandedOccurrence[]> {
   const now = new Date();
-  const horizon = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+  const horizon = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
   const rows = await listEventsForGroup({
     groupId,
     viewerId: _viewerId,
@@ -165,7 +169,7 @@ export async function listUpcoming(
     rangeEnd: horizon,
   });
   return rows
-    .filter((r) => r.occurrenceStartsAt >= now)
+    .filter((r) => r.occurrenceStartsAt >= now && r.occurrenceStartsAt <= horizon)
     .slice(0, limit);
 }
 
