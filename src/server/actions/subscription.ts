@@ -193,6 +193,45 @@ export async function cancelSubscriptionAction(params: {
 }
 
 /**
+ * Set a specific subscription's status. Admin-only with SUBS_MANAGE.
+ * Used by the per-row Cancel / Pause / Resume buttons in the admin
+ * member panel — lets the admin act on one row when a member has
+ * multiple subscription history entries.
+ *
+ * status: ACTIVE  → restore (only meaningful for paused/canceled rows)
+ *         PAUSED  → temporary hold; hasAccess() denies during pause
+ *         CANCELED → permanent end
+ */
+export async function setSubscriptionStatusAction(params: {
+  subscriptionId: string;
+  status: "ACTIVE" | "PAUSED" | "CANCELED";
+}) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
+
+  const sub = await db.subscription.findUnique({
+    where: { id: params.subscriptionId },
+    select: { groupId: true, userId: true },
+  });
+  if (!sub) return { ok: false as const, error: "Subscription not found" };
+
+  await requireCapability({
+    userId: session.user.id,
+    groupId: sub.groupId,
+    capability: "SUBS_MANAGE",
+  });
+
+  await db.subscription.update({
+    where: { id: params.subscriptionId },
+    data: { status: params.status },
+  });
+
+  revalidatePath(`/groups/[slug]/admin/members/${sub.userId}`, "page");
+  revalidatePath(`/groups/[slug]/me`, "page");
+  return { ok: true as const };
+}
+
+/**
  * Member edits their own profile (photo / name / bio).
  */
 export async function updateProfileAction(params: {
