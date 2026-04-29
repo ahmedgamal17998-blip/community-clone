@@ -414,7 +414,7 @@ function ModuleCard({
   const [releaseOpen, setReleaseOpen] = useState(false);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <div className="rounded-xl border border-border bg-card">
       {/* Module header row */}
       <div className="flex items-center gap-2 px-3 py-2.5">
         <button
@@ -593,9 +593,12 @@ function ModuleCard({
         </div>
       )}
 
-      {/* Lessons */}
+      {/* Lessons — wrapped in an overflow-hidden + rounded-b shell so hover
+          backgrounds clip cleanly at the card's rounded bottom corners
+          (the outer card itself can't be overflow-hidden because the
+          Add-content / Release dropdowns need to escape it). */}
       {expanded && m.lessons.length > 0 && (
-        <ul className="border-t border-border">
+        <ul className="overflow-hidden rounded-b-xl border-t border-border">
           {m.lessons.map((l) => {
             const Icon = lessonIcon(l.kind);
             return (

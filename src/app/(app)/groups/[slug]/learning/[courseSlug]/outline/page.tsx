@@ -80,7 +80,7 @@ export default async function CourseOutlinePage({
             Settings
           </Link>
           <Link
-            href={`/groups/${group.slug}/admin/courses/${course.id}/access`}
+            href={`/groups/${group.slug}/learning/${course.slug}/access`}
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-accent"
           >
             <LockIcon className="h-3.5 w-3.5" />
