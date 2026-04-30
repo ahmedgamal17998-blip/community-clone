@@ -8,6 +8,7 @@ import { GroupHeader } from "@/components/group/GroupHeader";
 import { GroupTabs } from "@/components/group/GroupTabs";
 import { GroupRightRail } from "@/components/group/GroupRightRail";
 import { ChannelSidebar } from "@/components/channel/ChannelSidebar";
+import { ChannelsHorizontalRail } from "@/components/channel/ChannelsHorizontalRail";
 import { hasAccess, hasAccessBulk } from "@/server/access";
 import { GroupLockedView } from "@/components/access/GroupLockedView";
 import { GroupShell } from "@/components/group/GroupShell";
@@ -150,27 +151,31 @@ export default async function GroupLayout({
       */}
       <div className="sticky top-14 z-30 border-b border-border bg-card">
         <div className="mx-auto w-full max-w-[1280px] px-3 sm:px-4">
-          <GroupHeader
-            group={{
-              id: group.id,
-              name: group.name,
-              slug: group.slug,
-              description: group.description,
-              logoUrl: group.logoUrl,
-              primaryHsl: group.primaryHsl,
-              visibility: group.visibility,
-              memberCount: group._count.memberships,
-              leavePopupEnabled: group.leavePopupEnabled,
-              leavePopupBody: group.leavePopupBody,
-              leavePopupFontFamily: group.leavePopupFontFamily,
-              leavePopupFontSizePx: group.leavePopupFontSizePx,
-              leavePopupColor: group.leavePopupColor,
-              leavePopupBold: group.leavePopupBold,
-              leavePopupStayLabel: group.leavePopupStayLabel,
-              leavePopupLeaveLabel: group.leavePopupLeaveLabel,
-            }}
-            myMembership={myMembership}
-          />
+          {/* Group header — hidden on phones; the avatar dropdown carries
+              Admin/Leave actions and the TopNav shows the group name. */}
+          <div className="hidden sm:block">
+            <GroupHeader
+              group={{
+                id: group.id,
+                name: group.name,
+                slug: group.slug,
+                description: group.description,
+                logoUrl: group.logoUrl,
+                primaryHsl: group.primaryHsl,
+                visibility: group.visibility,
+                memberCount: group._count.memberships,
+                leavePopupEnabled: group.leavePopupEnabled,
+                leavePopupBody: group.leavePopupBody,
+                leavePopupFontFamily: group.leavePopupFontFamily,
+                leavePopupFontSizePx: group.leavePopupFontSizePx,
+                leavePopupColor: group.leavePopupColor,
+                leavePopupBold: group.leavePopupBold,
+                leavePopupStayLabel: group.leavePopupStayLabel,
+                leavePopupLeaveLabel: group.leavePopupLeaveLabel,
+              }}
+              myMembership={myMembership}
+            />
+          </div>
           <GroupTabs slug={group.slug} canManage={canManage} />
         </div>
       </div>
@@ -199,6 +204,21 @@ export default async function GroupLayout({
                 canManage={canManage}
               />
             </aside>
+          ) : null
+        }
+        mobileChannelsRail={
+          isActiveMember ? (
+            <ChannelsHorizontalRail
+              groupSlug={group.slug}
+              channels={channels.map((c) => ({
+                id: c.id,
+                slug: c.slug,
+                name: c.name,
+                emoji: c.emoji,
+                kind: c.kind,
+                locked: !canManage && channelAccess.get(c.id) === false,
+              }))}
+            />
           ) : null
         }
         rightRail={

@@ -604,6 +604,17 @@ function MessageRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionsVisible, setActionsVisible] = useState(false);
 
+  // Swipe-to-reply (mobile, WhatsApp-style).
+  // Track touch from the row itself; if the user drags horizontally far
+  // enough (and not mostly vertical, which is page scroll) we trigger
+  // onReply on release. While dragging, translate the row to give haptic-
+  // like visual feedback and reveal a reply icon underneath.
+  const [swipeX, setSwipeX] = useState(0);
+  const [swipeReady, setSwipeReady] = useState(false);
+  const swipeStart = useRef<{ x: number; y: number; t: number } | null>(null);
+  const SWIPE_TRIGGER = 60; // px past which we trigger reply
+  const SWIPE_MAX = 100; // cap how far the bubble visually shifts
+
   const isMine = msg.authorId === viewerId;
   const canDelete = isMine || (isChannel && viewerIsAdmin);
   const canPin = isChannel && viewerIsAdmin;
@@ -630,10 +641,82 @@ function MessageRow({
 
   return (
     <div
-      className={cn("group relative mb-0.5 flex items-end gap-1.5", isMine ? "flex-row-reverse" : "flex-row")}
+      className={cn(
+        "group relative mb-0.5 flex items-end gap-1.5",
+        isMine ? "flex-row-reverse" : "flex-row",
+      )}
       onMouseEnter={() => setActionsVisible(true)}
-      onMouseLeave={() => { setActionsVisible(false); setMenuOpen(false); }}
+      onMouseLeave={() => {
+        setActionsVisible(false);
+        setMenuOpen(false);
+      }}
+      style={{
+        transform: swipeX !== 0 ? `translateX(${swipeX}px)` : undefined,
+        transition: swipeStart.current ? "none" : "transform 0.2s ease-out",
+      }}
+      onTouchStart={(e) => {
+        const t = e.touches[0];
+        swipeStart.current = { x: t.clientX, y: t.clientY, t: Date.now() };
+        setSwipeReady(false);
+      }}
+      onTouchMove={(e) => {
+        if (!swipeStart.current) return;
+        const t = e.touches[0];
+        const dx = t.clientX - swipeStart.current.x;
+        const dy = t.clientY - swipeStart.current.y;
+        // Only treat as a horizontal swipe when X movement clearly
+        // dominates Y (avoids fighting with vertical scroll).
+        if (Math.abs(dy) > Math.abs(dx) * 0.7) {
+          swipeStart.current = null;
+          setSwipeX(0);
+          return;
+        }
+        // Direction: incoming messages swipe right (LTR mental model);
+        // own messages swipe left so the gesture mirrors the bubble side.
+        const allowed = isMine ? dx < 0 : dx > 0;
+        if (!allowed) return;
+        const clamped = Math.max(-SWIPE_MAX, Math.min(SWIPE_MAX, dx));
+        setSwipeX(clamped);
+        setSwipeReady(Math.abs(clamped) >= SWIPE_TRIGGER);
+      }}
+      onTouchEnd={() => {
+        if (!swipeStart.current) {
+          setSwipeX(0);
+          return;
+        }
+        const triggered = Math.abs(swipeX) >= SWIPE_TRIGGER;
+        swipeStart.current = null;
+        setSwipeX(0);
+        setSwipeReady(false);
+        if (triggered) onReply();
+      }}
+      onTouchCancel={() => {
+        swipeStart.current = null;
+        setSwipeX(0);
+        setSwipeReady(false);
+      }}
     >
+      {/* Swipe-to-reply hint icon — visible underneath the bubble during
+          drag, gets brighter as it approaches the trigger threshold. */}
+      {swipeX !== 0 && (
+        <div
+          className={cn(
+            "pointer-events-none absolute top-1/2 z-0 -translate-y-1/2 transition-opacity",
+            isMine ? "right-2" : "left-2",
+          )}
+          style={{ opacity: Math.min(1, Math.abs(swipeX) / SWIPE_TRIGGER) }}
+        >
+          <div
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-full transition-colors",
+              swipeReady ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+            )}
+          >
+            <Reply className="h-4 w-4" />
+          </div>
+        </div>
+      )}
+
       {/* Avatar gutter — only for others; mine gets no spacer */}
       {!isMine && (
         <div className="w-8 shrink-0 self-end">
@@ -1019,9 +1102,9 @@ function Composer({
               value={body}
               onChange={(val) => { setBody(val); fireTyping(val); }}
               groupSlug={groupSlug}
-              placeholder="Type a message… use @ to mention"
+              placeholder="Type a message…"
               rows={1}
-              className="min-h-0 w-full resize-none border-0 bg-transparent px-2 py-2 text-[14.5px] leading-[1.4] shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="min-h-0 w-full resize-none border-0 bg-transparent px-2 py-2 text-[13px] leading-[1.4] shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:text-[14.5px]"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey && !e.defaultPrevented) {
                   e.preventDefault();
@@ -1036,7 +1119,7 @@ function Composer({
               onChange={(e) => { setBody(e.target.value); fireTyping(e.target.value); }}
               placeholder="Type a message…"
               rows={1}
-              className="min-h-0 flex-1 resize-none border-0 bg-transparent px-2 py-1.5 text-[14.5px] leading-[1.4] shadow-none focus-visible:ring-0"
+              className="min-h-0 flex-1 resize-none border-0 bg-transparent px-2 py-1.5 text-[13px] leading-[1.4] shadow-none focus-visible:ring-0 sm:text-[14.5px]"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
               }}

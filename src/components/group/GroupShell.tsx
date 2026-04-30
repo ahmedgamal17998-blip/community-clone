@@ -14,17 +14,26 @@ import { usePathname } from "next/navigation";
 type Props = {
   groupSlug: string;
   leftSidebar: React.ReactNode;
+  /** Mobile-only horizontal channel rail. Rendered above children when
+   *  on the Discussion tab. Hidden on desktop where leftSidebar shows. */
+  mobileChannelsRail?: React.ReactNode;
   rightRail: React.ReactNode;
   children: React.ReactNode;
 };
 
-export function GroupShell({ groupSlug, leftSidebar, rightRail, children }: Props) {
+export function GroupShell({
+  groupSlug,
+  leftSidebar,
+  mobileChannelsRail,
+  rightRail,
+  children,
+}: Props) {
   const pathname = usePathname();
   const base = `/groups/${groupSlug}`;
 
   // Discussion: the bare group root, or any /channels/* route under it.
   // Anything else (learning / events / leaderboard / members / about /
-  // admin / me) hides the channels sidebar.
+  // admin / me) hides the channels sidebar AND the mobile channels rail.
   const isDiscussion =
     pathname === base ||
     pathname === `${base}/` ||
@@ -39,7 +48,10 @@ export function GroupShell({ groupSlug, leftSidebar, rightRail, children }: Prop
       }
     >
       {isDiscussion ? leftSidebar : null}
-      <div className="min-w-0">{children}</div>
+      <div className="min-w-0">
+        {isDiscussion ? mobileChannelsRail : null}
+        {children}
+      </div>
       {rightRail}
     </div>
   );

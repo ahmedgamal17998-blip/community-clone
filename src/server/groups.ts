@@ -292,11 +292,24 @@ export async function leaveGroupAction(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("UNAUTHENTICATED");
 
-  const parsed = joinSchema.safeParse({ groupId: formData.get("groupId") });
-  if (!parsed.success) return;
+  // Accept either groupId (canonical) or groupSlug (UserMenu uses this
+  // because the avatar dropdown only knows the URL slug).
+  const groupId = (formData.get("groupId") as string) || "";
+  const groupSlug = (formData.get("groupSlug") as string) || "";
+
+  let resolvedGroupId = groupId;
+  if (!resolvedGroupId && groupSlug) {
+    const g = await db.group.findUnique({
+      where: { slug: groupSlug },
+      select: { id: true },
+    });
+    if (!g) return;
+    resolvedGroupId = g.id;
+  }
+  if (!resolvedGroupId) return;
 
   const membership = await db.groupMembership.findUnique({
-    where: { groupId_userId: { groupId: parsed.data.groupId, userId: session.user.id } },
+    where: { groupId_userId: { groupId: resolvedGroupId, userId: session.user.id } },
     include: { group: { select: { slug: true } } },
   });
   if (!membership) return;

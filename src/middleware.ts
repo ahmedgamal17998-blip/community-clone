@@ -22,11 +22,20 @@ const PUBLIC_PREFIXES = [
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Forward the current pathname as a request header so server components
+  // can read the active route (e.g. TopNav showing the current group's
+  // name in the switcher). Next.js doesn't expose URL info to RSCs by
+  // default — middleware is the canonical bridge.
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-pathname", pathname);
+
   const isPublic =
     PUBLIC_PATHS.includes(pathname) ||
     PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
 
-  if (isPublic) return NextResponse.next();
+  if (isPublic) {
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
 
   // Presence of the session cookie = authenticated (full validation happens in
   // the RSC layer via `await auth()`; middleware avoids DB calls to stay fast).
@@ -41,7 +50,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {
