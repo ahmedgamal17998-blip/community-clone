@@ -1,6 +1,6 @@
 {
   "brand": {
-    "name": "Community Clone"
+    "name": "Nadi"
   },
   "nav": {
     "home": "الرئيسية",
@@ -13,7 +13,7 @@
     "settings": "الإعدادات"
   },
   "login": {
-    "title": "تسجيل الدخول إلى Community Clone",
+    "title": "تسجيل الدخول إلى Nadi",
     "subtitle": "هنبعتلك لينك دخول سحري — من غير باسورد.",
     "emailLabel": "البريد الإلكتروني",
     "emailPlaceholder": "you@example.com",

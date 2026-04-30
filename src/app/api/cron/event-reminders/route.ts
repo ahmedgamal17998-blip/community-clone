@@ -57,7 +57,7 @@ export async function GET(req: Request) {
     ? new Resend(process.env.AUTH_RESEND_KEY)
     : null;
   const from =
-    process.env.EMAIL_FROM ?? "Community Clone <onboarding@resend.dev>";
+    process.env.EMAIL_FROM ?? "Nadi <onboarding@resend.dev>";
   const baseUrl =
     process.env.NEXT_PUBLIC_BASE_URL ||
     process.env.AUTH_URL ||

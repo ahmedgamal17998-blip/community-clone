@@ -35,7 +35,7 @@ if (hasGoogle) {
 providers.push(
   Resend({
     apiKey: process.env.AUTH_RESEND_KEY ?? "dev-noop",
-    from: process.env.EMAIL_FROM ?? "Community Clone <onboarding@resend.dev>",
+    from: process.env.EMAIL_FROM ?? "Nadi <onboarding@resend.dev>",
     async sendVerificationRequest({ identifier: email, url, provider }) {
       if (!hasResend) {
         // Dev path: print the magic link to the server console so you can copy it.
@@ -50,9 +50,9 @@ providers.push(
       const { error } = await resend.emails.send({
         from: provider.from as string,
         to: email,
-        subject: "Sign in to Community Clone",
+        subject: "Sign in to Nadi",
         html: magicLinkEmail({ url, email }),
-        text: `Sign in to Community Clone: ${url}`,
+        text: `Sign in to Nadi: ${url}`,
       });
       if (error) throw new Error(`Resend error: ${error.message}`);
     },
@@ -63,7 +63,7 @@ function magicLinkEmail({ url, email }: { url: string; email: string }) {
   return `<!doctype html>
 <html>
   <body style="font-family: -apple-system, system-ui, sans-serif; max-width: 560px; margin: 40px auto; color: #1f1f2a;">
-    <h2 style="margin: 0 0 16px;">Sign in to Community Clone</h2>
+    <h2 style="margin: 0 0 16px;">Sign in to Nadi</h2>
     <p>Click the button below to sign in as <strong>${email}</strong>. The link is valid for 24 hours.</p>
     <p style="margin: 24px 0;">
       <a href="${url}" style="display: inline-block; background: #6d3691; color: #fff; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">Sign in</a>

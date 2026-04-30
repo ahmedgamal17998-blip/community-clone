@@ -104,7 +104,7 @@ export async function createInviteAction(formData: FormData) {
     try {
       const resend = new ResendClient(process.env.AUTH_RESEND_KEY);
       await resend.emails.send({
-        from: process.env.EMAIL_FROM ?? "Community Clone <onboarding@resend.dev>",
+        from: process.env.EMAIL_FROM ?? "Nadi <onboarding@resend.dev>",
         to: parsed.data.email,
         subject: `You're invited to ${group.name}`,
         html: inviteEmail({ url: link, groupName: group.name }),

@@ -9,8 +9,9 @@ import { dirFor, type Locale } from "@/i18n/request";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Community Clone",
-  description: "Skool/ClientClub-style community platform clone.",
+  title: "Nadi",
+  description:
+    "Get in touch, learn and build your own Network and career.",
   manifest: "/manifest.json",
 };
 

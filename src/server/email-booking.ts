@@ -28,7 +28,7 @@ async function send(payload: BookingEmailPayload) {
     const resend = new ResendClient(process.env.AUTH_RESEND_KEY);
     await resend.emails.send({
       from:
-        process.env.EMAIL_FROM ?? "Community Clone <onboarding@resend.dev>",
+        process.env.EMAIL_FROM ?? "Nadi <onboarding@resend.dev>",
       to: payload.to,
       subject: payload.subject,
       text: payload.text,

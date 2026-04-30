@@ -1,6 +1,6 @@
 {
   "brand": {
-    "name": "Community Clone"
+    "name": "Nadi"
   },
   "nav": {
     "home": "Home",
@@ -13,7 +13,7 @@
     "settings": "Settings"
   },
   "login": {
-    "title": "Sign in to Community Clone",
+    "title": "Sign in to Nadi",
     "subtitle": "We'll send you a magic link — no password needed.",
     "emailLabel": "Email",
     "emailPlaceholder": "you@example.com",
