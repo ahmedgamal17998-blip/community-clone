@@ -1,15 +1,21 @@
 "use client";
 
 /**
- * M20 LoginPopup — shown once per session when a group has loginPopupEnabled.
+ * LoginPopup — admin-configured greeting popup. Shown:
+ *   • Once per browser, then re-shown after `reshowHours` of idle.
+ *   • Stored in localStorage (NOT sessionStorage) so the seen-marker
+ *     survives tab close — and can be aged out via cooldown.
+ *
+ * Why localStorage + cooldown rather than the original sessionStorage +
+ * loginAt key: the previous design only re-fired on a fresh sign-in,
+ * so members who stayed signed in for days never saw the popup again.
+ * The new design behaves like daily-login-reward popups elsewhere —
+ * if more than `reshowHours` has passed since the last time we showed
+ * it, we show it again.
  *
  * Theme:
- *   • Solid 100% opacity card (no see-through)
- *   • Group-primary accent strip across the top → harmonizes with the group
- *     color set by GroupThemeProvider (var(--primary))
- *   • Card uses bg-card / text-foreground so it adapts cleanly to both
- *     light and dark modes (high contrast in either)
- *   • Backdrop: blurred + dimmed so the popup pops forward
+ *   • Solid 100% opacity card, group-primary accent strip
+ *   • Backdrop: blurred + dimmed
  */
 
 import { useEffect, useState } from "react";
@@ -22,7 +28,7 @@ export function LoginPopup({
   body,
   ctaUrl,
   durationSec,
-  loginAt,
+  reshowHours,
 }: {
   groupSlug: string;
   title: string;
@@ -30,29 +36,45 @@ export function LoginPopup({
   ctaUrl?: string | null;
   durationSec: number;
   /**
-   * Timestamp of the viewer's most recent sign-in (ISO or epoch ms).
-   * Used as part of the storage key so a fresh sign-in (sign-out → sign-in)
-   * re-shows the popup. Within the same login session, the popup only
-   * appears once.
+   * Hours to wait before re-showing the popup to the same user.
+   * 0 means re-show on every page load (stress-test only).
+   * Defaults to 4 — typical "back after a break" cadence.
    */
-  loginAt: string | number;
+  reshowHours: number;
 }) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // Key the seen marker by login timestamp → each new sign-in is a new key.
-    const key = `login-popup-seen:${groupSlug}:${loginAt}`;
-    const seen = sessionStorage.getItem(key);
-    if (seen) return;
+    const key = `login-popup:${groupSlug}`;
+    const lastShownStr = localStorage.getItem(key);
+    const now = Date.now();
+
+    if (lastShownStr && reshowHours > 0) {
+      const lastShown = Number(lastShownStr);
+      const elapsedHours = (now - lastShown) / (1000 * 60 * 60);
+      if (elapsedHours < reshowHours) {
+        // Within cooldown window — skip.
+        // eslint-disable-next-line no-console
+        console.log(
+          `[login-popup] skip: groupSlug=${groupSlug} elapsedHours=${elapsedHours.toFixed(2)} reshowHours=${reshowHours}`,
+        );
+        return;
+      }
+    }
+
     setOpen(true);
-    sessionStorage.setItem(key, "1");
+    localStorage.setItem(key, String(now));
+    // eslint-disable-next-line no-console
+    console.log(
+      `[login-popup] shown: groupSlug=${groupSlug} reshowHours=${reshowHours}`,
+    );
 
     if (durationSec > 0) {
       const t = setTimeout(() => setOpen(false), durationSec * 1000);
       return () => clearTimeout(t);
     }
-  }, [groupSlug, durationSec, loginAt]);
+  }, [groupSlug, durationSec, reshowHours]);
 
   if (!open) return null;
 
@@ -60,15 +82,10 @@ export function LoginPopup({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
       <div
         className="relative w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-2xl"
-        style={{
-          // Solid 100% opacity (no alpha on the card itself).
-          opacity: 1,
-        }}
+        style={{ opacity: 1 }}
         role="dialog"
         aria-modal="true"
       >
-        {/* Group-primary accent strip — harmonizes with the group theme,
-            keeps high contrast against bg-card in both light + dark modes. */}
         <div
           className="h-1.5 w-full"
           style={{
@@ -77,7 +94,6 @@ export function LoginPopup({
           }}
         />
 
-        {/* Close button (top-right) */}
         <button
           onClick={() => setOpen(false)}
           className="absolute end-3 top-3 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -86,7 +102,6 @@ export function LoginPopup({
           <X className="h-4 w-4" />
         </button>
 
-        {/* Body */}
         <div className="px-6 pb-6 pt-5">
           <h2 className="pe-6 text-lg font-bold leading-tight text-foreground">
             {title}

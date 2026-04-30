@@ -77,7 +77,11 @@ export default async function ChannelLayout({
           <p className="mt-1 text-[13px] text-muted-foreground">{channel.description}</p>
         ) : null}
         <div className="mt-2">
-          <ChannelTabs groupSlug={channel.group.slug} channelSlug={channel.slug} />
+          <ChannelTabs
+            groupSlug={channel.group.slug}
+            channelSlug={channel.slug}
+            chatEnabled={channel.chatEnabled}
+          />
         </div>
       </div>
 

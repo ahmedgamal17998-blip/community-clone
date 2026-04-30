@@ -221,16 +221,17 @@ export default async function GroupLayout({
         {children}
       </GroupShell>
 
-      {/* M20: login popup — keyed by viewer's latest sign-in so each
-          sign-out → sign-in cycle re-shows the popup. */}
+      {/* M20: login popup — re-shows after `loginPopupReshowHours` of idle.
+          Default 4h. Stored in localStorage so it survives across tab
+          close + reopens. */}
       {isActiveMember && group.loginPopupEnabled && group.loginPopupTitle && group.loginPopupBody && (
-        <LoginPopupMount
+        <LoginPopup
           groupSlug={group.slug}
-          userId={session.user.id}
           title={group.loginPopupTitle}
           body={group.loginPopupBody}
           ctaUrl={group.loginPopupCtaUrl}
           durationSec={group.loginPopupDurationSec ?? 8}
+          reshowHours={group.loginPopupReshowHours ?? 4}
         />
       )}
 
@@ -254,45 +255,6 @@ export default async function GroupLayout({
           open it without prop-drilling). */}
       {isActiveMember && <PaywallPopupMount />}
     </GroupThemeProvider>
-  );
-}
-
-/** Fetches the viewer's latest sign-in timestamp so the LoginPopup can key
- *  its "seen" marker per-sign-in (sign out → sign in re-shows the popup). */
-async function LoginPopupMount({
-  groupSlug,
-  userId,
-  title,
-  body,
-  ctaUrl,
-  durationSec,
-}: {
-  groupSlug: string;
-  userId: string;
-  title: string;
-  body: string;
-  ctaUrl: string | null;
-  durationSec: number;
-}) {
-  const lastLogin = await db.loginHistory.findFirst({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
-  });
-  // Fallback: if there's no login record (e.g. legacy session pre-tracking),
-  // use a stable per-day key so the popup at least shows once per day.
-  const loginAt = lastLogin
-    ? lastLogin.createdAt.getTime()
-    : Math.floor(Date.now() / 86_400_000);
-  return (
-    <LoginPopup
-      groupSlug={groupSlug}
-      title={title}
-      body={body}
-      ctaUrl={ctaUrl}
-      durationSec={durationSec}
-      loginAt={loginAt}
-    />
   );
 }
 

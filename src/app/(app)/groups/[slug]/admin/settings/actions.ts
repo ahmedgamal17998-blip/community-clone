@@ -32,6 +32,7 @@ export async function setLoginPopupAction(params: {
   body: string | null;
   ctaUrl: string | null;
   durationSec: number;
+  reshowHours: number;
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
@@ -49,6 +50,7 @@ export async function setLoginPopupAction(params: {
       loginPopupBody: params.body || null,
       loginPopupCtaUrl: params.ctaUrl || null,
       loginPopupDurationSec: params.durationSec,
+      loginPopupReshowHours: params.reshowHours,
     },
   });
 

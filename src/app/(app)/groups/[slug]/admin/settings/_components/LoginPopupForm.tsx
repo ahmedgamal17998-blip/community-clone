@@ -25,6 +25,7 @@ export function LoginPopupForm({
     body: string;
     ctaUrl: string;
     durationSec: number;
+    reshowHours: number;
   };
 }) {
   const [pending, startTransition] = useTransition();
@@ -33,6 +34,7 @@ export function LoginPopupForm({
   const [body, setBody] = useState(initial.body);
   const [ctaUrl, setCtaUrl] = useState(initial.ctaUrl);
   const [durationSec, setDurationSec] = useState(initial.durationSec);
+  const [reshowHours, setReshowHours] = useState(initial.reshowHours);
   const [saved, setSaved] = useState(false);
 
   const save = () => {
@@ -45,6 +47,7 @@ export function LoginPopupForm({
         body: body || null,
         ctaUrl: ctaUrl || null,
         durationSec,
+        reshowHours,
       });
       setSaved(true);
     });
@@ -70,7 +73,7 @@ export function LoginPopupForm({
         </div>
       </label>
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
+      <div className="grid gap-3 sm:grid-cols-[1fr_140px_140px]">
         {/* Title */}
         <div>
           <label className="mb-1 block text-xs font-semibold text-muted-foreground">
@@ -99,6 +102,23 @@ export function LoginPopupForm({
             onChange={(e) => setDurationSec(Number(e.target.value))}
             className={inputBase}
             disabled={!enabled}
+          />
+        </div>
+
+        {/* Re-show cooldown */}
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+            Re-show every (hrs)
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={168}
+            value={reshowHours}
+            onChange={(e) => setReshowHours(Number(e.target.value))}
+            className={inputBase}
+            disabled={!enabled}
+            title="Hours of idle before the popup re-appears. 0 = every page load. 4 = typical 'back after a break'. 24 = once per day."
           />
         </div>
       </div>

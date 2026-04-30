@@ -242,6 +242,10 @@ model Group {
   loginPopupBody        String?
   loginPopupCtaUrl      String?
   loginPopupDurationSec Int?
+  // How long to wait before re-showing the popup to the same user.
+  // 0 = once per browser session (legacy behavior). Default 4 hours
+  // matches typical "daily login reward" UX.
+  loginPopupReshowHours Int     @default(4)
 
   // M26: favicon
   faviconUrl String?
@@ -376,6 +380,9 @@ model Channel {
   // PREMIUM channels need an active plan (or admin-granted MemberAccess) to
   // enter. Default FREE keeps existing channels open.
   tier        String  @default("FREE") // FREE | PREMIUM
+  // Some channels are post-only (e.g. an announcements channel). Toggle this
+  // off to hide the channel-chat ChatThread + composer in the UI.
+  chatEnabled Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

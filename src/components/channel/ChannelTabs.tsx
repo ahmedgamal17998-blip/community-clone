@@ -5,20 +5,33 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
-type Props = { groupSlug: string; channelSlug: string };
+type Props = {
+  groupSlug: string;
+  channelSlug: string;
+  /** When false, the Chat tab is hidden — channel is posts-only. */
+  chatEnabled?: boolean;
+};
 
-export function ChannelTabs({ groupSlug, channelSlug }: Props) {
+export function ChannelTabs({
+  groupSlug,
+  channelSlug,
+  chatEnabled = true,
+}: Props) {
   const pathname = usePathname();
   const t = useTranslations("channels.tabs");
 
   const base = `/groups/${groupSlug}/channels/${channelSlug}`;
   const tabs = [
     { href: base, label: t("posts"), match: (p: string) => p === base },
-    {
-      href: `${base}/chat`,
-      label: t("chat"),
-      match: (p: string) => p.startsWith(`${base}/chat`),
-    },
+    ...(chatEnabled
+      ? [
+          {
+            href: `${base}/chat`,
+            label: t("chat"),
+            match: (p: string) => p.startsWith(`${base}/chat`),
+          },
+        ]
+      : []),
   ];
 
   return (

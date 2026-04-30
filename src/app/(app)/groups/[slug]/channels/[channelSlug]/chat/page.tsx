@@ -54,11 +54,18 @@ export default async function ChannelChatPage({
     where: { slug: params.channelSlug, group: { slug: params.slug } },
     select: {
       id: true,
+      slug: true,
       groupId: true,
+      chatEnabled: true,
       chatThread: { select: { id: true } },
     },
   });
   if (!channel || !channel.chatThread) notFound();
+  // Posts-only channel — admin disabled chat. Bounce back to the channel
+  // posts feed so members never see a half-rendered chat shell.
+  if (!channel.chatEnabled) {
+    redirect(`/groups/${params.slug}/channels/${channel.slug}`);
+  }
 
   const membership = await db.groupMembership.findUnique({
     where: {

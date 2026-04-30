@@ -241,6 +241,42 @@ export async function setChannelTierAction(formData: FormData) {
   revalidatePath(`/groups/${channel.group.slug}/admin/channels`);
 }
 
+const setChannelChatEnabledSchema = z.object({
+  channelId: z.string().cuid(),
+  chatEnabled: z.enum(["true", "false"]).transform((v) => v === "true"),
+});
+
+export async function setChannelChatEnabledAction(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) throw new Error("UNAUTHENTICATED");
+
+  const parsed = setChannelChatEnabledSchema.safeParse({
+    channelId: formData.get("channelId"),
+    chatEnabled: formData.get("chatEnabled"),
+  });
+  if (!parsed.success) return;
+
+  const channel = await db.channel.findUnique({
+    where: { id: parsed.data.channelId },
+    include: { group: { select: { slug: true } } },
+  });
+  if (!channel) return;
+
+  await requireRole({
+    groupId: channel.groupId,
+    userId: session.user.id,
+    min: "ADMIN",
+  });
+
+  await db.channel.update({
+    where: { id: channel.id },
+    data: { chatEnabled: parsed.data.chatEnabled },
+  });
+
+  revalidatePath(`/groups/${channel.group.slug}/admin/channels`);
+  revalidatePath(`/groups/${channel.group.slug}/channels/${channel.slug}`);
+}
+
 const setCourseTierSchema = z.object({
   courseId: z.string().cuid(),
   tier: z.enum(["FREE", "PREMIUM"]),

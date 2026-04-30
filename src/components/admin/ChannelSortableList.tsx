@@ -21,6 +21,7 @@ import {
   reorderChannelsAction,
   setChannelKindAction,
   setChannelTierAction,
+  setChannelChatEnabledAction,
   toggleChannelArchiveAction,
 } from "@/server/admin-actions";
 
@@ -31,6 +32,7 @@ type Channel = {
   emoji: string | null;
   kind: string;
   tier: string;
+  chatEnabled: boolean;
   archived: boolean;
   position: number;
 };
@@ -41,11 +43,13 @@ function SortableRow({
   channel,
   onKind,
   onTier,
+  onChatEnabled,
   onArchive,
 }: {
   channel: Channel;
   onKind: (id: string, kind: string) => void;
   onTier: (id: string, tier: "FREE" | "PREMIUM") => void;
+  onChatEnabled: (id: string, chatEnabled: boolean) => void;
   onArchive: (id: string, archived: boolean) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -106,6 +110,23 @@ function SortableRow({
         }
       >
         {channel.tier === "PREMIUM" ? "PREMIUM" : "FREE"}
+      </button>
+      {/* Chat toggle: enable/disable inline channel chat */}
+      <button
+        type="button"
+        onClick={() => onChatEnabled(channel.id, !channel.chatEnabled)}
+        className={
+          channel.chatEnabled
+            ? "h-8 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 text-xs font-bold text-emerald-700 hover:border-emerald-500 dark:text-emerald-400"
+            : "h-8 rounded-md border border-border bg-muted px-2 text-xs text-muted-foreground hover:border-primary"
+        }
+        title={
+          channel.chatEnabled
+            ? "Channel chat is ON. Click to make this a posts-only channel."
+            : "Channel chat is OFF. Click to allow real-time chat in this channel."
+        }
+      >
+        {channel.chatEnabled ? "CHAT ON" : "CHAT OFF"}
       </button>
       <button
         type="button"
@@ -169,6 +190,19 @@ export function ChannelSortableList({ groupId, channels: initial }: Props) {
     });
   }
 
+  function onChatEnabled(id: string, chatEnabled: boolean) {
+    setChannels((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, chatEnabled } : c)),
+    );
+    const fd = new FormData();
+    fd.set("channelId", id);
+    fd.set("chatEnabled", chatEnabled ? "true" : "false");
+    startTransition(async () => {
+      await setChannelChatEnabledAction(fd);
+      router.refresh();
+    });
+  }
+
   function onArchive(id: string, archived: boolean) {
     setChannels((prev) =>
       prev.map((c) => (c.id === id ? { ...c, archived } : c)),
@@ -204,6 +238,7 @@ export function ChannelSortableList({ groupId, channels: initial }: Props) {
                 channel={c}
                 onKind={onKind}
                 onTier={onTier}
+                onChatEnabled={onChatEnabled}
                 onArchive={onArchive}
               />
             ))

@@ -25,6 +25,7 @@ export default async function AdminChannelsPage({
       emoji: true,
       kind: true,
       tier: true,
+      chatEnabled: true,
       archived: true,
       position: true,
     },

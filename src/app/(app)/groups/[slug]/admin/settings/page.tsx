@@ -30,6 +30,7 @@ export default async function AdminSettingsPage({
       loginPopupBody: true,
       loginPopupCtaUrl: true,
       loginPopupDurationSec: true,
+      loginPopupReshowHours: true,
       freeTrialDays: true,
       leavePopupEnabled: true,
       leavePopupBody: true,
@@ -215,6 +216,7 @@ export default async function AdminSettingsPage({
               body: group.loginPopupBody ?? "",
               ctaUrl: group.loginPopupCtaUrl ?? "",
               durationSec: group.loginPopupDurationSec ?? 8,
+              reshowHours: group.loginPopupReshowHours ?? 4,
             }}
           />
         </div>
