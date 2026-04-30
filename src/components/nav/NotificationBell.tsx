@@ -217,9 +217,9 @@ export function NotificationBell({ viewerId }: { viewerId?: string }) {
             size="icon"
             aria-label="Notifications"
             title="Notifications"
-            className="relative"
+            className="relative h-8 w-8 sm:h-9 sm:w-9"
           >
-            <Bell className="h-5 w-5" />
+            <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
             {count > 0 ? (
               <span className="absolute -top-0.5 -end-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground">
                 {count > 99 ? "99+" : count}

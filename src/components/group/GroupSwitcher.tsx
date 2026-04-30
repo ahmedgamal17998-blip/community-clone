@@ -47,23 +47,32 @@ export async function GroupSwitcher({ activeSlug }: Props) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex h-9 items-center gap-2 rounded-md border border-border bg-card px-2 text-sm hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-9 min-w-0 items-center gap-1.5 rounded-md border border-border bg-card px-1.5 text-sm hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-2 sm:px-2"
           aria-label={t("switcherLabel")}
         >
           {active ? (
             <>
-              <GroupAvatar name={active.name} logoUrl={active.logoUrl} primaryHsl={active.primaryHsl} size="sm" />
-              <span className="max-w-[160px] truncate font-medium">{active.name}</span>
+              <GroupAvatar
+                name={active.name}
+                logoUrl={active.logoUrl}
+                primaryHsl={active.primaryHsl}
+                size="sm"
+              />
+              <span className="max-w-[80px] truncate font-medium sm:max-w-[160px]">
+                {active.name}
+              </span>
             </>
           ) : (
             <>
-              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-muted text-muted-foreground">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                 <Compass className="h-4 w-4" />
               </div>
-              <span className="font-medium">{t("switcherAll")}</span>
+              <span className="max-w-[80px] truncate font-medium sm:max-w-none">
+                {t("switcherAll")}
+              </span>
             </>
           )}
-          <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
+          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground sm:h-4 sm:w-4" />
         </button>
       </DropdownMenuTrigger>
 

@@ -24,11 +24,12 @@ export function ThemeToggle() {
       onClick={() => setTheme(next)}
       aria-label={label}
       title={label}
+      className="h-8 w-8 sm:h-9 sm:w-9"
     >
       {mounted && current === "dark" ? (
-        <Sun className="h-5 w-5" />
+        <Sun className="h-4 w-4 sm:h-5 sm:w-5" />
       ) : (
-        <Moon className="h-5 w-5" />
+        <Moon className="h-4 w-4 sm:h-5 sm:w-5" />
       )}
     </Button>
   );

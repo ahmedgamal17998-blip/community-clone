@@ -89,28 +89,26 @@ export async function TopNav() {
           <Input placeholder={t("search")} className="ps-9 rounded-full bg-muted border-transparent" />
         </div>
 
-        <div className="ms-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
-          {/* Theme + locale toggles — desktop only (live in UserMenu on mobile). */}
-          <div className="hidden sm:flex items-center gap-1">
-            <ThemeToggle />
-            <LocaleToggle />
-          </div>
+        <div className="ms-auto flex shrink-0 items-center gap-0 sm:gap-1">
+          {/* Theme + locale toggles — visible on mobile too, just compact. */}
+          <ThemeToggle />
+          <LocaleToggle />
           {session?.user ? (
             <>
               <NotificationBell viewerId={session.user.id} />
-              {/* Saved + Apps — desktop only. */}
               <Button
                 asChild
                 variant="ghost"
                 size="icon"
                 aria-label="Saved"
                 title="Saved"
-                className="hidden sm:inline-flex"
+                className="h-8 w-8 sm:h-9 sm:w-9"
               >
                 <Link href="/saved">
-                  <Bookmark className="h-5 w-5" />
+                  <Bookmark className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Link>
               </Button>
+              {/* Apps grid — desktop only, low priority on mobile. */}
               <Button
                 variant="ghost"
                 size="icon"
