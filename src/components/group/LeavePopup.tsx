@@ -2,17 +2,19 @@
 
 /**
  * LeavePopup — retention dialog shown when a member taps "Leave" on the
- * group header. Hijacks the leave form's submit so we can show the popup
- * first; the user can then confirm (calls the original leave action) or
- * stay (popup closes).
+ * group header. Two-stage flow:
+ *   1. Click trigger → popup opens.
+ *   2. Click "Leave anyway" → submits a real <form action={leaveGroupAction}>
+ *      which performs the leave and redirects the user.
  *
- * The popup body, font, color, bold, and button labels are admin-configurable
- * via Group.leavePopup* fields (rendered server-side and passed in as props).
- *
- * Body supports inline **bold** markers — tokens between `**` render bold.
+ * Using a form-with-server-action is more reliable than passing a server
+ * action as a prop closure — it's the canonical Next.js pattern, doesn't
+ * rely on `useTransition` to forward the redirect, and works even if the
+ * deployed bundle hasn't perfectly hashed the action ID.
  */
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
+import { leaveGroupAction } from "@/server/groups";
 
 type Props = {
   enabled: boolean;
@@ -24,19 +26,17 @@ type Props = {
   bold: boolean;
   stayLabel: string | null;
   leaveLabel: string | null;
-  /** Server action that actually performs the leave (takes groupId). */
-  onLeaveAction: (groupId: string) => Promise<void> | void;
 };
 
-/** Render a string with **bold** tokens converted to <strong>. */
 function renderRichText(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    }
-    return <span key={i}>{part}</span>;
-  });
+  return parts.map((part, i) =>
+    part.startsWith("**") && part.endsWith("**") ? (
+      <strong key={i}>{part.slice(2, -2)}</strong>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
+  );
 }
 
 export function LeavePopup({
@@ -49,11 +49,9 @@ export function LeavePopup({
   bold,
   stayLabel,
   leaveLabel,
-  onLeaveAction,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Lock body scroll while open.
   useEffect(() => {
@@ -65,31 +63,52 @@ export function LeavePopup({
     };
   }, [open]);
 
-  function handleTriggerClick(e: React.MouseEvent<HTMLButtonElement>) {
-    if (!enabled) return; // popup disabled → submit the form normally
-    e.preventDefault();
-    setOpen(true);
-  }
+  // Close popup on Escape.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
-  function confirmLeave() {
-    startTransition(async () => {
-      await onLeaveAction(groupId);
-    });
+  // Stay = close. Leave = submit form (defined below).
+  const stay = () => setOpen(false);
+
+  if (!enabled) {
+    // Popup disabled → render the canonical form directly. Click leaves
+    // immediately, no popup.
+    return (
+      <form action={leaveGroupAction}>
+        <input type="hidden" name="groupId" value={groupId} />
+        <button
+          type="submit"
+          className="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+        >
+          {leaveLabel || "Leave"}
+        </button>
+      </form>
+    );
   }
 
   return (
     <>
       <button
-        ref={triggerRef}
-        type={enabled ? "button" : "submit"}
-        onClick={handleTriggerClick}
-        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 px-3"
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex h-9 items-center justify-center rounded-md px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
       >
         {leaveLabel || "Leave"}
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setOpen(false);
+          }}
+        >
           <div
             role="dialog"
             aria-modal="true"
@@ -127,20 +146,28 @@ export function LeavePopup({
               <div className="mt-5 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
-                  disabled={pending}
+                  onClick={stay}
+                  disabled={submitting}
                   className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-[0.98] disabled:opacity-50"
                 >
                   {stayLabel || "Stay with us"}
                 </button>
-                <button
-                  type="button"
-                  onClick={confirmLeave}
-                  disabled={pending}
-                  className="inline-flex items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+
+                {/* Real form — clicking this button submits a server action
+                    that deletes the membership and redirects. */}
+                <form
+                  action={leaveGroupAction}
+                  onSubmit={() => setSubmitting(true)}
                 >
-                  {pending ? "Leaving…" : leaveLabel || "Leave anyway"}
-                </button>
+                  <input type="hidden" name="groupId" value={groupId} />
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="inline-flex items-center justify-center rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+                  >
+                    {submitting ? "Leaving…" : leaveLabel || "Leave anyway"}
+                  </button>
+                </form>
               </div>
             </div>
           </div>

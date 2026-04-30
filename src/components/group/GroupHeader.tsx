@@ -7,7 +7,6 @@ import { getTranslations } from "next-intl/server";
 import { GroupAvatar } from "@/components/group/GroupAvatar";
 import { Button } from "@/components/ui/button";
 import { joinGroupAction, leaveGroupAction } from "@/server/groups";
-import { leaveGroupActionByIdAction } from "@/server/leave-action";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { LeavePopup } from "@/components/group/LeavePopup";
 
@@ -89,27 +88,17 @@ export async function GroupHeader({ group, myMembership }: Props) {
             {t("pending")}
           </Button>
         ) : isMember && myMembership.role !== "OWNER" ? (
-          group.leavePopupEnabled ? (
-            <LeavePopup
-              enabled
-              groupId={group.id}
-              body={group.leavePopupBody ?? null}
-              fontFamily={group.leavePopupFontFamily ?? null}
-              fontSizePx={group.leavePopupFontSizePx ?? null}
-              color={group.leavePopupColor ?? null}
-              bold={group.leavePopupBold ?? false}
-              stayLabel={group.leavePopupStayLabel ?? null}
-              leaveLabel={group.leavePopupLeaveLabel ?? t("leave")}
-              onLeaveAction={leaveGroupActionByIdAction}
-            />
-          ) : (
-            <form action={leaveGroupAction}>
-              <input type="hidden" name="groupId" value={group.id} />
-              <Button type="submit" variant="ghost" size="sm">
-                {t("leave")}
-              </Button>
-            </form>
-          )
+          <LeavePopup
+            enabled={group.leavePopupEnabled ?? false}
+            groupId={group.id}
+            body={group.leavePopupBody ?? null}
+            fontFamily={group.leavePopupFontFamily ?? null}
+            fontSizePx={group.leavePopupFontSizePx ?? null}
+            color={group.leavePopupColor ?? null}
+            bold={group.leavePopupBold ?? false}
+            stayLabel={group.leavePopupStayLabel ?? null}
+            leaveLabel={group.leavePopupLeaveLabel ?? t("leave")}
+          />
         ) : null}
       </div>
     </div>
