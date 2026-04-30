@@ -22,6 +22,9 @@ export async function createPlanAction(params: {
   priceCents: number;
   currency?: string;
   active?: boolean;
+  externalProductId?: number | null;
+  externalProductSlug?: string | null;
+  externalPlanType?: string | null;
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
@@ -40,6 +43,9 @@ export async function createPlanAction(params: {
       priceCents: params.priceCents,
       currency: params.currency ?? "usd",
       active: params.active ?? true,
+      externalProductId: params.externalProductId ?? null,
+      externalProductSlug: params.externalProductSlug || null,
+      externalPlanType: params.externalPlanType || null,
     },
   });
 
@@ -55,6 +61,9 @@ export async function updatePlanAction(params: {
   durationDays?: number;
   priceCents?: number;
   active?: boolean;
+  externalProductId?: number | null;
+  externalProductSlug?: string | null;
+  externalPlanType?: string | null;
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
@@ -72,6 +81,15 @@ export async function updatePlanAction(params: {
       durationDays: params.durationDays,
       priceCents: params.priceCents,
       active: params.active,
+      ...(params.externalProductId !== undefined && {
+        externalProductId: params.externalProductId,
+      }),
+      ...(params.externalProductSlug !== undefined && {
+        externalProductSlug: params.externalProductSlug || null,
+      }),
+      ...(params.externalPlanType !== undefined && {
+        externalPlanType: params.externalPlanType || null,
+      }),
     },
   });
   revalidatePath(`/groups/[slug]/admin/plans`, "page");
@@ -112,6 +130,14 @@ export async function _activateSubscriptionInternal(params: {
   userId: string;
   planId: string;
   externalRef?: string;
+  // Optional fields populated when the activation came from a payment
+  // webhook (vs. a manual admin grant).
+  externalSubscriptionId?: number | null;
+  externalProductId?: number | null;
+  externalPlanType?: string | null;
+  paymobOrderId?: string | null;
+  lastTransactionId?: string | null;
+  paidAt?: Date | null;
 }) {
   const plan = await db.subscriptionPlan.findUnique({
     where: { id: params.planId },
@@ -119,13 +145,26 @@ export async function _activateSubscriptionInternal(params: {
   if (!plan || plan.groupId !== params.groupId) throw new Error("PLAN_NOT_FOUND");
 
   const now = new Date();
-  const existing = await db.subscription.findFirst({
-    where: {
-      userId: params.userId,
-      groupId: params.groupId,
-      status: "ACTIVE",
-    },
-  });
+  // Multi-plan support: a user can hold several subs in the same group,
+  // one per plan. Match by the most reliable key:
+  //   1. externalSubscriptionId (renewals from the payment system)
+  //   2. (userId, groupId, planId) — same plan being renewed/reactivated
+  const existing = params.externalSubscriptionId
+    ? await db.subscription.findFirst({
+        where: {
+          userId: params.userId,
+          groupId: params.groupId,
+          externalSubscriptionId: params.externalSubscriptionId,
+        },
+      })
+    : await db.subscription.findFirst({
+        where: {
+          userId: params.userId,
+          groupId: params.groupId,
+          planId: params.planId,
+        },
+        orderBy: { currentPeriodEnd: "desc" },
+      });
 
   const fromDate =
     existing && existing.currentPeriodEnd > now ? existing.currentPeriodEnd : now;
@@ -136,9 +175,21 @@ export async function _activateSubscriptionInternal(params: {
     sub = await db.subscription.update({
       where: { id: existing.id },
       data: {
+        planId: params.planId,
         currentPeriodEnd: newEnd,
         status: "ACTIVE",
+        cancelRequestedAt: null, // re-activation clears any prior cancel intent
         externalRef: params.externalRef ?? existing.externalRef,
+        externalSubscriptionId:
+          params.externalSubscriptionId ?? existing.externalSubscriptionId,
+        externalProductId:
+          params.externalProductId ?? existing.externalProductId,
+        externalPlanType:
+          params.externalPlanType ?? existing.externalPlanType,
+        paymobOrderId: params.paymobOrderId ?? existing.paymobOrderId,
+        lastTransactionId:
+          params.lastTransactionId ?? existing.lastTransactionId,
+        paidAt: params.paidAt ?? existing.paidAt,
       },
     });
   } else {
@@ -150,6 +201,12 @@ export async function _activateSubscriptionInternal(params: {
         currentPeriodEnd: newEnd,
         status: "ACTIVE",
         externalRef: params.externalRef,
+        externalSubscriptionId: params.externalSubscriptionId ?? null,
+        externalProductId: params.externalProductId ?? null,
+        externalPlanType: params.externalPlanType ?? null,
+        paymobOrderId: params.paymobOrderId ?? null,
+        lastTransactionId: params.lastTransactionId ?? null,
+        paidAt: params.paidAt ?? null,
       },
     });
   }
@@ -174,32 +231,81 @@ export async function _activateSubscriptionInternal(params: {
   return sub;
 }
 
+/**
+ * Cancel one specific subscription by ID. Either the owner of the
+ * subscription or an admin with SUBS_MANAGE may call this.
+ *
+ * Hard cancel — sets status=CANCELED and revokes plan grants now.
+ * For the "cancel + keep access until period end" flow, see
+ * `requestCancelSubscriptionAction` below.
+ */
 export async function cancelSubscriptionAction(params: {
-  groupId: string;
-  userId: string;
+  subscriptionId: string;
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
 
-  // Either the user themselves OR an admin with SUBS_MANAGE
-  if (session.user.id !== params.userId) {
+  const sub = await db.subscription.findUnique({
+    where: { id: params.subscriptionId },
+    select: { userId: true, groupId: true, planId: true },
+  });
+  if (!sub) return { ok: false as const, error: "Subscription not found" };
+
+  if (session.user.id !== sub.userId) {
     await requireCapability({
       userId: session.user.id,
-      groupId: params.groupId,
+      groupId: sub.groupId,
       capability: "SUBS_MANAGE",
     });
   }
 
-  await db.subscription.updateMany({
-    where: {
-      userId: params.userId,
-      groupId: params.groupId,
-      status: "ACTIVE",
-    },
-    data: { status: "CANCELED" },
+  await db.subscription.update({
+    where: { id: params.subscriptionId },
+    data: { status: "CANCELED", cancelRequestedAt: new Date() },
+  });
+  await revokeSubscriptionAccessGrants({
+    userId: sub.userId,
+    planId: sub.planId,
   });
 
   revalidatePath(`/groups/[slug]/me`, "page");
+  return { ok: true as const };
+}
+
+/**
+ * Mark a subscription as "cancel-at-period-end". The sub stays ACTIVE
+ * (and grants stay live) until `currentPeriodEnd` — at which point the
+ * payment system will fire a `cancelled` webhook and we hard-cancel.
+ *
+ * This is the user-facing flow when a member taps "Cancel" on /me.
+ */
+export async function requestCancelSubscriptionAction(params: {
+  subscriptionId: string;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
+
+  const sub = await db.subscription.findUnique({
+    where: { id: params.subscriptionId },
+    select: { userId: true, groupId: true },
+  });
+  if (!sub) return { ok: false as const, error: "Subscription not found" };
+
+  if (session.user.id !== sub.userId) {
+    await requireCapability({
+      userId: session.user.id,
+      groupId: sub.groupId,
+      capability: "SUBS_MANAGE",
+    });
+  }
+
+  await db.subscription.update({
+    where: { id: params.subscriptionId },
+    data: { cancelRequestedAt: new Date() },
+  });
+
+  revalidatePath(`/groups/[slug]/me`, "page");
+  return { ok: true as const };
 }
 
 /**

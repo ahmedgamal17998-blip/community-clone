@@ -41,7 +41,8 @@ export default async function MemberSelfPage({
 
   const days = await remainingDays({ userId: me.id, groupId: group.id });
 
-  const activeSub = await db.subscription.findFirst({
+  // Multi-plan support: list every active subscription, ordered by next-end.
+  const activeSubs = await db.subscription.findMany({
     where: { userId: me.id, groupId: group.id, status: "ACTIVE" },
     orderBy: { currentPeriodEnd: "desc" },
     include: { plan: true },
@@ -69,23 +70,22 @@ export default async function MemberSelfPage({
       <h1 className="text-2xl font-semibold">My subscription</h1>
 
       <SubscriptionCard
-        groupId={group.id}
-        userId={me.id}
         remainingDays={days}
-        activeSub={
-          activeSub
-            ? {
-                planName: activeSub.plan.name,
-                currentPeriodEnd: activeSub.currentPeriodEnd,
-              }
-            : null
-        }
+        activeSubs={activeSubs.map((s) => ({
+          id: s.id,
+          planName: s.plan.name,
+          currentPeriodEnd: s.currentPeriodEnd,
+          cancelRequestedAt: s.cancelRequestedAt,
+          hasExternal: s.externalSubscriptionId != null,
+        }))}
         plans={group.subscriptionPlans.map((p) => ({
           id: p.id,
           name: p.name,
           durationDays: p.durationDays,
           priceCents: p.priceCents,
           currency: p.currency,
+          externalProductSlug: p.externalProductSlug,
+          externalPlanType: p.externalPlanType,
         }))}
       />
 

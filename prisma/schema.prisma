@@ -1132,14 +1132,25 @@ model SubscriptionPlan {
   priceCents   Int // store in cents
   currency     String   @default("usd")
   active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+
+  // ─── External payment-system mapping (Subscription-base / Paymob) ──
+  // When set, this Plan corresponds 1:1 to a (productId, planType) pair
+  // in the external payment system. The webhook handler looks plans up
+  // by these fields to know which Plan to activate.
+  externalProductId   Int?
+  externalProductSlug String? // matches Subscription-base Product.slug (used for /subscribe/:slug)
+  externalPlanType    String? // "weekly" | "monthly" | "3-months" | "6-months" | "yearly"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   group         Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   subscriptions Subscription[]
   resources     PlanResource[]
 
+  @@unique([groupId, externalProductId, externalPlanType])
   @@index([groupId, active])
+  @@index([externalProductId, externalPlanType])
 }
 
 // What a plan unlocks. When a user activates a subscription to a plan,
@@ -1170,9 +1181,23 @@ model Subscription {
   startedAt        DateTime @default(now())
   currentPeriodEnd DateTime
   status           String   @default("ACTIVE") // ACTIVE | EXPIRED | CANCELED
-  externalRef      String? // future: link to custom payment system tx id
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  // ─── External payment-system fields (Subscription-base / Paymob) ──
+  // We store the external sub ID so the admin Cancel action can call
+  // POST /api/subscriptions/:id/cancel on the payment system.
+  externalSubscriptionId Int?
+  externalProductId      Int?
+  externalPlanType       String?
+  paymobOrderId          String?
+  lastTransactionId      String?
+  paidAt                 DateTime?
+  // True once the user (or admin) requested cancellation. Access stays
+  // on until currentPeriodEnd, then the Subscription flips to CANCELED.
+  cancelRequestedAt DateTime?
+
+  externalRef String? // legacy / generic reference
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   group Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -1180,6 +1205,32 @@ model Subscription {
 
   @@index([userId, groupId, status])
   @@index([groupId, status])
+  @@index([externalSubscriptionId])
+  @@index([userId, planId, status])
+}
+
+// ─── Inbound payment-webhook audit / idempotency log ───────────────────
+//
+// Every event the external payment system pushes us lands here first.
+// `transactionId` is the dedupe key — if we've already processed it,
+// we 200 immediately and skip side effects (idempotent retries).
+model PaymentWebhookEvent {
+  id                     String    @id @default(cuid())
+  event                  String // payment_success | renewal_success | cancelled | ...
+  transactionId          String? // used as the idempotency key when present
+  externalSubscriptionId Int?
+  email                  String?
+  payload                Json
+  signatureOk            Boolean   @default(false)
+  processed              Boolean   @default(false)
+  errorMessage           String?
+  receivedAt             DateTime  @default(now())
+  processedAt            DateTime?
+
+  @@unique([transactionId])
+  @@index([event])
+  @@index([externalSubscriptionId])
+  @@index([processed, receivedAt])
 }
 
 model LoginHistory {

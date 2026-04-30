@@ -1,61 +1,281 @@
 /**
- * M18: Custom payment webhook.
+ * Inbound webhook handler for the external Subscription-base / Paymob
+ * payment system.
  *
- * The user explicitly said they will integrate a custom in-house payment
- * system later (NOT Stripe). This route is the integration point.
+ * Supported events (Subscription-base outbound-webhook.routes.js):
+ *   payment_success | renewal_success
+ *     → activate / extend the matching Subscription, sync plan grants
+ *   payment_failed  | renewal_failed
+ *     → log only (no access change). Renewal retries handled by Paymob.
+ *   cancel_requested
+ *     → mark Subscription.cancelRequestedAt; access stays until period end.
+ *   cancelled | expired
+ *     → hard-cancel Subscription, revoke plan grants immediately.
  *
- * Expected payload (POST JSON):
- *   {
- *     "userId":   "...",
- *     "groupId":  "...",
- *     "planId":   "...",         // SubscriptionPlan to activate
- *     "externalRef": "...",      // payment-system tx id
- *     "amountCents": 2900,       // for audit
- *     "currency":   "usd"
- *   }
+ * Idempotency:
+ *   transaction_id is unique on PaymentWebhookEvent — duplicate retries
+ *   no-op and return 200.
  *
- * Auth: shared secret in `x-payment-secret` header (env: PAYMENT_WEBHOOK_SECRET).
+ * Security:
+ *   When PAYMENT_WEBHOOK_SECRET is set, the handler verifies an
+ *   HMAC-SHA256 signature in `x-webhook-signature` header against the
+ *   raw body. If the env var is unset, signature is logged but not
+ *   enforced — Phase 1 wiring before HMAC ships on the payment-system
+ *   side. Always set the secret in production.
  */
-import { NextResponse } from "next/server";
-import { _activateSubscriptionInternal } from "@/server/actions/subscription";
+import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
+import { db } from "@/server/db";
+import {
+  _activateSubscriptionInternal,
+  revokeSubscriptionAccessGrants,
+} from "@/server/actions/subscription";
 
-export async function POST(req: Request) {
-  const provided = req.headers.get("x-payment-secret");
-  const expected = process.env.PAYMENT_WEBHOOK_SECRET;
-  if (!expected || provided !== expected) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
-  }
+type PaymentEvent =
+  | "payment_success"
+  | "renewal_success"
+  | "payment_failed"
+  | "renewal_failed"
+  | "cancel_requested"
+  | "cancelled"
+  | "expired";
 
-  const data = body as {
-    userId?: string;
-    groupId?: string;
-    planId?: string;
-    externalRef?: string;
-  };
+type WebhookPayload = {
+  event: PaymentEvent;
+  type?: string;
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  plan?: string;
+  product_name?: string;
+  product_id?: string | number;
+  payment_status?: string;
+  payment_method?: string;
+  amount?: number;
+  currency?: string;
+  date_of_creation?: string;
+  next_renewal?: string;
+  transaction_id?: string | number;
+  subscription_id?: number;
+  coupon_code?: string | null;
+  discount_cents?: number | null;
+};
 
-  if (!data.userId || !data.groupId || !data.planId) {
-    return NextResponse.json({ error: "missing_fields" }, { status: 400 });
-  }
+function verifySignature(rawBody: string, headerSig: string | null): boolean {
+  const secret = process.env.PAYMENT_WEBHOOK_SECRET;
+  if (!secret) return true; // not enforced yet (Phase 1)
+  if (!headerSig) return false;
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody)
+    .digest("hex");
+  const a = Buffer.from(headerSig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
 
-  try {
-    const sub = await _activateSubscriptionInternal({
-      userId: data.userId,
-      groupId: data.groupId,
-      planId: data.planId,
-      externalRef: data.externalRef,
-    });
-    return NextResponse.json({ ok: true, subscriptionId: sub.id });
-  } catch (e) {
+export async function POST(req: NextRequest) {
+  const rawBody = await req.text();
+  const headerSig = req.headers.get("x-webhook-signature");
+  const signatureOk = verifySignature(rawBody, headerSig);
+
+  if (process.env.PAYMENT_WEBHOOK_SECRET && !signatureOk) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "activation_failed" },
-      { status: 500 },
+      { ok: false, error: "INVALID_SIGNATURE" },
+      { status: 401 },
     );
   }
+
+  let payload: WebhookPayload;
+  try {
+    payload = JSON.parse(rawBody) as WebhookPayload;
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "INVALID_JSON" },
+      { status: 400 },
+    );
+  }
+
+  const event = payload.event;
+  const txId = payload.transaction_id ? String(payload.transaction_id) : null;
+  const externalSubId = payload.subscription_id ?? null;
+  const email = payload.email?.trim().toLowerCase() ?? null;
+
+  // Idempotency: if we've already processed this transaction, no-op.
+  if (txId) {
+    const existing = await db.paymentWebhookEvent.findUnique({
+      where: { transactionId: txId },
+    });
+    if (existing?.processed) {
+      return NextResponse.json({ ok: true, deduped: true });
+    }
+  }
+
+  // Persist the event row before side effects so we always have a trail.
+  const eventRow = await db.paymentWebhookEvent.create({
+    data: {
+      event,
+      transactionId: txId,
+      externalSubscriptionId: externalSubId,
+      email,
+      payload: payload as unknown as object,
+      signatureOk,
+    },
+  });
+
+  try {
+    switch (event) {
+      case "payment_success":
+      case "renewal_success":
+        await handleActivation(payload);
+        break;
+      case "cancel_requested":
+        await handleCancelRequested(payload);
+        break;
+      case "cancelled":
+      case "expired":
+        await handleHardCancel(payload);
+        break;
+      case "payment_failed":
+      case "renewal_failed":
+        // Log only.
+        break;
+      default:
+        await db.paymentWebhookEvent.update({
+          where: { id: eventRow.id },
+          data: { errorMessage: `Unknown event: ${event}` },
+        });
+        return NextResponse.json({ ok: false, error: "UNKNOWN_EVENT" });
+    }
+
+    await db.paymentWebhookEvent.update({
+      where: { id: eventRow.id },
+      data: { processed: true, processedAt: new Date() },
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await db.paymentWebhookEvent.update({
+      where: { id: eventRow.id },
+      data: { errorMessage: message },
+    });
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}
+
+// ─── Handlers ──────────────────────────────────────────────────────────
+
+async function resolvePlanAndUser(payload: WebhookPayload) {
+  if (!payload.email) throw new Error("MISSING_EMAIL");
+  if (payload.product_id == null) throw new Error("MISSING_PRODUCT_ID");
+  if (!payload.plan) throw new Error("MISSING_PLAN");
+
+  const productId = Number(payload.product_id);
+  if (!Number.isFinite(productId)) throw new Error("INVALID_PRODUCT_ID");
+
+  const plan = await db.subscriptionPlan.findFirst({
+    where: {
+      externalProductId: productId,
+      externalPlanType: payload.plan,
+      active: true,
+    },
+  });
+  if (!plan) {
+    throw new Error(
+      `PLAN_NOT_MAPPED: productId=${productId}, planType=${payload.plan}`,
+    );
+  }
+
+  const email = payload.email.trim().toLowerCase();
+  const user = await db.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (!user) throw new Error(`USER_NOT_FOUND: ${email}`);
+
+  return { plan, user };
+}
+
+async function handleActivation(payload: WebhookPayload) {
+  const { plan, user } = await resolvePlanAndUser(payload);
+
+  // Make sure the user is a member of the group (and ACTIVE). If they
+  // aren't a member we auto-create the membership — covers the case
+  // where someone paid first and is being onboarded.
+  const existingMembership = await db.groupMembership.findUnique({
+    where: { groupId_userId: { groupId: plan.groupId, userId: user.id } },
+  });
+  if (!existingMembership) {
+    await db.groupMembership.create({
+      data: {
+        groupId: plan.groupId,
+        userId: user.id,
+        role: "MEMBER",
+        state: "ACTIVE",
+      },
+    });
+  } else if (existingMembership.state !== "ACTIVE") {
+    await db.groupMembership.update({
+      where: { groupId_userId: { groupId: plan.groupId, userId: user.id } },
+      data: { state: "ACTIVE", lockedAt: null },
+    });
+  }
+
+  await _activateSubscriptionInternal({
+    groupId: plan.groupId,
+    userId: user.id,
+    planId: plan.id,
+    externalSubscriptionId: payload.subscription_id ?? null,
+    externalProductId:
+      payload.product_id != null ? Number(payload.product_id) : null,
+    externalPlanType: payload.plan ?? null,
+    lastTransactionId: payload.transaction_id
+      ? String(payload.transaction_id)
+      : null,
+    paidAt: payload.date_of_creation
+      ? new Date(payload.date_of_creation)
+      : new Date(),
+  });
+}
+
+async function handleCancelRequested(payload: WebhookPayload) {
+  const sub = await findSubscriptionFromPayload(payload);
+  if (!sub) return;
+  await db.subscription.update({
+    where: { id: sub.id },
+    data: { cancelRequestedAt: new Date() },
+  });
+}
+
+async function handleHardCancel(payload: WebhookPayload) {
+  const sub = await findSubscriptionFromPayload(payload);
+  if (!sub) return;
+  await db.subscription.update({
+    where: { id: sub.id },
+    data: { status: "CANCELED" },
+  });
+  await revokeSubscriptionAccessGrants({
+    userId: sub.userId,
+    planId: sub.planId,
+  });
+}
+
+async function findSubscriptionFromPayload(payload: WebhookPayload) {
+  if (payload.subscription_id) {
+    const sub = await db.subscription.findFirst({
+      where: { externalSubscriptionId: payload.subscription_id },
+    });
+    if (sub) return sub;
+  }
+  if (payload.transaction_id) {
+    const sub = await db.subscription.findFirst({
+      where: { lastTransactionId: String(payload.transaction_id) },
+    });
+    if (sub) return sub;
+  }
+  return null;
 }

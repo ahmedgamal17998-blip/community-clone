@@ -6,6 +6,8 @@ import { LandingPageSelector } from "./_components/LandingPageSelector";
 import { LoginPopupForm } from "./_components/LoginPopupForm";
 import { FreeTrialForm } from "./_components/FreeTrialForm";
 import { LeavePopupForm } from "./_components/LeavePopupForm";
+import { PaymentIntegrationCard } from "./_components/PaymentIntegrationCard";
+import { headers } from "next/headers";
 
 export default async function AdminSettingsPage({
   params,
@@ -40,6 +42,27 @@ export default async function AdminSettingsPage({
     },
   });
   if (!group || !session?.user) notFound();
+
+  // Payment-integration health: gather env state + recent webhook count.
+  const recentSince = new Date(Date.now() - 30 * 86400_000);
+  const [recentEventCount, lastEvent] = await Promise.all([
+    db.paymentWebhookEvent.count({ where: { receivedAt: { gt: recentSince } } }),
+    db.paymentWebhookEvent.findFirst({
+      orderBy: { receivedAt: "desc" },
+      select: { receivedAt: true },
+    }),
+  ]);
+  const hdrs = headers();
+  const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "";
+  const proto = hdrs.get("x-forwarded-proto") ?? "https";
+  const paymentHealth = {
+    paymentSystemUrl: process.env.PAYMENT_SYSTEM_URL?.replace(/\/$/, "") ?? null,
+    hasAdminKey: !!process.env.PAYMENT_SYSTEM_ADMIN_KEY,
+    hasWebhookSecret: !!process.env.PAYMENT_WEBHOOK_SECRET,
+    webhookEndpoint: host ? `${proto}://${host}/api/webhooks/payment` : "/api/webhooks/payment",
+    recentEventCount,
+    lastEventAt: lastEvent?.receivedAt?.toISOString() ?? null,
+  };
 
   const me = await db.groupMembership.findUnique({
     where: { groupId_userId: { groupId: group.id, userId: session.user.id } },
@@ -111,6 +134,28 @@ export default async function AdminSettingsPage({
             groupId={group.id}
             initial={group.freeTrialDays ?? 0}
           />
+        </div>
+      </div>
+
+      {/* Payment integration — connection status to Subscription-base */}
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div
+          className="h-1.5 w-full"
+          style={{
+            background:
+              "linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.7) 100%)",
+          }}
+        />
+        <div className="p-5">
+          <h2 className="mb-1 text-sm font-bold text-foreground">
+            Payment integration
+          </h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Connection status to the external Subscription-base payment
+            system. Configure environment variables, register the webhook
+            URL on the payment side, then test the connection.
+          </p>
+          <PaymentIntegrationCard initial={paymentHealth} />
         </div>
       </div>
 

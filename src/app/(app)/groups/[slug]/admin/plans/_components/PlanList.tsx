@@ -16,6 +16,9 @@ type Plan = {
   priceCents: number;
   currency: string;
   active: boolean;
+  externalProductId: number | null;
+  externalProductSlug: string | null;
+  externalPlanType: string | null;
 };
 
 type Channel = { id: string; slug: string; name: string; tier: string; kind: string };
@@ -137,20 +140,135 @@ export function PlanList({
               </button>
             </div>
 
-            {/* Expanded — resource picker */}
+            {/* Expanded — payment mapping + resource picker */}
             {isOpen && (
-              <PlanResourcePicker
-                groupId={groupId}
-                planId={p.id}
-                channels={channels}
-                courses={courses}
-                initial={initial}
-              />
+              <>
+                <PlanMappingEditor groupId={groupId} plan={p} />
+                <PlanResourcePicker
+                  groupId={groupId}
+                  planId={p.id}
+                  channels={channels}
+                  courses={courses}
+                  initial={initial}
+                />
+              </>
             )}
           </li>
         );
       })}
     </ul>
+  );
+}
+
+// ── Payment-system mapping editor ───────────────────────────────────────────
+
+const PLAN_TYPE_OPTIONS = [
+  { value: "", label: "(none)" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "3-months", label: "3 months" },
+  { value: "6-months", label: "6 months" },
+  { value: "yearly", label: "Yearly" },
+];
+
+function PlanMappingEditor({ groupId, plan }: { groupId: string; plan: Plan }) {
+  const [pending, startTransition] = useTransition();
+  const [productId, setProductId] = useState<string>(
+    plan.externalProductId != null ? String(plan.externalProductId) : "",
+  );
+  const [productSlug, setProductSlug] = useState(plan.externalProductSlug ?? "");
+  const [planType, setPlanType] = useState(plan.externalPlanType ?? "");
+  const [saved, setSaved] = useState(false);
+
+  const save = () => {
+    setSaved(false);
+    startTransition(async () => {
+      await updatePlanAction({
+        groupId,
+        planId: plan.id,
+        externalProductId: productId ? Number(productId) : null,
+        externalProductSlug: productSlug || null,
+        externalPlanType: planType || null,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    });
+  };
+
+  const inputCls =
+    "w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
+
+  return (
+    <div className="border-t border-border bg-card px-4 py-4">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Payment system mapping
+        </p>
+        {saved && (
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-600 dark:text-green-400">
+            <Check className="h-3 w-3" />
+            Saved
+          </span>
+        )}
+      </div>
+      <p className="mb-3 text-[11px] text-muted-foreground">
+        Set both Product ID + Plan Type so we can match incoming webhooks to
+        this plan. Slug is required to redirect members to the checkout page.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-[1fr_1.5fr_1fr_auto]">
+        <div>
+          <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+            Product ID
+          </label>
+          <input
+            type="number"
+            min={1}
+            placeholder="e.g. 1"
+            value={productId}
+            onChange={(e) => setProductId(e.target.value)}
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+            Product Slug
+          </label>
+          <input
+            type="text"
+            placeholder="e.g. test-product"
+            value={productSlug}
+            onChange={(e) => setProductSlug(e.target.value)}
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+            Plan Type
+          </label>
+          <select
+            value={planType}
+            onChange={(e) => setPlanType(e.target.value)}
+            className={inputCls}
+          >
+            {PLAN_TYPE_OPTIONS.map((p) => (
+              <option key={p.value || "none"} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-end">
+          <button
+            type="button"
+            onClick={save}
+            disabled={pending}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {pending ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
