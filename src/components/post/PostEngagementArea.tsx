@@ -232,7 +232,7 @@ export function PostEngagementArea({
               ref={pickerRef}
               onMouseEnter={onPickerMouseEnter}
               onMouseLeave={onPickerMouseLeave}
-              className="absolute bottom-full left-1/2 z-30 mb-2 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-border bg-popover px-2 py-1.5 shadow-xl"
+              className="absolute bottom-full start-0 z-30 mb-2 flex items-center gap-0.5 rounded-full border border-border bg-popover px-2 py-1.5 shadow-xl"
               style={{ animation: "fbReactPop 0.18s cubic-bezier(0.175,0.885,0.32,1.4) both" }}
             >
               {EMOJI_LIST.map((emoji) => {
