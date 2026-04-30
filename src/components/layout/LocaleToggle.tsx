@@ -36,7 +36,7 @@ export function LocaleToggle() {
           size="icon"
           aria-label={t("toggle")}
           title={t("toggle")}
-          className="h-8 w-8 sm:h-9 sm:w-9"
+          className="hidden h-8 w-8 sm:inline-flex sm:h-9 sm:w-9"
         >
           <Languages className="h-4 w-4 sm:h-5 sm:w-5" />
         </Button>
