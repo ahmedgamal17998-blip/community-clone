@@ -42,12 +42,18 @@ async function maybeGrantFreeTrial(params: {
   groupId: string;
   freeTrialDays: number | null;
 }) {
-  if (params.freeTrialDays == null || params.freeTrialDays <= 0) return;
+  if (params.freeTrialDays == null || params.freeTrialDays <= 0) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[free-trial] skip: groupId=${params.groupId} userId=${params.userId} freeTrialDays=${params.freeTrialDays}`,
+    );
+    return;
+  }
   const expiresAt = new Date(
     Date.now() + params.freeTrialDays * 86_400_000,
   );
   try {
-    await db.memberAccess.upsert({
+    const result = await db.memberAccess.upsert({
       where: {
         userId_resourceType_resourceId: {
           userId: params.userId,
@@ -72,9 +78,17 @@ async function maybeGrantFreeTrial(params: {
         note: "Free trial",
       },
     });
+    // eslint-disable-next-line no-console
+    console.log(
+      `[free-trial] granted: groupId=${params.groupId} userId=${params.userId} days=${params.freeTrialDays} expiresAt=${expiresAt.toISOString()} memberAccessId=${result.id}`,
+    );
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.error("free-trial grant failed", e);
+    console.error("[free-trial] grant failed", {
+      groupId: params.groupId,
+      userId: params.userId,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 }
 

@@ -8,6 +8,8 @@ import { AccessMatrix } from "./_components/AccessMatrix";
 import { ExpiryEditor } from "./_components/ExpiryEditor";
 import { LoginHistoryTable } from "./_components/LoginHistoryTable";
 import { SubscriptionActions } from "./_components/SubscriptionActions";
+import { AccessDiagnostics } from "./_components/AccessDiagnostics";
+import { hasGroupSubscriptionAccess } from "@/server/access";
 
 /**
  * M18: Admin per-member control panel.
@@ -45,6 +47,7 @@ export default async function AdminMemberPage({
         where: { active: true },
         select: { id: true, name: true, durationDays: true, priceCents: true },
       },
+      freeTrialDays: true,
     },
   });
   if (!group) notFound();
@@ -99,6 +102,20 @@ export default async function AdminMemberPage({
     take: 50,
   });
 
+  // Diagnostic state — pulled in one place so the AccessDiagnostics card
+  // can show "trial active / expired / never granted" + sub status at a
+  // glance.
+  const trialRow = accessRecords.find(
+    (r) => r.resourceType === "GROUP" && r.resourceId === group.id && r.mode === "GRANT",
+  );
+  const hasActiveSub = subs.some(
+    (s) => s.status === "ACTIVE" && s.currentPeriodEnd > new Date(),
+  );
+  const hasGroupSubAccess = await hasGroupSubscriptionAccess({
+    userId: member.id,
+    groupId: group.id,
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -113,6 +130,21 @@ export default async function AdminMemberPage({
           <p className="text-sm text-muted-foreground">@{member.handle}</p>
         </div>
       </div>
+
+      <section className="rounded-xl border bg-card p-4">
+        <h2 className="mb-3 text-sm font-semibold">Access diagnostics</h2>
+        <AccessDiagnostics
+          groupId={group.id}
+          userId={member.id}
+          trial={{
+            granted: !!trialRow,
+            expiresAt: trialRow?.expiresAt ?? null,
+          }}
+          hasActiveSub={hasActiveSub}
+          hasGroupSubAccess={hasGroupSubAccess}
+          freeTrialDays={group.freeTrialDays}
+        />
+      </section>
 
       <section className="rounded-xl border bg-card p-4">
         <h2 className="mb-3 text-sm font-semibold">Access &amp; expiry</h2>
