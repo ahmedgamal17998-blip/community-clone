@@ -15,6 +15,9 @@ type Props = {
   priceLabel?: string | null;
   priceAmount?: number | null;
   currency?: string | null;
+  /** Access tier (FREE | PREMIUM). Premium courses show a PREMIUM badge
+   *  and require a subscription / explicit grant for non-admin members. */
+  tier?: string;
   published: boolean;
   progressPercent: number;
   enrolled?: boolean;
@@ -35,6 +38,7 @@ export function CourseCard({
   priceLabel,
   priceAmount,
   currency,
+  tier,
   published,
   progressPercent,
   enrolled,
@@ -119,7 +123,13 @@ export function CourseCard({
           </div>
         )}
         <div className="absolute left-2 top-2 flex gap-1">
-          {isPaid ? (
+          {/* Tier badge: PREMIUM (amber) overrides everything else.
+              Otherwise show the paid-price label or a Free chip. */}
+          {tier === "PREMIUM" ? (
+            <span className="rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+              Premium
+            </span>
+          ) : isPaid ? (
             <span className="rounded-full bg-amber-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
               {priceDisplay ?? "Paid"}
             </span>

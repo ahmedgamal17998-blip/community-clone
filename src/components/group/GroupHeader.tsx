@@ -7,6 +7,7 @@ import { getTranslations } from "next-intl/server";
 import { GroupAvatar } from "@/components/group/GroupAvatar";
 import { Button } from "@/components/ui/button";
 import { joinGroupAction, leaveGroupAction } from "@/server/groups";
+import { leaveGroupActionByIdAction } from "@/server/leave-action";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { LeavePopup } from "@/components/group/LeavePopup";
 
@@ -91,6 +92,7 @@ export async function GroupHeader({ group, myMembership }: Props) {
           group.leavePopupEnabled ? (
             <LeavePopup
               enabled
+              groupId={group.id}
               body={group.leavePopupBody ?? null}
               fontFamily={group.leavePopupFontFamily ?? null}
               fontSizePx={group.leavePopupFontSizePx ?? null}
@@ -98,12 +100,7 @@ export async function GroupHeader({ group, myMembership }: Props) {
               bold={group.leavePopupBold ?? false}
               stayLabel={group.leavePopupStayLabel ?? null}
               leaveLabel={group.leavePopupLeaveLabel ?? t("leave")}
-              onLeaveAction={async () => {
-                "use server";
-                const fd = new FormData();
-                fd.set("groupId", group.id);
-                await leaveGroupAction(fd);
-              }}
+              onLeaveAction={leaveGroupActionByIdAction}
             />
           ) : (
             <form action={leaveGroupAction}>

@@ -89,6 +89,7 @@ export default async function GroupLearningPage({
             priceLabel={c.priceLabel}
             priceAmount={c.priceAmount ?? null}
             currency={c.currency}
+            tier={c.tier}
             published={c.published}
             progressPercent={c.progressPercent}
             enrolled={enrolledSet.has(c.id)}

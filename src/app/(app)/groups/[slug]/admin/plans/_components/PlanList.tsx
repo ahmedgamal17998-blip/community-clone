@@ -173,6 +173,11 @@ const PLAN_TYPE_OPTIONS = [
 
 function PlanMappingEditor({ groupId, plan }: { groupId: string; plan: Plan }) {
   const [pending, startTransition] = useTransition();
+  // Price / duration (basic plan fields)
+  const [name, setName] = useState(plan.name);
+  const [days, setDays] = useState<number>(plan.durationDays);
+  const [price, setPrice] = useState<number>(plan.priceCents / 100);
+  // Payment-system mapping
   const [productId, setProductId] = useState<string>(
     plan.externalProductId != null ? String(plan.externalProductId) : "",
   );
@@ -180,12 +185,18 @@ function PlanMappingEditor({ groupId, plan }: { groupId: string; plan: Plan }) {
   const [planType, setPlanType] = useState(plan.externalPlanType ?? "");
   const [saved, setSaved] = useState(false);
 
+  const sym =
+    CURRENCY_SYMBOLS[plan.currency.toLowerCase()] ?? plan.currency.toUpperCase();
+
   const save = () => {
     setSaved(false);
     startTransition(async () => {
       await updatePlanAction({
         groupId,
         planId: plan.id,
+        name,
+        durationDays: days,
+        priceCents: Math.round(price * 100),
         externalProductId: productId ? Number(productId) : null,
         externalProductSlug: productSlug || null,
         externalPlanType: planType || null,
@@ -199,73 +210,128 @@ function PlanMappingEditor({ groupId, plan }: { groupId: string; plan: Plan }) {
     "w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 
   return (
-    <div className="border-t border-border bg-card px-4 py-4">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Payment system mapping
+    <div className="border-t border-border bg-card px-4 py-4 space-y-5">
+      {/* ─── Plan basics: name + price + duration ─── */}
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Plan basics
         </p>
-        {saved && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-600 dark:text-green-400">
-            <Check className="h-3 w-3" />
-            Saved
-          </span>
-        )}
+        <div className="grid gap-3 sm:grid-cols-[1.5fr_1fr_1fr]">
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+              Name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+              Duration (days)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={3650}
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+              Price ({sym})
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              value={price}
+              onChange={(e) => setPrice(Number(e.target.value))}
+              className={inputCls}
+            />
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-400">
+          ⚠️ <b>Duration must match what your payment system charges for.</b>{" "}
+          If Paymob bills monthly (30 days), don't set this to 60 — members
+          would get 2 months access for 1 month payment.
+        </p>
       </div>
-      <p className="mb-3 text-[11px] text-muted-foreground">
-        Set both Product ID + Plan Type so we can match incoming webhooks to
-        this plan. Slug is required to redirect members to the checkout page.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-[1fr_1.5fr_1fr_auto]">
-        <div>
-          <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
-            Product ID
-          </label>
-          <input
-            type="number"
-            min={1}
-            placeholder="e.g. 1"
-            value={productId}
-            onChange={(e) => setProductId(e.target.value)}
-            className={inputCls}
-          />
+
+      {/* ─── Payment-system mapping ─── */}
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Payment system mapping
+          </p>
+          {saved && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-green-600 dark:text-green-400">
+              <Check className="h-3 w-3" />
+              Saved
+            </span>
+          )}
         </div>
-        <div>
-          <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
-            Product Slug
-          </label>
-          <input
-            type="text"
-            placeholder="e.g. test-product"
-            value={productSlug}
-            onChange={(e) => setProductSlug(e.target.value)}
-            className={inputCls}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
-            Plan Type
-          </label>
-          <select
-            value={planType}
-            onChange={(e) => setPlanType(e.target.value)}
-            className={inputCls}
-          >
-            {PLAN_TYPE_OPTIONS.map((p) => (
-              <option key={p.value || "none"} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-end">
-          <button
-            type="button"
-            onClick={save}
-            disabled={pending}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            {pending ? "Saving…" : "Save"}
-          </button>
+        <p className="mb-3 text-[11px] text-muted-foreground">
+          Set Product ID + Plan Type so we can match incoming webhooks to
+          this plan. Slug is required to redirect members to the checkout
+          page.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1.5fr_1fr_auto]">
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+              Product ID
+            </label>
+            <input
+              type="number"
+              min={1}
+              placeholder="e.g. 1"
+              value={productId}
+              onChange={(e) => setProductId(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+              Product Slug
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. test-product"
+              value={productSlug}
+              onChange={(e) => setProductSlug(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+              Plan Type
+            </label>
+            <select
+              value={planType}
+              onChange={(e) => setPlanType(e.target.value)}
+              className={inputCls}
+            >
+              {PLAN_TYPE_OPTIONS.map((p) => (
+                <option key={p.value || "none"} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={save}
+              disabled={pending}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {pending ? "Saving…" : "Save all"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

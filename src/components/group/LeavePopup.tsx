@@ -16,6 +16,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 type Props = {
   enabled: boolean;
+  groupId: string;
   body: string | null;
   fontFamily: string | null;
   fontSizePx: number | null;
@@ -23,8 +24,8 @@ type Props = {
   bold: boolean;
   stayLabel: string | null;
   leaveLabel: string | null;
-  /** Server action that actually performs the leave. */
-  onLeaveAction: () => Promise<void> | void;
+  /** Server action that actually performs the leave (takes groupId). */
+  onLeaveAction: (groupId: string) => Promise<void> | void;
 };
 
 /** Render a string with **bold** tokens converted to <strong>. */
@@ -40,6 +41,7 @@ function renderRichText(text: string) {
 
 export function LeavePopup({
   enabled,
+  groupId,
   body,
   fontFamily,
   fontSizePx,
@@ -71,7 +73,7 @@ export function LeavePopup({
 
   function confirmLeave() {
     startTransition(async () => {
-      await onLeaveAction();
+      await onLeaveAction(groupId);
     });
   }
 

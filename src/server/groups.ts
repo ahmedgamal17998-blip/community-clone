@@ -24,6 +24,60 @@ import {
 import { syncAllChannelsForGroup } from "@/server/channels";
 import { createNotification } from "@/server/notifications";
 
+/**
+ * Free-trial helper. Creates / refreshes a GROUP-level MemberAccess
+ * GRANT with `expiresAt = now + freeTrialDays`. The grant is a no-op
+ * if the group has no trial configured. `hasAccess()` reads this row
+ * to grant full access during the trial window, then naturally falls
+ * back to per-resource gating once it expires.
+ *
+ * Called from:
+ *  - joinGroupAction (PUBLIC groups, immediate ACTIVE)
+ *  - decidePendingAction (PRIVATE groups, after admin approves)
+ *  - the payment-webhook activation path doesn't need it (those
+ *    members already get plan-bundled grants on payment).
+ */
+async function maybeGrantFreeTrial(params: {
+  userId: string;
+  groupId: string;
+  freeTrialDays: number | null;
+}) {
+  if (params.freeTrialDays == null || params.freeTrialDays <= 0) return;
+  const expiresAt = new Date(
+    Date.now() + params.freeTrialDays * 86_400_000,
+  );
+  try {
+    await db.memberAccess.upsert({
+      where: {
+        userId_resourceType_resourceId: {
+          userId: params.userId,
+          resourceType: "GROUP",
+          resourceId: params.groupId,
+        },
+      },
+      update: {
+        mode: "GRANT",
+        expiresAt,
+        source: "RULE",
+        note: "Free trial",
+      },
+      create: {
+        userId: params.userId,
+        groupId: params.groupId,
+        resourceType: "GROUP",
+        resourceId: params.groupId,
+        mode: "GRANT",
+        expiresAt,
+        source: "RULE",
+        note: "Free trial",
+      },
+    });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("free-trial grant failed", e);
+  }
+}
+
 // ─── Slug helper ────────────────────────────────────────────────────────────
 
 function slugify(input: string): string {
@@ -204,48 +258,12 @@ export async function joinGroupAction(formData: FormData) {
     await syncAllChannelsForGroup(db, group.id);
 
     // Phase 1 monetization: grant a free trial if configured.
-    // Implementation: a GROUP-level MemberAccess GRANT with expiresAt set
-    // to (now + freeTrialDays). hasAccess() will treat them as having
-    // full access until that date, then naturally fall back to per-
-    // resource gating once the grant expires.
-    if (
-      isNewMember &&
-      group.freeTrialDays != null &&
-      group.freeTrialDays > 0
-    ) {
-      const expiresAt = new Date(
-        Date.now() + group.freeTrialDays * 86_400_000,
-      );
-      try {
-        await db.memberAccess.upsert({
-          where: {
-            userId_resourceType_resourceId: {
-              userId: session.user.id,
-              resourceType: "GROUP",
-              resourceId: group.id,
-            },
-          },
-          update: {
-            mode: "GRANT",
-            expiresAt,
-            source: "RULE",
-            note: "Free trial",
-          },
-          create: {
-            userId: session.user.id,
-            groupId: group.id,
-            resourceType: "GROUP",
-            resourceId: group.id,
-            mode: "GRANT",
-            expiresAt,
-            source: "RULE",
-            note: "Free trial",
-          },
-        });
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error("free-trial grant failed", e);
-      }
+    if (isNewMember) {
+      await maybeGrantFreeTrial({
+        userId: session.user.id,
+        groupId: group.id,
+        freeTrialDays: group.freeTrialDays,
+      });
     }
   }
 
@@ -306,16 +324,32 @@ export async function decidePendingAction(formData: FormData) {
   await requireRole({ groupId: target.groupId, userId: session.user.id, min: "ADMIN" });
 
   if (parsed.data.decision === "APPROVE") {
+    // Was the membership in REQUESTED state? If so, this is the user's
+    // first ACTIVE moment in the group → fire the free-trial grant.
+    const wasRequested = target.state === "REQUESTED";
+
     await db.groupMembership.update({
       where: { id: target.id },
       data: { state: "ACTIVE" },
     });
     await syncAllChannelsForGroup(db, target.groupId);
-    try {
-      const group = await db.group.findUnique({
-        where: { id: target.groupId },
-        select: { slug: true, name: true },
+
+    // Fetch trial config + slug/name in one query.
+    const group = await db.group.findUnique({
+      where: { id: target.groupId },
+      select: { slug: true, name: true, freeTrialDays: true },
+    });
+
+    // Trial: only on the REQUESTED → ACTIVE transition.
+    if (wasRequested && group) {
+      await maybeGrantFreeTrial({
+        userId: target.userId,
+        groupId: target.groupId,
+        freeTrialDays: group.freeTrialDays,
       });
+    }
+
+    try {
       if (group) {
         await createNotification({
           userId: target.userId,

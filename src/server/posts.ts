@@ -11,6 +11,8 @@
 import { db } from "@/server/db";
 import type { Prisma } from "@prisma/client";
 import { listVisibleChannels } from "@/server/channels";
+import { hasAccessBulk } from "@/server/access";
+import { hasMinRole, type Role } from "@/server/permissions";
 import { SUPPORTED_EMOJIS, type ReactionSummary } from "@/server/comments";
 
 export const PAGE_SIZE = 20;
@@ -272,9 +274,32 @@ export async function listGroupFeed(params: {
   const include = engagementInclude(params.userId);
 
   const visibleChannels = await listVisibleChannels(params.groupId, params.userId);
-  const channelIds = visibleChannels.map((c) => c.id);
+  let channelIds = visibleChannels.map((c) => c.id);
   if (channelIds.length === 0) {
     return { pinned: [], items: [], nextCursor: null };
+  }
+
+  // Hide posts from channels the viewer can't access (e.g. PREMIUM channels
+  // when no subscription / trial). Admins / owners bypass — they always see
+  // every post for moderation. We resolve membership role inline because
+  // listVisibleChannels itself doesn't surface it.
+  const me = await db.groupMembership.findUnique({
+    where: { groupId_userId: { groupId: params.groupId, userId: params.userId } },
+    select: { role: true, state: true },
+  });
+  const isAdmin =
+    !!me && me.state === "ACTIVE" && hasMinRole(me.role as Role, "ADMIN");
+  if (!isAdmin) {
+    const access = await hasAccessBulk({
+      userId: params.userId,
+      groupId: params.groupId,
+      resourceType: "CHANNEL",
+      resourceIds: channelIds,
+    });
+    channelIds = channelIds.filter((id) => access.get(id) !== false);
+    if (channelIds.length === 0) {
+      return { pinned: [], items: [], nextCursor: null };
+    }
   }
 
   let pinned: PostWithEngagement[] = [];
