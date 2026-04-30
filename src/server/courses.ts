@@ -351,6 +351,38 @@ export async function updateCourseAction(formData: FormData) {
   redirect(`/groups/${course.group.slug}/learning/${course.slug}`);
 }
 
+/**
+ * Toggle the course-level `published` flag without going through the full
+ * Edit form. Shown as a one-click button on the course outline header so
+ * admins don't lose the toggle behind a Settings menu.
+ */
+export async function setCoursePublishedAction(params: {
+  courseId: string;
+  published: boolean;
+}) {
+  const session = await auth();
+  if (!session?.user) throw new Error("UNAUTHENTICATED");
+
+  const course = await db.course.findUnique({
+    where: { id: params.courseId },
+    include: { group: { select: { slug: true } } },
+  });
+  if (!course) throw new Error("COURSE_NOT_FOUND");
+  await requireRole({
+    groupId: course.groupId,
+    userId: session.user.id,
+    min: "ADMIN",
+  });
+
+  await db.course.update({
+    where: { id: course.id },
+    data: { published: params.published },
+  });
+  revalidatePath(`/groups/${course.group.slug}/learning`);
+  revalidatePath(`/groups/${course.group.slug}/learning/${course.slug}`);
+  revalidatePath(`/groups/${course.group.slug}/learning/${course.slug}/outline`);
+}
+
 export async function deleteCourseAction(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("UNAUTHENTICATED");

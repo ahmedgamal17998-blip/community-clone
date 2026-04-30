@@ -6,6 +6,7 @@ import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { getCourseOutline } from "@/server/course-modules";
 import { CourseOutlineEditor } from "@/components/courses/CourseOutlineEditor";
+import { CoursePublishToggle } from "@/components/courses/CoursePublishToggle";
 
 /**
  * Course outline editor — modules + lessons tree with drip/lock controls.
@@ -65,6 +66,10 @@ export default async function CourseOutlinePage({
           </p>
         </div>
         <div className="flex items-center gap-1.5">
+          <CoursePublishToggle
+            courseId={course.id}
+            initialPublished={course.published}
+          />
           <Link
             href={`${courseHref}/insights`}
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-accent"

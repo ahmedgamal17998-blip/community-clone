@@ -20,6 +20,11 @@ type Sub = {
   status: string;
   startedAt: Date;
   currentPeriodEnd: Date;
+  /** Set when this sub originated from a Paymob payment. Determines the
+   *  available actions: Cancel calls the payment system; Pause is hidden
+   *  because Paymob has no pause-billing API and would keep charging. */
+  externalSubscriptionId: number | null;
+  cancelRequestedAt: Date | null;
   plan: { name: string };
 };
 
@@ -58,6 +63,42 @@ export function SubscriptionActions({
         status,
       });
       if (!res?.ok) setSubs(prev); // rollback
+    });
+  };
+
+  // Cancel a Paymob-managed sub by hitting our /api/payments/cancel proxy,
+  // which forwards to the payment system's admin API. The Paymob backend
+  // suspends the auto-renewal; webhooks then flip our sub to CANCELED.
+  const cancelExternal = (id: string) => {
+    if (
+      !confirm(
+        "Cancel this subscription on Paymob? Auto-renewal will stop and the member keeps access until the current period ends.",
+      )
+    )
+      return;
+    const prev = subs;
+    // Optimistically mark cancel-requested.
+    setSubs((p) =>
+      p.map((s) =>
+        s.id === id ? { ...s, cancelRequestedAt: new Date() } : s,
+      ),
+    );
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/payments/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subscriptionId: id }),
+        });
+        const data = (await res.json()) as { ok: boolean; error?: string };
+        if (!data.ok) {
+          alert(`Cancel failed: ${data.error ?? "unknown error"}`);
+          setSubs(prev);
+        }
+      } catch (e) {
+        alert(`Cancel failed: ${e instanceof Error ? e.message : String(e)}`);
+        setSubs(prev);
+      }
     });
   };
 
@@ -109,42 +150,80 @@ export function SubscriptionActions({
           <ul className="divide-y divide-border">
             {subs.map((s) => {
               const status = s.status.toUpperCase();
+              const isExternal = s.externalSubscriptionId != null;
+              const cancelPending = !!s.cancelRequestedAt;
               return (
                 <li
                   key={s.id}
                   className="flex flex-wrap items-center gap-3 px-3 py-2.5 text-sm"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-semibold">{s.plan.name}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate font-semibold">
+                        {s.plan.name}
+                      </span>
+                      {isExternal ? (
+                        <span className="rounded-full bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400">
+                          Paymob
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                          Manual
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[11px] text-muted-foreground">
-                      Period ends{" "}
-                      {new Date(s.currentPeriodEnd).toLocaleDateString()}
+                      {cancelPending
+                        ? `Cancels on ${new Date(s.currentPeriodEnd).toLocaleDateString()}`
+                        : `Period ends ${new Date(s.currentPeriodEnd).toLocaleDateString()}`}
                     </div>
                   </div>
 
                   <StatusBadge status={status} />
 
-                  {/* Per-row controls — different actions per status */}
                   <div className="flex shrink-0 items-center gap-1">
-                    {status === "ACTIVE" && (
+                    {status === "ACTIVE" && !cancelPending && (
                       <>
-                        <ActionBtn
-                          onClick={() => setStatus(s.id, "PAUSED")}
-                          disabled={pending}
-                          tone="muted"
-                          icon={<Pause className="h-3.5 w-3.5" />}
-                        >
-                          Pause
-                        </ActionBtn>
-                        <ActionBtn
-                          onClick={() => setStatus(s.id, "CANCELED")}
-                          disabled={pending}
-                          tone="destructive"
-                          icon={<X className="h-3.5 w-3.5" />}
-                        >
-                          Cancel
-                        </ActionBtn>
+                        {/* Pause is hidden for Paymob subs because Paymob has
+                            no pause-billing API — pausing locally would just
+                            block access while continuing to charge. */}
+                        {!isExternal && (
+                          <ActionBtn
+                            onClick={() => setStatus(s.id, "PAUSED")}
+                            disabled={pending}
+                            tone="muted"
+                            icon={<Pause className="h-3.5 w-3.5" />}
+                          >
+                            Pause
+                          </ActionBtn>
+                        )}
+                        {isExternal ? (
+                          <ActionBtn
+                            onClick={() => cancelExternal(s.id)}
+                            disabled={pending}
+                            tone="destructive"
+                            icon={<X className="h-3.5 w-3.5" />}
+                            title="Stops Paymob auto-renewal. Member keeps access until period end."
+                          >
+                            Cancel billing
+                          </ActionBtn>
+                        ) : (
+                          <ActionBtn
+                            onClick={() => setStatus(s.id, "CANCELED")}
+                            disabled={pending}
+                            tone="destructive"
+                            icon={<X className="h-3.5 w-3.5" />}
+                          >
+                            Cancel
+                          </ActionBtn>
+                        )}
                       </>
+                    )}
+
+                    {status === "ACTIVE" && cancelPending && (
+                      <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">
+                        Cancellation pending
+                      </span>
                     )}
 
                     {status === "PAUSED" && (
@@ -158,7 +237,11 @@ export function SubscriptionActions({
                           Resume
                         </ActionBtn>
                         <ActionBtn
-                          onClick={() => setStatus(s.id, "CANCELED")}
+                          onClick={() =>
+                            isExternal
+                              ? cancelExternal(s.id)
+                              : setStatus(s.id, "CANCELED")
+                          }
                           disabled={pending}
                           tone="destructive"
                           icon={<X className="h-3.5 w-3.5" />}
@@ -168,7 +251,7 @@ export function SubscriptionActions({
                       </>
                     )}
 
-                    {status === "CANCELED" && (
+                    {status === "CANCELED" && !isExternal && (
                       <ActionBtn
                         onClick={() => setStatus(s.id, "ACTIVE")}
                         disabled={pending}
@@ -177,6 +260,12 @@ export function SubscriptionActions({
                       >
                         Reactivate
                       </ActionBtn>
+                    )}
+
+                    {status === "CANCELED" && isExternal && (
+                      <span className="text-[11px] text-muted-foreground">
+                        Member must re-subscribe via Paymob
+                      </span>
                     )}
 
                     {status === "EXPIRED" && (
@@ -233,12 +322,14 @@ function ActionBtn({
   tone,
   icon,
   children,
+  title,
 }: {
   onClick: () => void;
   disabled?: boolean;
   tone: "primary" | "muted" | "destructive";
   icon: React.ReactNode;
   children: React.ReactNode;
+  title?: string;
 }) {
   const tones = {
     primary: "bg-primary/10 text-primary hover:bg-primary/15",
@@ -251,6 +342,7 @@ function ActionBtn({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50",
         tones[tone],
