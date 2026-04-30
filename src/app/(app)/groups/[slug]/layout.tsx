@@ -160,6 +160,14 @@ export default async function GroupLayout({
               primaryHsl: group.primaryHsl,
               visibility: group.visibility,
               memberCount: group._count.memberships,
+              leavePopupEnabled: group.leavePopupEnabled,
+              leavePopupBody: group.leavePopupBody,
+              leavePopupFontFamily: group.leavePopupFontFamily,
+              leavePopupFontSizePx: group.leavePopupFontSizePx,
+              leavePopupColor: group.leavePopupColor,
+              leavePopupBold: group.leavePopupBold,
+              leavePopupStayLabel: group.leavePopupStayLabel,
+              leavePopupLeaveLabel: group.leavePopupLeaveLabel,
             }}
             myMembership={myMembership}
           />
