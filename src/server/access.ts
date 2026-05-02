@@ -7,12 +7,76 @@
  *   3. The resource type is GROUP and the membership has no `accessExpiresAt`
  *      OR `accessExpiresAt > now()` (legacy ungated members stay accessible).
  *
+ * M28 Tracks: when the group has `tracksEnabled = true` and the resource
+ * is a CHANNEL or COURSE linked to one or more Tracks, the user must also
+ * be on a matching track. This is enforced as a final filter AFTER the
+ * grant/subscription checks — track gating overrides blanket subscription
+ * access (a "premium" subscription doesn't open a channel reserved for the
+ * "advanced" cohort).
+ *
  * Layered behind UI: when this returns false we render a dimmed/locked
  * version of the resource and a "Subscribe / Renew" dialog on click.
  */
 import { db } from "@/server/db";
 
 export type ResourceType = "GROUP" | "CHANNEL" | "CHAT" | "COURSE" | "EVENT";
+
+/**
+ * Track-gating predicate. Returns:
+ *   • true  — the resource is NOT track-gated, or the user is on a matching track
+ *   • false — the resource is track-gated and the user is on no matching track
+ *
+ * Cheap path: if the group has tracks disabled or the resource has no track
+ * links, returns true immediately.
+ */
+async function passesTrackGate(params: {
+  userId: string;
+  groupId: string;
+  resourceType: ResourceType;
+  resourceId: string;
+}): Promise<boolean> {
+  if (params.resourceType !== "CHANNEL" && params.resourceType !== "COURSE") {
+    return true;
+  }
+  const group = await db.group.findUnique({
+    where: { id: params.groupId },
+    select: { tracksEnabled: true },
+  });
+  if (!group || !group.tracksEnabled) return true;
+
+  if (params.resourceType === "CHANNEL") {
+    const links = await db.trackChannel.findMany({
+      where: { channelId: params.resourceId },
+      select: { trackId: true },
+    });
+    if (links.length === 0) return true; // unlinked = open to all
+    const memberOnTrack = await db.trackMember.findFirst({
+      where: {
+        userId: params.userId,
+        groupId: params.groupId,
+        trackId: { in: links.map((l) => l.trackId) },
+      },
+      select: { id: true },
+    });
+    return !!memberOnTrack;
+  }
+
+  // COURSE
+  const links = await db.trackCourse.findMany({
+    where: { courseId: params.resourceId },
+    select: { trackId: true },
+  });
+  if (links.length === 0) return true;
+  const memberOnTrack = await db.trackMember.findFirst({
+    where: {
+      userId: params.userId,
+      groupId: params.groupId,
+      trackId: { in: links.map((l) => l.trackId) },
+    },
+    select: { id: true },
+  });
+  return !!memberOnTrack;
+}
 
 export interface AccessContext {
   userId: string;
@@ -43,6 +107,11 @@ export async function hasAccess(ctx: AccessContext): Promise<boolean> {
     },
   });
   if (denied) return false;
+
+  // M28: Track gating runs as a hard filter — even with a blanket grant or
+  // active subscription, a track-gated resource is invisible without a
+  // matching track membership.
+  if (!(await passesTrackGate(ctx))) return false;
 
   // 1. Direct GRANT
   const direct = await db.memberAccess.findFirst({
@@ -225,10 +294,64 @@ export async function hasAccessBulk(params: {
     for (const r of rows) if (r.tier === "PREMIUM") premiumIds.add(r.id);
   }
 
+  // M28: pre-compute the track-gating verdict per resource. For CHANNEL /
+  // COURSE we look up TrackChannel / TrackCourse links once and intersect
+  // with the user's tracks. Other types pass through unchanged.
+  const trackGatedDenied = new Set<string>();
+  if (
+    (params.resourceType === "CHANNEL" || params.resourceType === "COURSE")
+  ) {
+    const group = await db.group.findUnique({
+      where: { id: params.groupId },
+      select: { tracksEnabled: true },
+    });
+    if (group?.tracksEnabled) {
+      const links =
+        params.resourceType === "CHANNEL"
+          ? await db.trackChannel.findMany({
+              where: { channelId: { in: params.resourceIds } },
+              select: { channelId: true, trackId: true },
+            })
+          : await db.trackCourse.findMany({
+              where: { courseId: { in: params.resourceIds } },
+              select: { courseId: true, trackId: true },
+            });
+      const linksByResource = new Map<string, Set<string>>();
+      for (const link of links) {
+        const id =
+          "channelId" in link ? link.channelId : link.courseId;
+        if (!linksByResource.has(id)) linksByResource.set(id, new Set());
+        linksByResource.get(id)!.add(link.trackId);
+      }
+      const userTracks = await db.trackMember.findMany({
+        where: { userId: params.userId, groupId: params.groupId },
+        select: { trackId: true },
+      });
+      const userTrackSet = new Set(userTracks.map((t) => t.trackId));
+      for (const id of params.resourceIds) {
+        const linkedTracks = linksByResource.get(id);
+        if (!linkedTracks || linkedTracks.size === 0) continue; // unlinked = open
+        let onAny = false;
+        for (const t of linkedTracks) {
+          if (userTrackSet.has(t)) {
+            onAny = true;
+            break;
+          }
+        }
+        if (!onAny) trackGatedDenied.add(id);
+      }
+    }
+  }
+
   for (const id of params.resourceIds) {
     // DENY beats everything (admin can lock specific resources even on
     // members with blanket access).
     if (directDeny.has(id)) {
+      result.set(id, false);
+      continue;
+    }
+    // M28: track gating is a hard filter — overrides grants and subs.
+    if (trackGatedDenied.has(id)) {
       result.set(id, false);
       continue;
     }

@@ -227,6 +227,28 @@ export async function _activateSubscriptionInternal(params: {
     expiresAt: newEnd,
   });
 
+  // M28: Plan→Track auto-routing fires ONLY on first activation, not on
+  // renewals. Otherwise every renewal would re-apply REPLACE mode and
+  // silently undo any manual track move the admin had made between cycles.
+  // Renewals should respect the user's current track state.
+  if (plan.mappedTrackId && !existing) {
+    try {
+      const { assignTrackToUser } = await import("@/server/tracks");
+      await assignTrackToUser({
+        userId: params.userId,
+        groupId: params.groupId,
+        trackId: plan.mappedTrackId,
+        source: "PLAN",
+      });
+    } catch (e) {
+      // Plan auto-routing failure (e.g. mapped track was archived) must not
+      // block payment activation. Log + continue — admin can fix the plan
+      // later and reassign manually.
+      // eslint-disable-next-line no-console
+      console.error("Plan→Track auto-routing failed for plan", plan.id, e);
+    }
+  }
+
   revalidatePath(`/groups/[slug]/me`, "page");
   return sub;
 }

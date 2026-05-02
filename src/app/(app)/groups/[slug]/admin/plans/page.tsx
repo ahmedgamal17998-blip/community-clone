@@ -15,7 +15,7 @@ export default async function PlansAdminPage({
 
   const group = await db.group.findUnique({
     where: { slug: params.slug },
-    select: { id: true, slug: true },
+    select: { id: true, slug: true, tracksEnabled: true },
   });
   if (!group) notFound();
 
@@ -26,7 +26,7 @@ export default async function PlansAdminPage({
   });
   if (!allowed) notFound();
 
-  const [plans, channels, courses, planResources] = await Promise.all([
+  const [plans, channels, courses, planResources, tracks] = await Promise.all([
     db.subscriptionPlan.findMany({
       where: { groupId: group.id },
       orderBy: [{ active: "desc" }, { priceCents: "asc" }],
@@ -44,6 +44,11 @@ export default async function PlansAdminPage({
     db.planResource.findMany({
       where: { plan: { groupId: group.id } },
       select: { planId: true, resourceType: true, resourceId: true },
+    }),
+    db.track.findMany({
+      where: { groupId: group.id, archived: false },
+      orderBy: { position: "asc" },
+      select: { id: true, name: true },
     }),
   ]);
 
@@ -99,6 +104,8 @@ export default async function PlansAdminPage({
           plans={plans}
           channels={channels}
           courses={courses}
+          tracks={tracks}
+          tracksEnabled={group.tracksEnabled}
           resourcesByPlan={resourcesByPlan}
         />
       </section>

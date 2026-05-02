@@ -10,6 +10,7 @@ import { LoginHistoryTable } from "./_components/LoginHistoryTable";
 import { SubscriptionActions } from "./_components/SubscriptionActions";
 import { AccessDiagnostics } from "./_components/AccessDiagnostics";
 import { hasGroupSubscriptionAccess } from "@/server/access";
+import { MemberTracks } from "./_components/MemberTracks";
 
 /**
  * M18: Admin per-member control panel.
@@ -31,6 +32,7 @@ export default async function AdminMemberPage({
       id: true,
       slug: true,
       name: true,
+      tracksEnabled: true,
       channels: {
         where: { archived: false },
         orderBy: { position: "asc" },
@@ -102,6 +104,25 @@ export default async function AdminMemberPage({
     take: 50,
   });
 
+  // M28: Tracks for the assignment widget. Loaded only when tracks are enabled.
+  const tracks = group.tracksEnabled
+    ? await db.track.findMany({
+        where: { groupId: group.id, archived: false },
+        orderBy: { position: "asc" },
+        select: { id: true, name: true, color: true, isDefault: true },
+      })
+    : [];
+  const memberTracks = group.tracksEnabled
+    ? await db.trackMember.findMany({
+        where: { userId: member.id, groupId: group.id },
+        select: {
+          trackId: true,
+          source: true,
+          assignedAt: true,
+        },
+      })
+    : [];
+
   // Diagnostic state — pulled in one place so the AccessDiagnostics card
   // can show "trial active / expired / never granted" + sub status at a
   // glance.
@@ -165,6 +186,22 @@ export default async function AdminMemberPage({
           activeSubscriptions={subs}
         />
       </section>
+
+      {group.tracksEnabled && (
+        <section className="rounded-xl border bg-card p-4">
+          <h2 className="mb-3 text-sm font-semibold">Tracks</h2>
+          <MemberTracks
+            groupId={group.id}
+            userId={member.id}
+            tracks={tracks}
+            memberTracks={memberTracks.map((t) => ({
+              trackId: t.trackId,
+              source: t.source,
+              assignedAt: t.assignedAt.toISOString(),
+            }))}
+          />
+        </section>
+      )}
 
       <section className="rounded-xl border bg-card p-4">
         <h2 className="mb-3 text-sm font-semibold">Per-resource access</h2>

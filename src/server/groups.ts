@@ -269,6 +269,21 @@ export async function joinGroupAction(formData: FormData) {
 
   // Keep CHANNEL chat participants in sync whenever a new ACTIVE member appears.
   if (state === "ACTIVE") {
+    // M28: route the new member through Plan→Track / default-track / pending
+    // BEFORE the channel-participant sync so chat eligibility reflects their
+    // track from the start. A misconfigured track must not block the join
+    // itself — the member can still see PUBLIC channels and an admin can
+    // assign a track from the member panel.
+    if (isNewMember) {
+      try {
+        const { routeNewMember } = await import("@/server/tracks");
+        await routeNewMember({ userId: session.user.id, groupId: group.id });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("routeNewMember failed on join", e);
+      }
+    }
+
     await syncAllChannelsForGroup(db, group.id);
 
     // Phase 1 monetization: grant a free trial if configured.
@@ -359,6 +374,20 @@ export async function decidePendingAction(formData: FormData) {
       where: { id: target.id },
       data: { state: "ACTIVE" },
     });
+
+    // M28: route the newly-active member through track cascade BEFORE syncing
+    // channel participants. Wrap in try/catch — a misconfigured track must
+    // not block approving the membership.
+    if (wasRequested) {
+      try {
+        const { routeNewMember } = await import("@/server/tracks");
+        await routeNewMember({ userId: target.userId, groupId: target.groupId });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("routeNewMember failed on approval", e);
+      }
+    }
+
     await syncAllChannelsForGroup(db, target.groupId);
 
     // Fetch trial config + slug/name in one query.

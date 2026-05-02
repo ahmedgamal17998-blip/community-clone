@@ -65,6 +65,11 @@ export async function uniqueChannelSlug(
  *   PUBLIC / ANNOUNCEMENT → all ACTIVE group members.
  *   PRIVATE              → only users with a ChannelAccess row (and who are
  *                           also ACTIVE members of the group).
+ *
+ *   When the group has `tracksEnabled = true` AND the channel is linked to
+ *   at least one Track via TrackChannel, the candidate set is further
+ *   filtered to users on a matching track. Channels without any track
+ *   linkage stay open to all eligible members regardless of track.
  */
 export async function eligibleUserIdsForChannel(
   client: Prisma.TransactionClient | typeof db,
@@ -72,7 +77,7 @@ export async function eligibleUserIdsForChannel(
 ): Promise<string[]> {
   const channel = await client.channel.findUnique({
     where: { id: channelId },
-    select: { groupId: true, kind: true },
+    select: { groupId: true, kind: true, group: { select: { tracksEnabled: true } } },
   });
   if (!channel) return [];
 
@@ -82,15 +87,36 @@ export async function eligibleUserIdsForChannel(
   });
   const activeSet = new Set(active.map((a) => a.userId));
 
+  let candidates: string[];
   if (channel.kind === "PRIVATE") {
     const grants = await client.channelAccess.findMany({
       where: { channelId },
       select: { userId: true },
     });
-    return grants.map((g) => g.userId).filter((id) => activeSet.has(id));
+    candidates = grants.map((g) => g.userId).filter((id) => activeSet.has(id));
+  } else {
+    candidates = Array.from(activeSet);
   }
 
-  return Array.from(activeSet);
+  // Track gating layered on top: if enabled AND this channel is linked to
+  // any track, narrow to users on a matching track.
+  if (channel.group.tracksEnabled) {
+    const trackLinks = await client.trackChannel.findMany({
+      where: { channelId },
+      select: { trackId: true },
+    });
+    if (trackLinks.length > 0) {
+      const trackIds = trackLinks.map((l) => l.trackId);
+      const trackMembers = await client.trackMember.findMany({
+        where: { trackId: { in: trackIds }, userId: { in: candidates } },
+        select: { userId: true },
+      });
+      const allowed = new Set(trackMembers.map((m) => m.userId));
+      candidates = candidates.filter((u) => allowed.has(u));
+    }
+  }
+
+  return candidates;
 }
 
 // ─── Thread provisioning ───────────────────────────────────────────────────
@@ -176,6 +202,11 @@ export async function syncAllChannelsForGroup(
 /**
  * Returns the set of channels visible to the user in a given group.
  * Honors PRIVATE channel grants.
+ *
+ * Track gating (M28): when the group has `tracksEnabled = true`, channels
+ * linked to one or more Tracks are dropped from the result unless the user
+ * is on a matching track. Channels with no track linkage stay open to all
+ * eligible members.
  */
 export async function listVisibleChannels(
   groupId: string,
@@ -206,7 +237,7 @@ export async function listVisibleChannels(
     })
   ).map((g) => g.channelId);
 
-  return db.channel.findMany({
+  const baseChannels = await db.channel.findMany({
     where: {
       groupId,
       archived: false,
@@ -217,4 +248,15 @@ export async function listVisibleChannels(
     },
     orderBy: [{ position: "asc" }, { createdAt: "asc" }],
   });
+
+  // Track-gating filter (M28). Imported lazily to avoid a circular import
+  // with src/server/tracks.ts (which imports syncAllChannelsForGroup).
+  const { trackHiddenChannelIds } = await import("@/server/tracks");
+  const hidden = await trackHiddenChannelIds({
+    userId,
+    groupId,
+    candidateIds: baseChannels.map((c) => c.id),
+  });
+  if (hidden.size === 0) return baseChannels;
+  return baseChannels.filter((c) => !hidden.has(c.id));
 }

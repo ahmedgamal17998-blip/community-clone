@@ -87,6 +87,10 @@ model User {
   // subscription webhook OR backfilled for users who already own a group.
   canCreateGroups Boolean @default(false)
 
+  // M28: Email + password auth. Optional — users created via magic link or
+  // OAuth have this null. Only the Credentials provider sets / verifies it.
+  passwordHash String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -173,6 +177,10 @@ model User {
 
   // Bookmarks
   savedPosts SavedPost[]
+
+  // M28 — Track membership + audit
+  trackMemberships TrackMember[]
+  trackAssignments TrackMember[] @relation("TrackAssignor")
 }
 
 // Single row per user. Updated by a debounced heartbeat (M6).
@@ -269,6 +277,18 @@ model Group {
   // falls back to per-resource checks → premium content gets locked.
   freeTrialDays Int?
 
+  // ─── Tracks (M28) ────────────────────────────────────────────────────────
+  // Tracks let admins pre-segment members into cohorts (e.g. "Beginner",
+  // "Advanced") and gate which channels / courses each cohort sees. When
+  // tracksEnabled = true, channels/courses linked to a Track are visible
+  // ONLY to members on that Track (PUBLIC channels stay open to all).
+  tracksEnabled      Boolean @default(false)
+  // REPLACE — assigning a new track removes prior track memberships in this group.
+  // STACK   — track memberships accumulate (a user can be on Beginner + Workshop).
+  trackPromotionMode String  @default("REPLACE")
+  // Whether the user sees their track name as a badge in their profile.
+  trackBadgeVisible  Boolean @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -301,6 +321,10 @@ model Group {
 
   // M26 relations
   announcements AdminAnnouncement[]
+
+  // M28 relations (Tracks)
+  tracks       Track[]
+  trackMembers TrackMember[]
 
   @@index([communityId])
 }
@@ -394,6 +418,9 @@ model Channel {
   // M22 / M23 relations
   courseAccessRules CourseAccessRule[]
   eventAudiences    EventAudience[]
+
+  // M28 — Track gating
+  trackChannels TrackChannel[]
 
   @@unique([groupId, slug])
   @@index([groupId, archived, position])
@@ -700,6 +727,9 @@ model Course {
   // Monetization tier — FREE / PREMIUM. Default FREE for backward compat.
   tier String @default("FREE")
 
+  // M28 — Track gating
+  trackCourses TrackCourse[]
+
   @@unique([groupId, slug])
   @@index([groupId, published, position])
 }
@@ -752,28 +782,28 @@ model CourseEnrollment {
 }
 
 model Lesson {
-  id          String   @id @default(cuid())
-  courseId    String
+  id           String   @id @default(cuid())
+  courseId     String
   // Optional during migration; backfilled to a default "Lessons" module.
-  moduleId    String?
-  slug        String
-  title       String
-  body        String?
-  videoUrl    String?
+  moduleId     String?
+  slug         String
+  title        String
+  body         String?
+  videoUrl     String?
   thumbnailUrl String?
-  durationSec Int?
+  durationSec  Int?
   // VIDEO | TEXT | QUIZ | ASSIGNMENT (Quiz/Assignment in Phase 2)
-  kind        String   @default("VIDEO")
+  kind         String   @default("VIDEO")
   // PUBLISHED | DRIP | LOCKED — same semantics as CourseModule.releaseMode
-  releaseMode String   @default("PUBLISHED")
+  releaseMode  String   @default("PUBLISHED")
   // When releaseMode = DRIP, days from enrollment until this lesson unlocks.
-  dripDays    Int?
+  dripDays     Int?
   // Downloadable resources — JSON array of {url, name, size?}
-  resources   String?
-  published   Boolean  @default(true)
-  position    Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  resources    String?
+  published    Boolean  @default(true)
+  position     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
   module     CourseModule?    @relation(fields: [moduleId], references: [id], onDelete: SetNull)
@@ -806,13 +836,13 @@ model LessonProgress {
 
 // Quiz attached to a Lesson (1:1 when lesson.kind = QUIZ).
 model Quiz {
-  id               String    @id @default(cuid())
-  lessonId         String    @unique
-  passingScore     Int       @default(70) // percentage 0–100
-  shuffleQuestions Boolean   @default(false)
-  allowRetake      Boolean   @default(true)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id               String   @id @default(cuid())
+  lessonId         String   @unique
+  passingScore     Int      @default(70) // percentage 0–100
+  shuffleQuestions Boolean  @default(false)
+  allowRetake      Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   lesson    Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   questions QuizQuestion[]
@@ -820,12 +850,12 @@ model Quiz {
 }
 
 model QuizQuestion {
-  id     String       @id @default(cuid())
+  id     String @id @default(cuid())
   quizId String
   text   String
   // SINGLE | MULTIPLE — single chooses one option, multiple allows several.
-  type   String       @default("SINGLE")
-  order  Int          @default(0)
+  type   String @default("SINGLE")
+  order  Int    @default(0)
 
   quiz    Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
   options QuizOption[]
@@ -1131,14 +1161,14 @@ model MemberAccess {
 }
 
 model SubscriptionPlan {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   groupId      String
   name         String
   description  String?
   durationDays Int // length of period granted on payment
   priceCents   Int // store in cents
-  currency     String   @default("usd")
-  active       Boolean  @default(true)
+  currency     String  @default("usd")
+  active       Boolean @default(true)
 
   // ─── External payment-system mapping (Subscription-base / Paymob) ──
   // When set, this Plan corresponds 1:1 to a (productId, planType) pair
@@ -1148,16 +1178,26 @@ model SubscriptionPlan {
   externalProductSlug String? // matches Subscription-base Product.slug (used for /subscribe/:slug)
   externalPlanType    String? // "weekly" | "monthly" | "3-months" | "6-months" | "yearly"
 
+  // ─── Tracks (M28) ────────────────────────────────────────────────────
+  // When set, activating a subscription on this plan auto-assigns the
+  // subscriber to this Track. Honors the group's `trackPromotionMode`
+  // (REPLACE removes prior tracks in the group; STACK adds alongside).
+  // Optional — plans without a mapped track leave routing to the admin
+  // / default-track / pending fallback.
+  mappedTrackId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   group         Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
   subscriptions Subscription[]
   resources     PlanResource[]
+  mappedTrack   Track?         @relation("PlanMappedTrack", fields: [mappedTrackId], references: [id], onDelete: SetNull)
 
   @@unique([groupId, externalProductId, externalPlanType])
   @@index([groupId, active])
   @@index([externalProductId, externalPlanType])
+  @@index([mappedTrackId])
 }
 
 // What a plan unlocks. When a user activates a subscription to a plan,
@@ -1181,13 +1221,13 @@ model PlanResource {
 }
 
 model Subscription {
-  id               String   @id @default(cuid())
-  userId           String
-  groupId          String
-  planId           String
-  startedAt        DateTime @default(now())
-  currentPeriodEnd DateTime
-  status           String   @default("ACTIVE") // ACTIVE | EXPIRED | CANCELED
+  id                     String    @id @default(cuid())
+  userId                 String
+  groupId                String
+  planId                 String
+  startedAt              DateTime  @default(now())
+  currentPeriodEnd       DateTime
+  status                 String    @default("ACTIVE") // ACTIVE | EXPIRED | CANCELED
   // ─── External payment-system fields (Subscription-base / Paymob) ──
   // We store the external sub ID so the admin Cancel action can call
   // POST /api/subscriptions/:id/cancel on the payment system.
@@ -1199,7 +1239,7 @@ model Subscription {
   paidAt                 DateTime?
   // True once the user (or admin) requested cancellation. Access stays
   // on until currentPeriodEnd, then the Subscription flips to CANCELED.
-  cancelRequestedAt DateTime?
+  cancelRequestedAt      DateTime?
 
   externalRef String? // legacy / generic reference
 
@@ -1376,4 +1416,94 @@ model AnnouncementSeen {
 
   @@unique([announcementId, userId])
   @@index([userId])
+}
+
+// ─── Tracks (M28) ───────────────────────────────────────────────────────────
+//
+// A Track is a named cohort within a Group ("Beginner", "Advanced", "VIP
+// Workshop"). Channels and courses can be linked to one or more tracks via
+// the join tables below; when `Group.tracksEnabled = true`, those resources
+// are visible ONLY to members on a matching track.
+//
+// PUBLIC channels remain open to every active member regardless of track —
+// they act as the natural "welcome / announcements" surface for members
+// awaiting track assignment.
+//
+// New-member routing cascade (handled in src/server/tracks.ts):
+//   1. Subscribed to a Plan with `mappedTrackId` set → assign that track
+//   2. Group has a Track flagged `isDefault = true`           → assign default
+//   3. Otherwise → no track (member sees only PUBLIC channels until admin
+//      assigns one from the member panel)
+
+model Track {
+  id          String  @id @default(cuid())
+  groupId     String
+  slug        String // unique within the group, e.g. "beginner"
+  name        String
+  description String?
+  // Optional accent color for the badge (HSL triplet, same convention as Group.primaryHsl).
+  color       String?
+  // The track new joiners default to when `Group.tracksEnabled` is on
+  // and no Plan-mapping decides routing. At most one default per group
+  // (enforced at the action layer).
+  isDefault   Boolean @default(false)
+  archived    Boolean @default(false)
+  position    Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group    Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  members  TrackMember[]
+  channels TrackChannel[]
+  courses  TrackCourse[]
+  // Plans whose activation auto-assigns this track.
+  plans    SubscriptionPlan[] @relation("PlanMappedTrack")
+
+  @@unique([groupId, slug])
+  @@index([groupId, archived, position])
+}
+
+model TrackMember {
+  id           String   @id @default(cuid())
+  trackId      String
+  userId       String
+  groupId      String // denormalized for fast "tracks-in-group for user" queries
+  // PLAN     — auto-assigned by Plan.mappedTrackId on subscription activation
+  // DEFAULT  — auto-assigned because the group has a default track
+  // MANUAL   — admin assigned via the member panel / tracks page
+  source       String   @default("MANUAL")
+  assignedById String?
+  assignedAt   DateTime @default(now())
+
+  track      Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group      Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  assignedBy User? @relation("TrackAssignor", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@unique([trackId, userId])
+  @@index([userId, groupId])
+  @@index([groupId])
+}
+
+model TrackChannel {
+  trackId   String
+  channelId String
+
+  track   Track   @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([trackId, channelId])
+  @@index([channelId])
+}
+
+model TrackCourse {
+  trackId  String
+  courseId String
+
+  track  Track  @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([trackId, courseId])
+  @@index([courseId])
 }

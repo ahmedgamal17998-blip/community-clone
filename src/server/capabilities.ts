@@ -23,6 +23,7 @@ export const CAPABILITIES = [
   "CHATS_MANAGE",
   "ANNOUNCEMENTS_SEND",
   "ONBOARDING_EDIT",
+  "TRACKS_MANAGE",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

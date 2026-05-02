@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { auth, signIn } from "@/server/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordSignInForm } from "./_components/PasswordSignInForm";
 
 const hasGoogle = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
 const isDemoMode = process.env.DEMO_MODE === "1";
@@ -62,22 +64,33 @@ export default async function LoginPage({
           </div>
         </div>
       ) : (
-        <form action={emailSignIn} className="mt-6 space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="email">{t("emailLabel")}</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              placeholder={t("emailPlaceholder")}
-            />
+        <PasswordSignInForm callbackUrl={callbackUrl} />
+      )}
+
+      {!isDemoMode && (
+        <>
+          <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            <span className="uppercase tracking-wider">or use a magic link</span>
+            <span className="h-px flex-1 bg-border" />
           </div>
-          <Button type="submit" className="w-full" size="lg">
-            {t("continue")}
-          </Button>
-        </form>
+          <form action={emailSignIn} className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="magic-email">{t("emailLabel")}</Label>
+              <Input
+                id="magic-email"
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                placeholder={t("emailPlaceholder")}
+              />
+            </div>
+            <Button type="submit" variant="outline" className="w-full" size="lg">
+              Email me a sign-in link
+            </Button>
+          </form>
+        </>
       )}
 
       {!isDemoMode && hasGoogle ? (
@@ -95,7 +108,19 @@ export default async function LoginPage({
         </>
       ) : null}
 
-      <p className="mt-6 text-center text-xs text-muted-foreground">{t("legal")}</p>
+      {!isDemoMode && (
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          New here?{" "}
+          <Link
+            href={`/register${callbackUrl === "/home" ? "" : `?callbackUrl=${encodeURIComponent(callbackUrl)}`}`}
+            className="font-semibold text-primary hover:underline"
+          >
+            Create an account
+          </Link>
+        </p>
+      )}
+
+      <p className="mt-4 text-center text-xs text-muted-foreground">{t("legal")}</p>
     </div>
   );
 }
