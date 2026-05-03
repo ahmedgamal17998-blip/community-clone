@@ -18,7 +18,6 @@ import {
   Palette,
   Settings,
   MessageSquare,
-  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +42,6 @@ const SECTIONS: Array<{ title: string; items: Item[] }> = [
     items: [
       { href: "/channels", label: "Channels", icon: Hash },
       { href: "/chats", label: "Group Chats", icon: MessageSquare },
-      { href: "/tracks", label: "Tracks", icon: Layers },
     ],
   },
   {

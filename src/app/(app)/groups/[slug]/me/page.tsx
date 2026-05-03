@@ -5,7 +5,6 @@ import { remainingDays } from "@/server/access";
 import { SubscriptionCard } from "./_components/SubscriptionCard";
 import { AccessibleResources } from "./_components/AccessibleResources";
 import { ProfileEditor } from "./_components/ProfileEditor";
-import { Layers } from "lucide-react";
 
 /**
  * M18: Member self-view.
@@ -66,45 +65,9 @@ export default async function MemberSelfPage({
     select: { id: true, title: true },
   });
 
-  // M28: primary track for the badge — only when group has tracks enabled
-  // AND the badge is visible per group setting.
-  const primaryTrackRow =
-    group.tracksEnabled && group.trackBadgeVisible
-      ? await db.trackMember.findFirst({
-          where: {
-            userId: me.id,
-            groupId: group.id,
-            track: { archived: false },
-          },
-          orderBy: { track: { position: "asc" } },
-          select: {
-            track: { select: { name: true, color: true } },
-          },
-        })
-      : null;
-  const primaryTrack = primaryTrackRow?.track ?? null;
-
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">My subscription</h1>
-
-      {primaryTrack && (
-        <div
-          className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm"
-          style={{
-            borderColor: primaryTrack.color
-              ? `hsl(${primaryTrack.color} / 0.4)`
-              : undefined,
-            background: primaryTrack.color
-              ? `hsl(${primaryTrack.color} / 0.08)`
-              : undefined,
-          }}
-        >
-          <Layers className="h-3.5 w-3.5" />
-          <span className="text-xs text-muted-foreground">Track</span>
-          <span className="font-semibold">{primaryTrack.name}</span>
-        </div>
-      )}
 
       <SubscriptionCard
         remainingDays={days}

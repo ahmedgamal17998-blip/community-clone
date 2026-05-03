@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronDown, ChevronRight, Hash, GraduationCap, Check, Layers } from "lucide-react";
+import { ChevronDown, ChevronRight, Hash, GraduationCap, Check } from "lucide-react";
 import {
   updatePlanAction,
   setPlanResourcesAction,
 } from "@/server/actions/subscription";
-import { setPlanMappedTrackAction } from "@/server/actions/tracks";
 import { cn } from "@/lib/utils";
 
 type Plan = {
@@ -20,12 +19,10 @@ type Plan = {
   externalProductId: number | null;
   externalProductSlug: string | null;
   externalPlanType: string | null;
-  mappedTrackId: string | null;
 };
 
 type Channel = { id: string; slug: string; name: string; tier: string; kind: string };
 type Course = { id: string; slug: string; title: string; tier: string };
-type Track = { id: string; name: string };
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   usd: "$",
@@ -48,16 +45,12 @@ export function PlanList({
   plans,
   channels,
   courses,
-  tracks,
-  tracksEnabled,
   resourcesByPlan,
 }: {
   groupId: string;
   plans: Plan[];
   channels: Channel[];
   courses: Course[];
-  tracks: Track[];
-  tracksEnabled: boolean;
   resourcesByPlan: Record<
     string,
     { channelIds: string[]; courseIds: string[]; eventIds: string[] }
@@ -151,13 +144,6 @@ export function PlanList({
             {isOpen && (
               <>
                 <PlanMappingEditor groupId={groupId} plan={p} />
-                {tracksEnabled && (
-                  <PlanTrackPicker
-                    groupId={groupId}
-                    plan={p}
-                    tracks={tracks}
-                  />
-                )}
                 <PlanResourcePicker
                   groupId={groupId}
                   planId={p.id}
@@ -517,78 +503,3 @@ function ResourceColumn({
   );
 }
 
-// ── Plan → Track auto-assignment ────────────────────────────────────────────
-
-function PlanTrackPicker({
-  groupId,
-  plan,
-  tracks,
-}: {
-  groupId: string;
-  plan: Plan;
-  tracks: Track[];
-}) {
-  const [pending, startTransition] = useTransition();
-  const [trackId, setTrackId] = useState<string>(plan.mappedTrackId ?? "");
-  const [saved, setSaved] = useState(false);
-
-  const save = () => {
-    setSaved(false);
-    startTransition(async () => {
-      await setPlanMappedTrackAction({
-        groupId,
-        planId: plan.id,
-        trackId: trackId || null,
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
-    });
-  };
-
-  const inputCls =
-    "w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
-  const dirty = (plan.mappedTrackId ?? "") !== trackId;
-
-  return (
-    <div className="border-t border-border bg-card px-4 py-4">
-      <div className="mb-2 flex items-center gap-2">
-        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Auto-assign track
-        </p>
-        {saved && (
-          <span className="ms-auto inline-flex items-center gap-1 text-[11px] font-semibold text-green-600 dark:text-green-400">
-            <Check className="h-3 w-3" />
-            Saved
-          </span>
-        )}
-      </div>
-      <p className="mb-3 text-[11px] text-muted-foreground">
-        When someone subscribes to this plan, automatically place them on the
-        chosen track. Honors the group's promotion mode (replace vs stack).
-      </p>
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-        <select
-          value={trackId}
-          onChange={(e) => setTrackId(e.target.value)}
-          className={inputCls}
-        >
-          <option value="">— No track auto-assignment —</option>
-          {tracks.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={save}
-          disabled={pending || !dirty}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
-          {pending ? "Saving…" : "Save"}
-        </button>
-      </div>
-    </div>
-  );
-}

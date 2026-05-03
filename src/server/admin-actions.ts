@@ -241,6 +241,48 @@ export async function setChannelTierAction(formData: FormData) {
   revalidatePath(`/groups/${channel.group.slug}/admin/channels`);
 }
 
+// ── M29: visibility toggle for PRIVATE channels ───────────────────────────
+
+const setVisibilitySchema = z.object({
+  channelId: z.string().cuid(),
+  visibility: z.enum(["LOCKED_VISIBLE", "HIDDEN"]),
+});
+
+export async function setChannelVisibilityAction(formData: FormData) {
+  const session = await auth();
+  if (!session?.user) throw new Error("UNAUTHENTICATED");
+
+  const parsed = setVisibilitySchema.safeParse({
+    channelId: formData.get("channelId"),
+    visibility: formData.get("visibility"),
+  });
+  if (!parsed.success) return;
+
+  const channel = await db.channel.findUnique({
+    where: { id: parsed.data.channelId },
+    include: { group: { select: { slug: true } } },
+  });
+  if (!channel) return;
+
+  await requireRole({
+    groupId: channel.groupId,
+    userId: session.user.id,
+    min: "ADMIN",
+  });
+
+  // Visibility only applies to PRIVATE channels — silently no-op on others
+  // so an accidental click on a PUBLIC channel can't change anything.
+  if (channel.kind !== "PRIVATE") return;
+
+  await db.channel.update({
+    where: { id: channel.id },
+    data: { visibility: parsed.data.visibility },
+  });
+
+  revalidatePath(`/groups/${channel.group.slug}/admin/channels`);
+  revalidatePath(`/groups/${channel.group.slug}`);
+}
+
 const setChannelChatEnabledSchema = z.object({
   channelId: z.string().cuid(),
   chatEnabled: z.enum(["true", "false"]).transform((v) => v === "true"),

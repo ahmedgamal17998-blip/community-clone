@@ -20,6 +20,8 @@ const createSchema = z.object({
   name: z.string().trim().min(2).max(40),
   description: z.string().trim().max(300).optional(),
   kind: z.enum(CHANNEL_KINDS),
+  // Only meaningful for kind=PRIVATE; ignored for PUBLIC/ANNOUNCEMENT.
+  visibility: z.enum(["LOCKED_VISIBLE", "HIDDEN"]).optional(),
   emoji: z.string().trim().max(4).optional(),
 });
 
@@ -32,6 +34,7 @@ export async function createChannelAction(_prev: unknown, formData: FormData) {
     name: formData.get("name"),
     description: formData.get("description") || undefined,
     kind: formData.get("kind"),
+    visibility: formData.get("visibility") || undefined,
     emoji: formData.get("emoji") || undefined,
   });
   if (!parsed.success) {
@@ -67,6 +70,13 @@ export async function createChannelAction(_prev: unknown, formData: FormData) {
         name: parsed.data.name,
         description: parsed.data.description,
         kind: parsed.data.kind,
+        // PRIVATE: respect the admin's choice (defaults to LOCKED_VISIBLE
+        // when not provided). Non-PRIVATE: force LOCKED_VISIBLE so the
+        // field is meaningless but consistent.
+        visibility:
+          parsed.data.kind === "PRIVATE"
+            ? parsed.data.visibility ?? "LOCKED_VISIBLE"
+            : "LOCKED_VISIBLE",
         emoji: parsed.data.emoji,
         position,
       },
@@ -89,6 +99,9 @@ const editSchema = z.object({
   name: z.string().trim().min(2).max(40),
   description: z.string().trim().max(300).optional(),
   emoji: z.string().trim().max(4).optional(),
+  // M29: admin can flip a PRIVATE channel between locked-visible and hidden
+  // from the same edit form. Ignored on non-PRIVATE channels.
+  visibility: z.enum(["LOCKED_VISIBLE", "HIDDEN"]).optional(),
 });
 
 export async function editChannelAction(_prev: unknown, formData: FormData) {
@@ -100,6 +113,7 @@ export async function editChannelAction(_prev: unknown, formData: FormData) {
     name: formData.get("name"),
     description: formData.get("description") || undefined,
     emoji: formData.get("emoji") || undefined,
+    visibility: formData.get("visibility") || undefined,
   });
   if (!parsed.success) {
     return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid input" };
@@ -123,6 +137,10 @@ export async function editChannelAction(_prev: unknown, formData: FormData) {
       name: parsed.data.name,
       description: parsed.data.description,
       emoji: parsed.data.emoji,
+      // Only persist visibility on PRIVATE channels.
+      ...(channel.kind === "PRIVATE" && parsed.data.visibility
+        ? { visibility: parsed.data.visibility }
+        : {}),
     },
   });
 

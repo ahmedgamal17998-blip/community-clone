@@ -113,7 +113,7 @@ export async function hasAccess(ctx: AccessContext): Promise<boolean> {
   // matching track membership.
   if (!(await passesTrackGate(ctx))) return false;
 
-  // 1. Direct GRANT
+  // 1. Direct GRANT (MemberAccess — the canonical record).
   const direct = await db.memberAccess.findFirst({
     where: {
       userId: ctx.userId,
@@ -124,6 +124,17 @@ export async function hasAccess(ctx: AccessContext): Promise<boolean> {
     },
   });
   if (direct) return true;
+
+  // 1b. Legacy per-channel grant (ChannelAccess) — admin-issued grants for
+  //     PRIVATE channels still write to this table. Treat as equivalent to
+  //     a non-expiring MemberAccess GRANT so all access paths stay unified.
+  if (ctx.resourceType === "CHANNEL") {
+    const legacy = await db.channelAccess.findFirst({
+      where: { userId: ctx.userId, channelId: ctx.resourceId },
+      select: { id: true },
+    });
+    if (legacy) return true;
+  }
 
   // 2. Group-level GRANT covers all children
   if (ctx.resourceType !== "GROUP") {
@@ -239,6 +250,19 @@ export async function hasAccessBulk(params: {
       .filter((r) => r.resourceType === params.resourceType && r.mode === "GRANT")
       .map((r) => r.resourceId),
   );
+  // Legacy ChannelAccess rows — fold into directGrant so callers get a
+  // single answer per channel regardless of which grant table the admin
+  // wrote to.
+  if (params.resourceType === "CHANNEL") {
+    const legacy = await db.channelAccess.findMany({
+      where: {
+        userId: params.userId,
+        channelId: { in: params.resourceIds },
+      },
+      select: { channelId: true },
+    });
+    for (const l of legacy) directGrant.add(l.channelId);
+  }
   const groupGrant = records.some(
     (r) =>
       r.resourceType === "GROUP" &&

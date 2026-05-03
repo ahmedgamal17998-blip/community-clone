@@ -403,7 +403,18 @@ model Channel {
   // Monetization tier — FREE channels are visible to every active member;
   // PREMIUM channels need an active plan (or admin-granted MemberAccess) to
   // enter. Default FREE keeps existing channels open.
+  // [DEPRECATED M29] kept for backward compat; new code uses kind=PRIVATE
+  // + visibility instead. Migration will fold PUBLIC+PREMIUM rows into
+  // PRIVATE+LOCKED_VISIBLE.
   tier        String  @default("FREE") // FREE | PREMIUM
+  // M29: visibility for PRIVATE channels.
+  //   LOCKED_VISIBLE — appears in the sidebar, dimmed with a lock icon for
+  //                    members without access (ClientClub style). Click
+  //                    triggers the paywall popup. Default for new private
+  //                    channels.
+  //   HIDDEN         — completely invisible to members without access.
+  // Has no effect on PUBLIC / ANNOUNCEMENT channels.
+  visibility  String  @default("LOCKED_VISIBLE") // LOCKED_VISIBLE | HIDDEN
   // Some channels are post-only (e.g. an announcements channel). Toggle this
   // off to hide the channel-chat ChatThread + composer in the UI.
   chatEnabled Boolean @default(true)

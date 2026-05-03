@@ -22,6 +22,7 @@ import {
   setChannelKindAction,
   setChannelTierAction,
   setChannelChatEnabledAction,
+  setChannelVisibilityAction,
   toggleChannelArchiveAction,
 } from "@/server/admin-actions";
 
@@ -32,6 +33,7 @@ type Channel = {
   emoji: string | null;
   kind: string;
   tier: string;
+  visibility: string;
   chatEnabled: boolean;
   archived: boolean;
   position: number;
@@ -43,12 +45,14 @@ function SortableRow({
   channel,
   onKind,
   onTier,
+  onVisibility,
   onChatEnabled,
   onArchive,
 }: {
   channel: Channel;
   onKind: (id: string, kind: string) => void;
   onTier: (id: string, tier: "FREE" | "PREMIUM") => void;
+  onVisibility: (id: string, visibility: "LOCKED_VISIBLE" | "HIDDEN") => void;
   onChatEnabled: (id: string, chatEnabled: boolean) => void;
   onArchive: (id: string, archived: boolean) => void;
 }) {
@@ -92,7 +96,7 @@ function SortableRow({
         <option value="PRIVATE">PRIVATE</option>
         <option value="ANNOUNCEMENT">ANNOUNCEMENT</option>
       </select>
-      {/* Tier toggle: FREE / PREMIUM */}
+      {/* Tier toggle: FREE / PREMIUM (legacy, kept for back-compat) */}
       <button
         type="button"
         onClick={() =>
@@ -111,6 +115,30 @@ function SortableRow({
       >
         {channel.tier === "PREMIUM" ? "PREMIUM" : "FREE"}
       </button>
+      {/* M29 visibility toggle — only meaningful for PRIVATE */}
+      {channel.kind === "PRIVATE" ? (
+        <button
+          type="button"
+          onClick={() =>
+            onVisibility(
+              channel.id,
+              channel.visibility === "HIDDEN" ? "LOCKED_VISIBLE" : "HIDDEN",
+            )
+          }
+          className={
+            channel.visibility === "HIDDEN"
+              ? "h-8 rounded-md border border-slate-500/40 bg-slate-500/10 px-2 text-xs font-bold text-slate-700 hover:border-slate-500 dark:text-slate-300"
+              : "h-8 rounded-md border border-border bg-background px-2 text-xs text-muted-foreground hover:border-primary"
+          }
+          title={
+            channel.visibility === "HIDDEN"
+              ? "Currently hidden from non-members. Click to make it locked-but-visible."
+              : "Currently shown dimmed to non-members. Click to hide it completely."
+          }
+        >
+          {channel.visibility === "HIDDEN" ? "HIDDEN" : "LOCKED"}
+        </button>
+      ) : null}
       {/* Chat toggle: enable/disable inline channel chat */}
       <button
         type="button"
@@ -190,6 +218,19 @@ export function ChannelSortableList({ groupId, channels: initial }: Props) {
     });
   }
 
+  function onVisibility(id: string, visibility: "LOCKED_VISIBLE" | "HIDDEN") {
+    setChannels((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, visibility } : c)),
+    );
+    const fd = new FormData();
+    fd.set("channelId", id);
+    fd.set("visibility", visibility);
+    startTransition(async () => {
+      await setChannelVisibilityAction(fd);
+      router.refresh();
+    });
+  }
+
   function onChatEnabled(id: string, chatEnabled: boolean) {
     setChannels((prev) =>
       prev.map((c) => (c.id === id ? { ...c, chatEnabled } : c)),
@@ -238,6 +279,7 @@ export function ChannelSortableList({ groupId, channels: initial }: Props) {
                 channel={c}
                 onKind={onKind}
                 onTier={onTier}
+                onVisibility={onVisibility}
                 onChatEnabled={onChatEnabled}
                 onArchive={onArchive}
               />

@@ -25,6 +25,7 @@ export default async function AdminChannelsPage({
       emoji: true,
       kind: true,
       tier: true,
+      visibility: true,
       chatEnabled: true,
       archived: true,
       position: true,
@@ -37,9 +38,10 @@ export default async function AdminChannelsPage({
         <div>
           <h1 className="text-xl font-semibold">Channels</h1>
           <p className="text-sm text-muted-foreground">
-            Drag to reorder. Change kind, tier (Free / Premium), or archive
-            from the row controls. Premium channels are locked for members
-            without an active plan that includes them.
+            Drag to reorder. Set kind (Public / Private / Announcement) and —
+            for private channels — pick whether non-members see the channel
+            dimmed or hidden completely. Access is granted by including the
+            channel in a plan or by per-member grants.
           </p>
         </div>
         <Link

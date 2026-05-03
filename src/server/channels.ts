@@ -63,13 +63,14 @@ export async function uniqueChannelSlug(
  * Returns the userIds who should be ChatParticipants of the given channel.
  *
  *   PUBLIC / ANNOUNCEMENT → all ACTIVE group members.
- *   PRIVATE              → only users with a ChannelAccess row (and who are
- *                           also ACTIVE members of the group).
+ *   PRIVATE              → all ACTIVE admins (they manage every space)
+ *                           plus any ACTIVE member with a grant via either
+ *                           the legacy ChannelAccess table OR a non-expired
+ *                           MemberAccess GRANT (from plans / trials / manual).
  *
- *   When the group has `tracksEnabled = true` AND the channel is linked to
- *   at least one Track via TrackChannel, the candidate set is further
- *   filtered to users on a matching track. Channels without any track
- *   linkage stay open to all eligible members regardless of track.
+ * This unified view replaces the M3 ChannelAccess-only path so members who
+ * unlock a PRIVATE channel via a Plan automatically appear in its chat
+ * participant list.
  */
 export async function eligibleUserIdsForChannel(
   client: Prisma.TransactionClient | typeof db,
@@ -77,46 +78,47 @@ export async function eligibleUserIdsForChannel(
 ): Promise<string[]> {
   const channel = await client.channel.findUnique({
     where: { id: channelId },
-    select: { groupId: true, kind: true, group: { select: { tracksEnabled: true } } },
+    select: { groupId: true, kind: true },
   });
   if (!channel) return [];
 
   const active = await client.groupMembership.findMany({
     where: { groupId: channel.groupId, state: "ACTIVE" },
-    select: { userId: true },
+    select: { userId: true, role: true },
   });
   const activeSet = new Set(active.map((a) => a.userId));
 
-  let candidates: string[];
-  if (channel.kind === "PRIVATE") {
-    const grants = await client.channelAccess.findMany({
+  if (channel.kind !== "PRIVATE") {
+    return Array.from(activeSet);
+  }
+
+  const adminIds = active
+    .filter((m) => m.role === "ADMIN" || m.role === "OWNER")
+    .map((m) => m.userId);
+
+  const [legacyGrants, memberAccessGrants] = await Promise.all([
+    client.channelAccess.findMany({
       where: { channelId },
       select: { userId: true },
-    });
-    candidates = grants.map((g) => g.userId).filter((id) => activeSet.has(id));
-  } else {
-    candidates = Array.from(activeSet);
-  }
+    }),
+    client.memberAccess.findMany({
+      where: {
+        resourceType: "CHANNEL",
+        resourceId: channelId,
+        mode: "GRANT",
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      select: { userId: true },
+    }),
+  ]);
 
-  // Track gating layered on top: if enabled AND this channel is linked to
-  // any track, narrow to users on a matching track.
-  if (channel.group.tracksEnabled) {
-    const trackLinks = await client.trackChannel.findMany({
-      where: { channelId },
-      select: { trackId: true },
-    });
-    if (trackLinks.length > 0) {
-      const trackIds = trackLinks.map((l) => l.trackId);
-      const trackMembers = await client.trackMember.findMany({
-        where: { trackId: { in: trackIds }, userId: { in: candidates } },
-        select: { userId: true },
-      });
-      const allowed = new Set(trackMembers.map((m) => m.userId));
-      candidates = candidates.filter((u) => allowed.has(u));
-    }
-  }
+  const granted = new Set<string>([
+    ...adminIds,
+    ...legacyGrants.map((g) => g.userId),
+    ...memberAccessGrants.map((g) => g.userId),
+  ]);
 
-  return candidates;
+  return [...granted].filter((id) => activeSet.has(id));
 }
 
 // ─── Thread provisioning ───────────────────────────────────────────────────
@@ -200,63 +202,74 @@ export async function syncAllChannelsForGroup(
 // ─── Visibility ────────────────────────────────────────────────────────────
 
 /**
- * Returns the set of channels visible to the user in a given group.
- * Honors PRIVATE channel grants.
+ * Returns the channels that should appear in the user's sidebar for a given
+ * group. M29 model:
  *
- * Track gating (M28): when the group has `tracksEnabled = true`, channels
- * linked to one or more Tracks are dropped from the result unless the user
- * is on a matching track. Channels with no track linkage stay open to all
- * eligible members.
+ *   • Admins (role >= ADMIN) always see ALL non-archived channels — they
+ *     manage the space, so a freshly-created PRIVATE channel must show up
+ *     in their own sidebar immediately.
+ *   • Regular members see:
+ *       - PUBLIC / ANNOUNCEMENT — always
+ *       - PRIVATE + LOCKED_VISIBLE — always (rendered dimmed with a lock
+ *         icon when the member has no access; click opens the paywall)
+ *       - PRIVATE + HIDDEN — only when the member actually has access via
+ *         any of the unified grant paths (MemberAccess GRANT, legacy
+ *         ChannelAccess, group-level grant, or active subscription).
+ *   • Logged-out / non-member viewers only see PUBLIC + ANNOUNCEMENT.
+ *
+ * The caller (group layout) still runs `hasAccessBulk` on the result to
+ * compute the per-channel `locked` flag the sidebar uses for dimming.
  */
 export async function listVisibleChannels(
   groupId: string,
   userId: string | undefined,
 ) {
+  // Importing inline to avoid pulling permission helpers into edge bundles.
+  const { hasMinRole } = await import("@/server/permissions");
+  const { hasAccessBulk } = await import("@/server/access");
+
+  const allChannels = await db.channel.findMany({
+    where: { groupId, archived: false },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+  });
+
   if (!userId) {
-    return db.channel.findMany({
-      where: { groupId, archived: false, kind: { not: "PRIVATE" } },
-      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-    });
+    return allChannels.filter((c) => c.kind !== "PRIVATE");
   }
 
   const membership = await db.groupMembership.findUnique({
     where: { groupId_userId: { groupId, userId } },
-    select: { state: true },
+    select: { role: true, state: true },
   });
   if (!membership || membership.state !== "ACTIVE") {
-    return db.channel.findMany({
-      where: { groupId, archived: false, kind: { not: "PRIVATE" } },
-      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-    });
+    return allChannels.filter((c) => c.kind !== "PRIVATE");
   }
 
-  const grantedPrivateIds = (
-    await db.channelAccess.findMany({
-      where: { userId, channel: { groupId } },
-      select: { channelId: true },
-    })
-  ).map((g) => g.channelId);
+  // Admins always see everything they could possibly manage.
+  if (hasMinRole(membership.role as Parameters<typeof hasMinRole>[0], "ADMIN")) {
+    return allChannels;
+  }
 
-  const baseChannels = await db.channel.findMany({
-    where: {
-      groupId,
-      archived: false,
-      OR: [
-        { kind: { in: ["PUBLIC", "ANNOUNCEMENT"] } },
-        { id: { in: grantedPrivateIds } },
-      ],
-    },
-    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-  });
+  // For HIDDEN channels we need to consult the unified access resolver —
+  // which honors MemberAccess GRANTs (from plans / manual / trial), the
+  // legacy ChannelAccess table, and active subscriptions.
+  const hiddenIds = allChannels
+    .filter((c) => c.kind === "PRIVATE" && c.visibility === "HIDDEN")
+    .map((c) => c.id);
 
-  // Track-gating filter (M28). Imported lazily to avoid a circular import
-  // with src/server/tracks.ts (which imports syncAllChannelsForGroup).
-  const { trackHiddenChannelIds } = await import("@/server/tracks");
-  const hidden = await trackHiddenChannelIds({
-    userId,
-    groupId,
-    candidateIds: baseChannels.map((c) => c.id),
+  const hiddenAccess =
+    hiddenIds.length > 0
+      ? await hasAccessBulk({
+          userId,
+          groupId,
+          resourceType: "CHANNEL",
+          resourceIds: hiddenIds,
+        })
+      : new Map<string, boolean>();
+
+  return allChannels.filter((c) => {
+    if (c.kind !== "PRIVATE") return true;
+    if (c.visibility === "LOCKED_VISIBLE") return true;
+    return hiddenAccess.get(c.id) === true;
   });
-  if (hidden.size === 0) return baseChannels;
-  return baseChannels.filter((c) => !hidden.has(c.id));
 }
