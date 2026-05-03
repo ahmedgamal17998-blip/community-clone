@@ -289,6 +289,17 @@ model Group {
   // Whether the user sees their track name as a badge in their profile.
   trackBadgeVisible  Boolean @default(true)
 
+  // ─── Booky integration (M31) ────────────────────────────────────────────
+  // When `bookingButtonEnabled` is true, the Events header surfaces a
+  // "Book sessions" button (admin-customizable label) that opens an inside
+  // page listing every BookingOffering the viewer has access to. Each
+  // offering renders Booky's embed via `?sso=<HMAC token>` so the member
+  // never re-types name/email and Premium offerings are auto-comped when
+  // their plan covers it.
+  bookingButtonEnabled Boolean @default(false)
+  bookingButtonLabel   String  @default("Book a session")
+  bookingButtonTooltip String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -325,6 +336,9 @@ model Group {
   // M28 relations (Tracks)
   tracks       Track[]
   trackMembers TrackMember[]
+
+  // M31 relations (Booky)
+  bookingOfferings BookingOffering[]
 
   @@index([communityId])
 }
@@ -1524,4 +1538,46 @@ model TrackCourse {
 
   @@id([trackId, courseId])
   @@index([courseId])
+}
+
+// ─── Booky integration (M31) ─────────────────────────────────────────────
+//
+// A BookingOffering points to a single Booky EventType, identified by
+// `(instructorSlug, eventSlug)`. The community-clone never stores Booky's
+// pricing or duration — those live in Booky and the embed iframe shows
+// them. We only own:
+//   • visibility / paywall state inside the community
+//   • plan linkage (via PlanResource resourceType="BOOKING_OFFERING")
+//   • the SSO payload that pre-fills attendee + comps payment when the
+//     viewer's plan covers a Premium offering.
+//
+// Tier / visibility semantics mirror Channel and Event:
+//   FREE                  — visible to every active member
+//   PREMIUM + LOCKED_VIS. — visible dimmed; click opens paywall
+//   PREMIUM + HIDDEN      — invisible until granted access
+model BookingOffering {
+  id           String  @id @default(cuid())
+  groupId      String
+  // Display name shown on the booking page (e.g. "30-min mentorship").
+  label        String
+  // Optional admin-set explainer shown in the info-icon tooltip and on
+  // the booking card subtitle.
+  tooltipText  String?
+  // The Booky locator. Composes into
+  //   {bookyBaseUrl}/{locale}/embed/{instructorSlug}/{eventSlug}
+  // The shared SSO token is appended as `?sso=...` at iframe time.
+  instructorSlug String
+  eventSlug      String
+  // Same FREE / PREMIUM model used everywhere else.
+  tier         String  @default("FREE") // FREE | PREMIUM
+  // Same LOCKED_VISIBLE / HIDDEN model used by Channel and Event.
+  visibility   String  @default("LOCKED_VISIBLE")
+  position     Int     @default(0)
+  archived     Boolean @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, archived, position])
 }

@@ -409,6 +409,9 @@ export async function setPlanResourcesAction(params: {
   channelIds: string[];
   courseIds: string[];
   eventIds: string[];
+  // M31: Booking offerings (Booky integration). Optional so older callers
+  // that don't yet send the array don't blow up; defaults to empty.
+  bookingOfferingIds?: string[];
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
@@ -445,6 +448,11 @@ export async function setPlanResourcesAction(params: {
         ...params.eventIds.map((id) => ({
           planId: params.planId,
           resourceType: "EVENT",
+          resourceId: id,
+        })),
+        ...(params.bookingOfferingIds ?? []).map((id) => ({
+          planId: params.planId,
+          resourceType: "BOOKING_OFFERING",
           resourceId: id,
         })),
       ],

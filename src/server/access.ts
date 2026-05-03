@@ -19,7 +19,13 @@
  */
 import { db } from "@/server/db";
 
-export type ResourceType = "GROUP" | "CHANNEL" | "CHAT" | "COURSE" | "EVENT";
+export type ResourceType =
+  | "GROUP"
+  | "CHANNEL"
+  | "CHAT"
+  | "COURSE"
+  | "EVENT"
+  | "BOOKING_OFFERING";
 
 /**
  * Track-gating predicate. Returns:

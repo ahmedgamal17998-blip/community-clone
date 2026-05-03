@@ -19,6 +19,7 @@ import {
 import { ViewToggle } from "@/components/events/ViewToggle";
 import { CalendarGrid } from "@/components/events/CalendarGrid";
 import { UpcomingPastPanel } from "@/components/events/UpcomingPastPanel";
+import { BookSessionsButton } from "@/components/events/BookSessionsButton";
 import { Button } from "@/components/ui/button";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
@@ -28,6 +29,7 @@ import {
 } from "@/server/event-access";
 import { hasGroupSubscriptionAccess } from "@/server/access";
 import { EventsLockedView } from "@/components/events/EventsLockedView";
+import { listOfferingsForViewer } from "@/server/booking-offerings";
 
 type Props = {
   params: { slug: string };
@@ -168,6 +170,40 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
     .filter((e) => passesTier(e.eventId))
     .slice(0, 10);
 
+  // M31 — booking button. Only render when the admin enabled it AND there's
+  // at least one offering the viewer could potentially see (free, or
+  // premium-locked-visible, or admin-bypass). The button is dimmed-and-
+  // paywalled when every accessible offering requires a plan the viewer
+  // doesn't have (every offering returns LOCKED).
+  let bookingButton: {
+    label: string;
+    tooltip: string | null;
+    locked: boolean;
+  } | null = null;
+  const groupBookingExtras = await db.group.findUnique({
+    where: { id: group.id },
+    select: {
+      bookingButtonEnabled: true,
+      bookingButtonLabel: true,
+      bookingButtonTooltip: true,
+    },
+  });
+  if (groupBookingExtras?.bookingButtonEnabled && session.user) {
+    const offerings = await listOfferingsForViewer({
+      groupId: group.id,
+      userId: session.user.id,
+    });
+    if (offerings.length > 0) {
+      const anyAccess =
+        isAdmin || offerings.some((o) => o.state === "ACCESS");
+      bookingButton = {
+        label: groupBookingExtras.bookingButtonLabel,
+        tooltip: groupBookingExtras.bookingButtonTooltip ?? null,
+        locked: !anyAccess,
+      };
+    }
+  }
+
   const title = titleFor(view, date);
 
   return (
@@ -181,6 +217,14 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
         </div>
         <div className="flex items-center gap-2">
           <ViewToggle view={view} date={date} />
+          {bookingButton ? (
+            <BookSessionsButton
+              groupSlug={group.slug}
+              label={bookingButton.label}
+              tooltip={bookingButton.tooltip}
+              locked={bookingButton.locked}
+            />
+          ) : null}
           {isActive && isAdmin ? (
             <Button asChild size="sm">
               <Link href={`/groups/${group.slug}/events/new`}>+ New Event</Link>

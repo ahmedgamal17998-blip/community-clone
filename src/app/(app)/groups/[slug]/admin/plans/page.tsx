@@ -26,7 +26,14 @@ export default async function PlansAdminPage({
   });
   if (!allowed) notFound();
 
-  const [plans, channels, courses, events, planResources] = await Promise.all([
+  const [
+    plans,
+    channels,
+    courses,
+    events,
+    bookingOfferings,
+    planResources,
+  ] = await Promise.all([
     db.subscriptionPlan.findMany({
       where: { groupId: group.id },
       orderBy: [{ active: "desc" }, { priceCents: "asc" }],
@@ -49,6 +56,19 @@ export default async function PlansAdminPage({
       take: 100,
       select: { id: true, title: true, startsAt: true, tier: true },
     }),
+    // M31: booking offerings — premium first so the linkable items rise to
+    // the top of the column.
+    db.bookingOffering.findMany({
+      where: { groupId: group.id, archived: false },
+      orderBy: [{ tier: "desc" }, { position: "asc" }],
+      select: {
+        id: true,
+        label: true,
+        instructorSlug: true,
+        eventSlug: true,
+        tier: true,
+      },
+    }),
     db.planResource.findMany({
       where: { plan: { groupId: group.id } },
       select: { planId: true, resourceType: true, resourceId: true },
@@ -58,10 +78,20 @@ export default async function PlansAdminPage({
   // Group PlanResources by plan id for the editor.
   const resourcesByPlan: Record<
     string,
-    { channelIds: string[]; courseIds: string[]; eventIds: string[] }
+    {
+      channelIds: string[];
+      courseIds: string[];
+      eventIds: string[];
+      bookingOfferingIds: string[];
+    }
   > = {};
   for (const p of plans) {
-    resourcesByPlan[p.id] = { channelIds: [], courseIds: [], eventIds: [] };
+    resourcesByPlan[p.id] = {
+      channelIds: [],
+      courseIds: [],
+      eventIds: [],
+      bookingOfferingIds: [],
+    };
   }
   for (const r of planResources) {
     const bucket = resourcesByPlan[r.planId];
@@ -69,6 +99,8 @@ export default async function PlansAdminPage({
     if (r.resourceType === "CHANNEL") bucket.channelIds.push(r.resourceId);
     else if (r.resourceType === "COURSE") bucket.courseIds.push(r.resourceId);
     else if (r.resourceType === "EVENT") bucket.eventIds.push(r.resourceId);
+    else if (r.resourceType === "BOOKING_OFFERING")
+      bucket.bookingOfferingIds.push(r.resourceId);
   }
 
   return (
@@ -113,6 +145,7 @@ export default async function PlansAdminPage({
             startsAt: e.startsAt.toISOString(),
             tier: e.tier,
           }))}
+          bookingOfferings={bookingOfferings}
           resourcesByPlan={resourcesByPlan}
         />
       </section>

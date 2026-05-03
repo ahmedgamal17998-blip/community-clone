@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronDown, ChevronRight, Hash, GraduationCap, Check, CalendarDays } from "lucide-react";
+import { ChevronDown, ChevronRight, Hash, GraduationCap, Check, CalendarDays, CalendarClock } from "lucide-react";
 import {
   updatePlanAction,
   setPlanResourcesAction,
@@ -24,6 +24,13 @@ type Plan = {
 type Channel = { id: string; slug: string; name: string; tier: string; kind: string };
 type Course = { id: string; slug: string; title: string; tier: string };
 type EventItem = { id: string; title: string; startsAt: string; tier: string };
+type BookingOfferingItem = {
+  id: string;
+  label: string;
+  instructorSlug: string;
+  eventSlug: string;
+  tier: string;
+};
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   usd: "$",
@@ -47,6 +54,7 @@ export function PlanList({
   channels,
   courses,
   events,
+  bookingOfferings,
   resourcesByPlan,
 }: {
   groupId: string;
@@ -54,9 +62,15 @@ export function PlanList({
   channels: Channel[];
   courses: Course[];
   events: EventItem[];
+  bookingOfferings: BookingOfferingItem[];
   resourcesByPlan: Record<
     string,
-    { channelIds: string[]; courseIds: string[]; eventIds: string[] }
+    {
+      channelIds: string[];
+      courseIds: string[];
+      eventIds: string[];
+      bookingOfferingIds: string[];
+    }
   >;
 }) {
   const [pending, startTransition] = useTransition();
@@ -91,11 +105,13 @@ export function PlanList({
           channelIds: [],
           courseIds: [],
           eventIds: [],
+          bookingOfferingIds: [],
         };
         const includedCount =
           initial.channelIds.length +
           initial.courseIds.length +
-          initial.eventIds.length;
+          initial.eventIds.length +
+          initial.bookingOfferingIds.length;
 
         return (
           <li
@@ -153,6 +169,7 @@ export function PlanList({
                   channels={channels}
                   courses={courses}
                   events={events}
+                  bookingOfferings={bookingOfferings}
                   initial={initial}
                 />
               </>
@@ -350,6 +367,7 @@ function PlanResourcePicker({
   channels,
   courses,
   events,
+  bookingOfferings,
   initial,
 }: {
   groupId: string;
@@ -357,7 +375,13 @@ function PlanResourcePicker({
   channels: Channel[];
   courses: Course[];
   events: EventItem[];
-  initial: { channelIds: string[]; courseIds: string[]; eventIds: string[] };
+  bookingOfferings: BookingOfferingItem[];
+  initial: {
+    channelIds: string[];
+    courseIds: string[];
+    eventIds: string[];
+    bookingOfferingIds: string[];
+  };
 }) {
   const [pending, startTransition] = useTransition();
   const [channelIds, setChannelIds] = useState<Set<string>>(
@@ -368,6 +392,9 @@ function PlanResourcePicker({
   );
   const [eventIds, setEventIds] = useState<Set<string>>(
     () => new Set(initial.eventIds),
+  );
+  const [bookingOfferingIds, setBookingOfferingIds] = useState<Set<string>>(
+    () => new Set(initial.bookingOfferingIds),
   );
   const [saved, setSaved] = useState(false);
 
@@ -391,6 +418,7 @@ function PlanResourcePicker({
         channelIds: [...channelIds],
         courseIds: [...courseIds],
         eventIds: [...eventIds],
+        bookingOfferingIds: [...bookingOfferingIds],
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
@@ -405,7 +433,7 @@ function PlanResourcePicker({
         duration.
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <ResourceColumn
           title="Channels"
           icon={<Hash className="h-3.5 w-3.5" />}
@@ -440,6 +468,20 @@ function PlanResourcePicker({
           }))}
           selected={eventIds}
           onToggle={(id) => toggle(eventIds, setEventIds, id)}
+        />
+
+        <ResourceColumn
+          title="Bookings"
+          icon={<CalendarClock className="h-3.5 w-3.5" />}
+          items={bookingOfferings.map((b) => ({
+            id: b.id,
+            label: b.label,
+            badge: b.tier === "PREMIUM" ? "PREMIUM" : null,
+          }))}
+          selected={bookingOfferingIds}
+          onToggle={(id) =>
+            toggle(bookingOfferingIds, setBookingOfferingIds, id)
+          }
         />
       </div>
 
