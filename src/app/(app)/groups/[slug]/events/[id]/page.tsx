@@ -5,7 +5,8 @@ import { auth } from "@/server/auth";
 import { getGroupForUser } from "@/server/group-queries";
 import { getEvent } from "@/server/events";
 import { hasMinRole, type Role } from "@/server/permissions";
-import { canSeeEvent } from "@/server/event-access";
+import { canPassAudience } from "@/server/event-access";
+import { hasAccess } from "@/server/access";
 import { formatInTZ } from "@/lib/calendar";
 import { Button } from "@/components/ui/button";
 import { RsvpButtons } from "@/components/events/RsvpButtons";
@@ -39,12 +40,31 @@ export default async function EventDetailPage({
   const canEdit = isAdmin || event.creatorId === session.user.id;
 
   // M23 audience gate — non-admins must match the event's audience.
+  // M30 tier gate — premium events with no access either 404 (HIDDEN) or
+  // redirect back to the calendar with the paywall popup signal (LOCKED).
   if (!isAdmin && event.creatorId !== session.user.id) {
-    const allowed = await canSeeEvent({
+    const audienceOk = await canPassAudience({
       userId: session.user.id,
       eventId: event.id,
     });
-    if (!allowed) notFound();
+    if (!audienceOk) notFound();
+
+    if (event.tier === "PREMIUM") {
+      const accessOk = await hasAccess({
+        userId: session.user.id,
+        groupId: event.groupId,
+        resourceType: "EVENT",
+        resourceId: event.id,
+      });
+      if (!accessOk) {
+        // HIDDEN events: leak nothing.
+        if (event.visibility === "HIDDEN") notFound();
+        // LOCKED_VISIBLE: bounce to the events calendar with the paywall.
+        // The calendar already opens the paywall for locked rows; we just
+        // make sure direct URLs don't reveal the detail.
+        redirect(`/groups/${group.slug}/events?locked=${encodeURIComponent(event.title)}`);
+      }
+    }
   }
 
   // Figure out the occurrence

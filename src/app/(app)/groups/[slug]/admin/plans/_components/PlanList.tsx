@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronDown, ChevronRight, Hash, GraduationCap, Check } from "lucide-react";
+import { ChevronDown, ChevronRight, Hash, GraduationCap, Check, CalendarDays } from "lucide-react";
 import {
   updatePlanAction,
   setPlanResourcesAction,
@@ -23,6 +23,7 @@ type Plan = {
 
 type Channel = { id: string; slug: string; name: string; tier: string; kind: string };
 type Course = { id: string; slug: string; title: string; tier: string };
+type EventItem = { id: string; title: string; startsAt: string; tier: string };
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   usd: "$",
@@ -45,12 +46,14 @@ export function PlanList({
   plans,
   channels,
   courses,
+  events,
   resourcesByPlan,
 }: {
   groupId: string;
   plans: Plan[];
   channels: Channel[];
   courses: Course[];
+  events: EventItem[];
   resourcesByPlan: Record<
     string,
     { channelIds: string[]; courseIds: string[]; eventIds: string[] }
@@ -149,6 +152,7 @@ export function PlanList({
                   planId={p.id}
                   channels={channels}
                   courses={courses}
+                  events={events}
                   initial={initial}
                 />
               </>
@@ -345,12 +349,14 @@ function PlanResourcePicker({
   planId,
   channels,
   courses,
+  events,
   initial,
 }: {
   groupId: string;
   planId: string;
   channels: Channel[];
   courses: Course[];
+  events: EventItem[];
   initial: { channelIds: string[]; courseIds: string[]; eventIds: string[] };
 }) {
   const [pending, startTransition] = useTransition();
@@ -359,6 +365,9 @@ function PlanResourcePicker({
   );
   const [courseIds, setCourseIds] = useState<Set<string>>(
     () => new Set(initial.courseIds),
+  );
+  const [eventIds, setEventIds] = useState<Set<string>>(
+    () => new Set(initial.eventIds),
   );
   const [saved, setSaved] = useState(false);
 
@@ -381,7 +390,7 @@ function PlanResourcePicker({
         planId,
         channelIds: [...channelIds],
         courseIds: [...courseIds],
-        eventIds: [], // events covered by M23 audience system
+        eventIds: [...eventIds],
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
@@ -391,11 +400,12 @@ function PlanResourcePicker({
   return (
     <div className="border-t border-border bg-muted/20 px-4 py-4">
       <p className="mb-3 text-xs text-muted-foreground">
-        Pick the channels and courses unlocked by this plan. Subscribers get
-        access to exactly these resources for the plan's duration.
+        Pick the channels, courses, and events unlocked by this plan.
+        Subscribers get access to exactly these resources for the plan&apos;s
+        duration.
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <ResourceColumn
           title="Channels"
           icon={<Hash className="h-3.5 w-3.5" />}
@@ -418,6 +428,18 @@ function PlanResourcePicker({
           }))}
           selected={courseIds}
           onToggle={(id) => toggle(courseIds, setCourseIds, id)}
+        />
+
+        <ResourceColumn
+          title="Events"
+          icon={<CalendarDays className="h-3.5 w-3.5" />}
+          items={events.map((e) => ({
+            id: e.id,
+            label: e.title,
+            badge: e.tier === "PREMIUM" ? "PREMIUM" : null,
+          }))}
+          selected={eventIds}
+          onToggle={(id) => toggle(eventIds, setEventIds, id)}
         />
       </div>
 

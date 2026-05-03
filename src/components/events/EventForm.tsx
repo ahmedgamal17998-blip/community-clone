@@ -45,6 +45,8 @@ type InitialEvent = {
   locationUrl: string | null;
   recurrence: string;
   recurrenceEndsAt: string | null;
+  tier?: string;
+  visibility?: string;
 };
 
 /** Convert a stored recurrence string to the builder preset */
@@ -81,6 +83,14 @@ export function EventForm({
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [tier, setTier] = useState<"FREE" | "PREMIUM">(
+    (initial?.tier === "PREMIUM" ? "PREMIUM" : "FREE") as "FREE" | "PREMIUM",
+  );
+  const [visibility, setVisibility] = useState<"LOCKED_VISIBLE" | "HIDDEN">(
+    (initial?.visibility === "HIDDEN" ? "HIDDEN" : "LOCKED_VISIBLE") as
+      | "LOCKED_VISIBLE"
+      | "HIDDEN",
+  );
   const [startsAt, setStartsAt] = useState(initial?.startsAt ?? defaultStart());
   const [endsAt, setEndsAt] = useState(initial?.endsAt ?? defaultEnd());
   const [timezone, setTimezone] = useState(initial?.timezone ?? browserTz);
@@ -190,6 +200,8 @@ export function EventForm({
         : (initial?.recurrenceEndsAt ?? "");
       if (endsAtVal) fd.append("recurrenceEndsAt", endsAtVal);
     }
+    fd.append("tier", tier);
+    fd.append("visibility", visibility);
 
     // Pick up audience inputs from the AudienceEditor draft mode (if any).
     const formEl = e.currentTarget;
@@ -421,6 +433,108 @@ export function EventForm({
             {rruleText.charAt(0).toUpperCase() + rruleText.slice(1)}
           </p>
         ) : null}
+      </div>
+
+      {/* ── Access tier (free / premium) ── */}
+      <div className="space-y-3 rounded-xl border border-border p-4">
+        <div>
+          <Label>Access</Label>
+          <p className="text-xs text-muted-foreground">
+            Free events are open to every active member. Premium events
+            require an active plan that includes them.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setTier("FREE")}
+            className={cn(
+              "flex flex-col items-start gap-1 rounded-lg border p-3 text-start text-sm transition-colors",
+              tier === "FREE"
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-primary/40",
+            )}
+          >
+            <span className="flex items-center gap-2 font-medium">
+              <span
+                className={cn(
+                  "inline-block h-3 w-3 rounded-full border-2",
+                  tier === "FREE" ? "border-primary bg-primary" : "border-border",
+                )}
+              />
+              Free
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Visible to every active member of the group.
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTier("PREMIUM")}
+            className={cn(
+              "flex flex-col items-start gap-1 rounded-lg border p-3 text-start text-sm transition-colors",
+              tier === "PREMIUM"
+                ? "border-primary bg-primary/5"
+                : "border-border hover:border-primary/40",
+            )}
+          >
+            <span className="flex items-center gap-2 font-medium">
+              <span
+                className={cn(
+                  "inline-block h-3 w-3 rounded-full border-2",
+                  tier === "PREMIUM"
+                    ? "border-primary bg-primary"
+                    : "border-border",
+                )}
+              />
+              Premium
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Locked behind a plan. Link this event to a plan from the Plans
+              admin page after saving.
+            </span>
+          </button>
+        </div>
+
+        {tier === "PREMIUM" && (
+          <div className="space-y-2 rounded-lg bg-muted/30 p-3">
+            <Label className="text-xs">Visibility for non-subscribers</Label>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setVisibility("LOCKED_VISIBLE")}
+                className={cn(
+                  "rounded-md border p-2 text-start text-xs transition-colors",
+                  visibility === "LOCKED_VISIBLE"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40",
+                )}
+              >
+                <span className="block font-medium">See it (locked)</span>
+                <span className="text-muted-foreground">
+                  Appears dimmed in the calendar. Click opens an upgrade
+                  prompt.
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisibility("HIDDEN")}
+                className={cn(
+                  "rounded-md border p-2 text-start text-xs transition-colors",
+                  visibility === "HIDDEN"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/40",
+                )}
+              >
+                <span className="block font-medium">Don&apos;t see it</span>
+                <span className="text-muted-foreground">
+                  Completely invisible until the member is on a plan that
+                  includes this event.
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {audienceSlot ? (

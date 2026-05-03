@@ -993,6 +993,13 @@ model Event {
   audienceMode     String    @default("ALL") // ALL | RESTRICTED
   // Monetization tier — same FREE / PREMIUM model as Channel/Course.
   tier             String    @default("FREE")
+  // M30: visibility for PREMIUM events when the viewer lacks access.
+  //   LOCKED_VISIBLE — appears dimmed in the calendar with a lock icon;
+  //                    clicking opens the paywall. Default.
+  //   HIDDEN         — completely invisible until the viewer is granted
+  //                    access (via plan or explicit grant).
+  // Has no effect on FREE events.
+  visibility       String    @default("LOCKED_VISIBLE") // LOCKED_VISIBLE | HIDDEN
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

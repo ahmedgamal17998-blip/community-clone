@@ -22,7 +22,10 @@ import { UpcomingPastPanel } from "@/components/events/UpcomingPastPanel";
 import { Button } from "@/components/ui/button";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
-import { eligibleEventsForUser } from "@/server/event-access";
+import {
+  eligibleEventsForUser,
+  eventAccessStates,
+} from "@/server/event-access";
 import { hasGroupSubscriptionAccess } from "@/server/access";
 import { EventsLockedView } from "@/components/events/EventsLockedView";
 
@@ -106,8 +109,8 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
   ]);
 
   // M23 audience filter — admins see everything, members see only events
-  // they're eligible for. We compute the eligible set once and trim every
-  // list to it.
+  // their audience rules let through. We compute the eligible set once
+  // and trim every list to it.
   const eligibleSet = isAdmin
     ? null
     : new Set(
@@ -116,18 +119,54 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
           groupId: group.id,
         }),
       );
-  const occurrences =
+  const audienceFilteredOccurrences =
     eligibleSet === null
       ? allOccurrences
       : allOccurrences.filter((o) => eligibleSet.has(o.eventId));
-  const upcoming =
+  const audienceFilteredUpcoming =
     eligibleSet === null
-      ? allUpcoming.slice(0, 10)
-      : allUpcoming.filter((e) => eligibleSet.has(e.eventId)).slice(0, 10);
-  const past =
+      ? allUpcoming
+      : allUpcoming.filter((e) => eligibleSet.has(e.eventId));
+  const audienceFilteredPast =
     eligibleSet === null
-      ? allPast.slice(0, 10)
-      : allPast.filter((e) => eligibleSet.has(e.eventId)).slice(0, 10);
+      ? allPast
+      : allPast.filter((e) => eligibleSet.has(e.eventId));
+
+  // M30 plan-tier filter — for non-admins compute per-event access state
+  // (ACCESS / LOCKED / HIDDEN) so the calendar can dim or drop premium
+  // events the viewer doesn't have access to. Admins skip this entirely.
+  const allEventIds = Array.from(
+    new Set([
+      ...audienceFilteredOccurrences.map((o) => o.eventId),
+      ...audienceFilteredUpcoming.map((e) => e.eventId),
+      ...audienceFilteredPast.map((e) => e.eventId),
+    ]),
+  );
+  const accessMap = await eventAccessStates({
+    userId: session.user.id,
+    groupId: group.id,
+    eventIds: allEventIds,
+    isAdmin,
+  });
+
+  function passesTier(eventId: string): boolean {
+    const s = accessMap.get(eventId);
+    return s === undefined || s !== "HIDDEN";
+  }
+  const lockedEventIds = new Set<string>();
+  for (const [id, s] of accessMap.entries()) {
+    if (s === "LOCKED") lockedEventIds.add(id);
+  }
+
+  const occurrences = audienceFilteredOccurrences.filter((o) =>
+    passesTier(o.eventId),
+  );
+  const upcoming = audienceFilteredUpcoming
+    .filter((e) => passesTier(e.eventId))
+    .slice(0, 10);
+  const past = audienceFilteredPast
+    .filter((e) => passesTier(e.eventId))
+    .slice(0, 10);
 
   const title = titleFor(view, date);
 
@@ -157,6 +196,7 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
             date={date}
             occurrences={occurrences}
             groupSlug={group.slug}
+            lockedEventIds={lockedEventIds}
           />
         </div>
         <div className="space-y-4">
@@ -164,6 +204,7 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
             upcoming={upcoming}
             past={past}
             groupSlug={group.slug}
+            lockedEventIds={lockedEventIds}
           />
           {myBookings.length > 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-card p-3">

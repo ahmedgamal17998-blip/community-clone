@@ -315,6 +315,14 @@ export async function createEventAction(formData: FormData) {
   if (endsAt <= startsAt) return { ok: false as const, error: "End must be after start" };
   const recurrenceEndsAt = toDateOrNull(data.recurrenceEndsAt ?? null);
 
+  // M30: tier + visibility (only admin can set; non-admin already blocked
+  // above, but keep a strict whitelist).
+  const rawTier = formData.get("tier");
+  const tierVal = rawTier === "PREMIUM" ? "PREMIUM" : "FREE";
+  const rawVisibility = formData.get("visibility");
+  const visibilityVal =
+    rawVisibility === "HIDDEN" ? "HIDDEN" : "LOCKED_VISIBLE";
+
   const event = await db.event.create({
     data: {
       groupId: data.groupId,
@@ -329,6 +337,8 @@ export async function createEventAction(formData: FormData) {
       locationUrl: data.locationUrl ?? null,
       recurrence: data.recurrence,
       recurrenceEndsAt,
+      tier: tierVal,
+      visibility: visibilityVal,
     },
   });
 
@@ -476,6 +486,19 @@ export async function updateEventAction(formData: FormData) {
   if (!startsAt || !endsAt) return { ok: false as const, error: "Invalid date" };
   if (endsAt <= startsAt) return { ok: false as const, error: "End must be after start" };
 
+  // M30: tier + visibility — admin-only field; non-admin already blocked
+  // upstream, but keep the strict whitelist.
+  const rawTierU = formData.get("tier");
+  const tierUpdate =
+    rawTierU === "PREMIUM" ? "PREMIUM" : rawTierU === "FREE" ? "FREE" : undefined;
+  const rawVisibilityU = formData.get("visibility");
+  const visibilityUpdate =
+    rawVisibilityU === "HIDDEN"
+      ? "HIDDEN"
+      : rawVisibilityU === "LOCKED_VISIBLE"
+        ? "LOCKED_VISIBLE"
+        : undefined;
+
   await db.event.update({
     where: { id: event.id },
     data: {
@@ -489,6 +512,8 @@ export async function updateEventAction(formData: FormData) {
       locationUrl: data.locationUrl ?? null,
       recurrence: data.recurrence,
       recurrenceEndsAt: toDateOrNull(data.recurrenceEndsAt ?? null),
+      ...(tierUpdate ? { tier: tierUpdate } : {}),
+      ...(visibilityUpdate ? { visibility: visibilityUpdate } : {}),
     },
   });
 

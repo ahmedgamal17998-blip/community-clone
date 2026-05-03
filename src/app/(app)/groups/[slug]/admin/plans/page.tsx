@@ -26,7 +26,7 @@ export default async function PlansAdminPage({
   });
   if (!allowed) notFound();
 
-  const [plans, channels, courses, planResources] = await Promise.all([
+  const [plans, channels, courses, events, planResources] = await Promise.all([
     db.subscriptionPlan.findMany({
       where: { groupId: group.id },
       orderBy: [{ active: "desc" }, { priceCents: "asc" }],
@@ -40,6 +40,14 @@ export default async function PlansAdminPage({
       where: { groupId: group.id },
       orderBy: { position: "asc" },
       select: { id: true, slug: true, title: true, tier: true },
+    }),
+    // M30: surface premium-tier events first, then upcoming, then past so
+    // admins see the relevant entries at the top of the picker.
+    db.event.findMany({
+      where: { groupId: group.id },
+      orderBy: [{ tier: "desc" }, { startsAt: "desc" }],
+      take: 100,
+      select: { id: true, title: true, startsAt: true, tier: true },
     }),
     db.planResource.findMany({
       where: { plan: { groupId: group.id } },
@@ -99,6 +107,12 @@ export default async function PlansAdminPage({
           plans={plans}
           channels={channels}
           courses={courses}
+          events={events.map((e) => ({
+            id: e.id,
+            title: e.title,
+            startsAt: e.startsAt.toISOString(),
+            tier: e.tier,
+          }))}
           resourcesByPlan={resourcesByPlan}
         />
       </section>

@@ -76,6 +76,8 @@ export default async function EditEventPage({
             recurrenceEndsAt: event.recurrenceEndsAt
               ? toLocalInput(event.recurrenceEndsAt)
               : null,
+            tier: event.tier,
+            visibility: event.visibility,
           }}
         />
       </div>

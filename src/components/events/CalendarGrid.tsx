@@ -4,26 +4,31 @@ import {
   isSameDay,
   monthGrid,
   weekDays,
-  formatTime,
 } from "@/lib/calendar";
 import type { ExpandedOccurrence } from "@/server/events";
 import { EventDot } from "./EventDot";
+import { DayRow } from "./DayRow";
 
 type Props = {
   view: "day" | "week" | "month";
   date: Date;
   occurrences: ExpandedOccurrence[];
   groupSlug: string;
+  /** Event IDs the viewer can SEE but not ACCESS — rendered dimmed with a
+   *  lock icon; click opens the paywall popup. The page is responsible for
+   *  computing this set via `eventAccessStates`. */
+  lockedEventIds?: Set<string>;
 };
 
-export function CalendarGrid({ view, date, occurrences, groupSlug }: Props) {
+export function CalendarGrid({ view, date, occurrences, groupSlug, lockedEventIds }: Props) {
+  const locked = lockedEventIds ?? new Set<string>();
   if (view === "month") {
-    return <MonthView date={date} occurrences={occurrences} groupSlug={groupSlug} />;
+    return <MonthView date={date} occurrences={occurrences} groupSlug={groupSlug} lockedEventIds={locked} />;
   }
   if (view === "week") {
-    return <WeekView date={date} occurrences={occurrences} groupSlug={groupSlug} />;
+    return <WeekView date={date} occurrences={occurrences} groupSlug={groupSlug} lockedEventIds={locked} />;
   }
-  return <DayView date={date} occurrences={occurrences} groupSlug={groupSlug} />;
+  return <DayView date={date} occurrences={occurrences} groupSlug={groupSlug} lockedEventIds={locked} />;
 }
 
 function byDay(occurrences: ExpandedOccurrence[]) {
@@ -46,10 +51,12 @@ function MonthView({
   date,
   occurrences,
   groupSlug,
+  lockedEventIds,
 }: {
   date: Date;
   occurrences: ExpandedOccurrence[];
   groupSlug: string;
+  lockedEventIds: Set<string>;
 }) {
   const weeks = monthGrid(date);
   const today = new Date();
@@ -89,7 +96,12 @@ function MonthView({
               </div>
               <div className="space-y-0.5">
                 {list.slice(0, 3).map((o, j) => (
-                  <EventDot key={j} occ={o} groupSlug={groupSlug} />
+                  <EventDot
+                    key={j}
+                    occ={o}
+                    groupSlug={groupSlug}
+                    locked={lockedEventIds.has(o.eventId)}
+                  />
                 ))}
                 {list.length > 3 ? (
                   <div className="px-1.5 text-[11px] text-muted-foreground">
@@ -109,10 +121,12 @@ function WeekView({
   date,
   occurrences,
   groupSlug,
+  lockedEventIds,
 }: {
   date: Date;
   occurrences: ExpandedOccurrence[];
   groupSlug: string;
+  lockedEventIds: Set<string>;
 }) {
   const days = weekDays(date);
   const today = new Date();
@@ -146,7 +160,12 @@ function WeekView({
             >
               <div className="space-y-1">
                 {list.map((o, j) => (
-                  <EventDot key={j} occ={o} groupSlug={groupSlug} />
+                  <EventDot
+                    key={j}
+                    occ={o}
+                    groupSlug={groupSlug}
+                    locked={lockedEventIds.has(o.eventId)}
+                  />
                 ))}
                 {list.length === 0 ? (
                   <div className="text-[11px] text-muted-foreground/60">—</div>
@@ -164,10 +183,12 @@ function DayView({
   date,
   occurrences,
   groupSlug,
+  lockedEventIds,
 }: {
   date: Date;
   occurrences: ExpandedOccurrence[];
   groupSlug: string;
+  lockedEventIds: Set<string>;
 }) {
   const list = occurrences.filter((o) => isSameDay(o.occurrenceStartsAt, date));
   return (
@@ -185,29 +206,12 @@ function DayView({
       ) : (
         <ul className="space-y-2">
           {list.map((o, i) => (
-            <li
+            <DayRow
               key={i}
-              className="rounded-md border border-border p-3"
-              style={{ borderLeft: `4px solid ${o.color}` }}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{o.title}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatTime(o.occurrenceStartsAt)} –{" "}
-                    {formatTime(o.occurrenceEndsAt)}
-                  </div>
-                </div>
-                <a
-                  href={`/groups/${groupSlug}/events/${o.eventId}?occ=${encodeURIComponent(
-                    o.occurrenceStartsAt.toISOString(),
-                  )}`}
-                  className="shrink-0 text-xs font-medium text-primary hover:underline"
-                >
-                  Open →
-                </a>
-              </div>
-            </li>
+              occ={o}
+              groupSlug={groupSlug}
+              locked={lockedEventIds.has(o.eventId)}
+            />
           ))}
         </ul>
       )}
