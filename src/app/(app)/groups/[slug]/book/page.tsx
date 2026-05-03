@@ -78,12 +78,18 @@ export default async function BookPage({
       ) : (
         <BookingEmbedClient
           groupSlug={group.slug}
-          offerings={offerings.map((o) => ({
-            id: o.id,
-            label: o.label,
-            tooltipText: o.tooltipText,
-            state: o.state,
-          }))}
+          // listOfferingsForViewer drops HIDDEN-without-access entries, so
+          // surviving rows are guaranteed to be ACCESS or LOCKED. The cast
+          // narrows the type for the client component without an extra
+          // runtime filter.
+          offerings={offerings
+            .filter((o) => o.state !== "HIDDEN")
+            .map((o) => ({
+              id: o.id,
+              label: o.label,
+              tooltipText: o.tooltipText,
+              state: o.state as "ACCESS" | "LOCKED",
+            }))}
           initialSelectedId={selected?.id ?? null}
           initialAccessible={selected?.state === "ACCESS"}
         />
