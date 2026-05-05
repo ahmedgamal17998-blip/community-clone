@@ -156,16 +156,13 @@ export async function hasAccess(ctx: AccessContext): Promise<boolean> {
     if (groupGrant) return true;
   }
 
-  // 3. Active Subscription on group
-  const sub = await db.subscription.findFirst({
-    where: {
-      userId: ctx.userId,
-      groupId: ctx.groupId,
-      status: "ACTIVE",
-      currentPeriodEnd: { gt: now },
-    },
-  });
-  if (sub) return true;
+  // (Pre-M31 we used to return true for any active subscription here —
+  // that broke the plan-bundle model because Plan A's subscriber would
+  // also see Plan B's premium resources. Now access for paid resources
+  // flows exclusively through the MemberAccess GRANT rows that
+  // syncSubscriptionAccessGrants writes from each plan's PlanResource
+  // list. Group-level grants and direct grants handled above already
+  // cover the trial case.)
 
   // 4. Membership-level: if there's no expiry set, default-allow.
   const membership = await db.groupMembership.findUnique({
@@ -204,6 +201,12 @@ export async function hasAccess(ctx: AccessContext): Promise<boolean> {
       select: { tier: true },
     });
     if (ev?.tier === "PREMIUM") return false;
+  } else if (ctx.resourceType === "BOOKING_OFFERING") {
+    const o = await db.bookingOffering.findUnique({
+      where: { id: ctx.resourceId },
+      select: { tier: true },
+    });
+    if (o?.tier === "PREMIUM") return false;
   }
 
   return true;
@@ -276,16 +279,6 @@ export async function hasAccessBulk(params: {
       r.mode === "GRANT",
   );
 
-  // Active subscription?
-  const sub = await db.subscription.findFirst({
-    where: {
-      userId: params.userId,
-      groupId: params.groupId,
-      status: "ACTIVE",
-      currentPeriodEnd: { gt: now },
-    },
-  });
-
   // Membership default-allow?
   const membership = await db.groupMembership.findUnique({
     where: { groupId_userId: { groupId: params.groupId, userId: params.userId } },
@@ -296,13 +289,16 @@ export async function hasAccessBulk(params: {
     !membership.lockedAt &&
     (!membership.accessExpiresAt || membership.accessExpiresAt > now);
 
-  // groupGrant (free trial / admin GROUP-level grant) and active sub both
-  // confer blanket access. Membership default-allow only covers FREE-tier
-  // resources — PREMIUM requires an explicit grant or sub.
-  const fullBlanket = groupGrant || !!sub;
+  // Only group-level GRANT (free trial / admin GROUP-level grant) confers
+  // blanket access. Active subscriptions DON'T — paid access flows through
+  // the explicit MemberAccess GRANT rows that syncSubscriptionAccessGrants
+  // writes from each plan's PlanResource list, otherwise Plan A would
+  // unlock Plan B's premium resources.
+  const fullBlanket = groupGrant;
 
-  // Tier lookup for the requested resources (only CHANNEL/COURSE/EVENT have
-  // a tier column today). For unsupported types we treat as FREE.
+  // Tier lookup for the requested resources. CHANNEL / COURSE / EVENT /
+  // BOOKING_OFFERING all carry a `tier` column. Unsupported types are
+  // treated as FREE.
   const premiumIds = new Set<string>();
   if (params.resourceType === "CHANNEL") {
     const rows = await db.channel.findMany({
@@ -318,6 +314,12 @@ export async function hasAccessBulk(params: {
     for (const r of rows) if (r.tier === "PREMIUM") premiumIds.add(r.id);
   } else if (params.resourceType === "EVENT") {
     const rows = await db.event.findMany({
+      where: { id: { in: params.resourceIds } },
+      select: { id: true, tier: true },
+    });
+    for (const r of rows) if (r.tier === "PREMIUM") premiumIds.add(r.id);
+  } else if (params.resourceType === "BOOKING_OFFERING") {
+    const rows = await db.bookingOffering.findMany({
       where: { id: { in: params.resourceIds } },
       select: { id: true, tier: true },
     });

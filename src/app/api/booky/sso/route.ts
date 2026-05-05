@@ -98,15 +98,28 @@ export async function POST(req: Request) {
   }
 
   const planAccess = offering.tier === "PREMIUM"; // FREE doesn't need comping
-  const token = signBookySsoToken({
-    sub: session.user.id,
-    name: me2.name ?? me2.email.split("@")[0],
-    email: me2.email,
-    instructorSlug: offering.instructorSlug,
-    eventSlug: offering.eventSlug,
-    planAccess,
-    groupId: offering.groupId,
-  });
+  let token: string;
+  try {
+    token = signBookySsoToken({
+      sub: session.user.id,
+      name: me2.name ?? me2.email.split("@")[0],
+      email: me2.email,
+      instructorSlug: offering.instructorSlug,
+      eventSlug: offering.eventSlug,
+      planAccess,
+      groupId: offering.groupId,
+    });
+  } catch (e) {
+    // Most common failure: BOOKY_SSO_SECRET env var missing on the
+    // deployment. Surface a clear message instead of an empty 500 body
+    // so the booking page can render a useful error.
+    const detail =
+      e instanceof Error ? e.message : "Failed to mint SSO token";
+    return NextResponse.json(
+      { error: "SSO_CONFIG_MISSING", detail },
+      { status: 500 },
+    );
+  }
 
   const embedUrl = `${BOOKY_BASE_URL}/${DEFAULT_LOCALE}/embed/${encodeURIComponent(
     offering.instructorSlug,

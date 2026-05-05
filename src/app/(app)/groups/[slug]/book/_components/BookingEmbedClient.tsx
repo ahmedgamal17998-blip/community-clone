@@ -60,14 +60,25 @@ export function BookingEmbedClient({
       body: JSON.stringify({ offeringId: selectedId }),
     })
       .then(async (res) => {
-        const json = (await res.json()) as
-          | { embedUrl: string }
-          | { error: string };
+        // Response may be empty on 5xx; read raw text first then JSON-parse
+        // defensively so a stripped body shows as a friendly message.
+        const raw = await res.text();
+        let parsed: { embedUrl?: string; error?: string; detail?: string } = {};
+        if (raw) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch {
+            parsed = { error: "BAD_RESPONSE", detail: raw.slice(0, 200) };
+          }
+        }
         if (cancelled) return;
-        if ("embedUrl" in json) {
-          setEmbedUrl(json.embedUrl);
+        if (res.ok && parsed.embedUrl) {
+          setEmbedUrl(parsed.embedUrl);
         } else {
-          setError(humanizeSsoError(json.error));
+          setError(
+            humanizeSsoError(parsed.error ?? `HTTP_${res.status}`) +
+              (parsed.detail ? ` (${parsed.detail})` : ""),
+          );
         }
       })
       .catch((e: unknown) => {
@@ -194,7 +205,14 @@ function humanizeSsoError(code: string): string {
       return "This session is no longer available.";
     case "UNAUTHENTICATED":
       return "Please sign in again.";
+    case "SSO_CONFIG_MISSING":
+      return "Booking is not fully configured yet — the BOOKY_SSO_SECRET env var is missing on this deployment.";
+    case "BAD_RESPONSE":
+      return "The booking server returned an unexpected response.";
     default:
+      if (code.startsWith("HTTP_")) {
+        return `Couldn't start the booking session (${code}).`;
+      }
       return "Couldn't start the booking session.";
   }
 }
