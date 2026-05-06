@@ -73,8 +73,38 @@ function magicLinkEmail({ url, email }: { url: string; email: string }) {
 </html>`;
 }
 
+// PrismaAdapter doesn't know our `User.handle` field is required, so its
+// default `createUser` would write a row without a handle and Postgres
+// rejects with NOT NULL violation. We wrap it: same adapter behaviour
+// everywhere except `createUser`, which now picks a unique handle from
+// the new user's name/email and persists a Presence row alongside.
+const baseAdapter = PrismaAdapter(db);
+const adapter: typeof baseAdapter = {
+  ...baseAdapter,
+  async createUser(user) {
+    const handle = generateHandle(
+      user.name ?? user.email?.split("@")[0] ?? null,
+    );
+    const created = await db.user.create({
+      data: {
+        name: user.name,
+        email: user.email!,
+        emailVerified: user.emailVerified,
+        image: user.image,
+        handle,
+        presence: { create: { status: "OFFLINE" } },
+      },
+    });
+    // PrismaAdapter's AdapterUser types `email` as a required string but our
+    // schema marks it nullable (legacy users without email exist). Since we
+    // just inserted with `email: user.email!`, the value is guaranteed
+    // non-null on this row — the cast is safe.
+    return { ...created, email: created.email ?? "" };
+  },
+};
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(db),
+  adapter,
   session: { strategy: "database" },
   pages: {
     signIn: "/login",
@@ -99,18 +129,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   events: {
-    async createUser({ user }) {
-      // Ensure every new user has a handle + Presence row.
-      if (!user.id) return;
-      const handle = generateHandle(user.name ?? user.email?.split("@")[0] ?? null);
-      await db.user.update({
-        where: { id: user.id },
-        data: {
-          handle,
-          presence: { create: { status: "OFFLINE" } },
-        },
-      });
-    },
+    // (createUser now handled inline by the adapter wrapper above — handle
+    // and Presence are written in the same transaction as the user row,
+    // so this event has nothing to do.)
+
     // M20: enforce 2-device session limit + record login history (with IP / UA).
     async signIn({ user }) {
       if (!user?.id) return;
