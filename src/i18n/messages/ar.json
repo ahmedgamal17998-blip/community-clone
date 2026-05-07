@@ -255,7 +255,7 @@
       "description": "الوصف",
       "descriptionPlaceholder": "القناة دي ليه؟",
       "emoji": "إيموجي (اختياري)",
-      "emojiPlaceholder": "🎯",
+      "emojiPlaceholder": "اختار إيموجي",
       "kind": "النوع",
       "kindHints": {
         "PUBLIC": "كل الأعضاء يقدروا يكتبوا ويدردشوا.",

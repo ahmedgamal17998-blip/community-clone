@@ -43,8 +43,9 @@ export default async function OnboardingAdminPage({
       <div>
         <h1 className="text-2xl font-semibold">Onboarding tour</h1>
         <p className="text-sm text-muted-foreground">
-          Configure an interactive tour shown once to new members. Use CSS
-          selectors as targets (e.g. <code>[data-tour=&quot;feed&quot;]</code>) to highlight icons.
+          Configure a short interactive tour shown once to every new member.
+          For each step, pick what to highlight from the dropdown — no code
+          required.
         </p>
       </div>
       <StepsEditor

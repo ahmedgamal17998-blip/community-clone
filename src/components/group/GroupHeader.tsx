@@ -49,7 +49,7 @@ export async function GroupHeader({ group, myMembership }: Props) {
     hasMinRole(myMembership.role as Role, "ADMIN");
 
   return (
-    <div className="flex items-start gap-4 py-5">
+    <div data-tour="group-header" className="flex items-start gap-4 py-5">
       <GroupAvatar name={group.name} logoUrl={group.logoUrl} primaryHsl={group.primaryHsl} size="lg" />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">

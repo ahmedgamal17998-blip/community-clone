@@ -189,7 +189,7 @@ export default async function GroupLayout({
         groupSlug={group.slug}
         leftSidebar={
           isActiveMember ? (
-            <aside className="hidden lg:sticky lg:top-[13rem] lg:block lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto">
+            <aside data-tour="channels-list" className="hidden lg:sticky lg:top-[13rem] lg:block lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto">
               <ChannelSidebar
                 groupSlug={group.slug}
                 groupId={group.id}
@@ -222,7 +222,7 @@ export default async function GroupLayout({
           ) : null
         }
         rightRail={
-          <aside className="hidden lg:sticky lg:top-[13rem] lg:block lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto">
+          <aside data-tour="right-rail" className="hidden lg:sticky lg:top-[13rem] lg:block lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto">
             <GroupRightRail
               memberCount={group._count.memberships}
               postCount={postCount}

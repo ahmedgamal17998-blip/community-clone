@@ -135,6 +135,7 @@ export function Composer({ channelId, compact = true, groupSlug, crossPostChanne
     return (
       <button
         type="button"
+        data-tour="composer"
         onClick={() => setExpanded(true)}
         className={cn(
           "flex w-full items-center gap-3 rounded-xl border bg-card px-4 py-3 text-left text-sm transition-colors",
@@ -160,6 +161,7 @@ export function Composer({ channelId, compact = true, groupSlug, crossPostChanne
     <form
       ref={formRef}
       action={formAction}
+      data-tour="composer"
       className="space-y-3 rounded-xl border border-border bg-card p-4"
     >
       <input type="hidden" name="channelId" value={channelId} />

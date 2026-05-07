@@ -255,7 +255,7 @@
       "description": "Description",
       "descriptionPlaceholder": "What's this channel for?",
       "emoji": "Emoji (optional)",
-      "emojiPlaceholder": "🎯",
+      "emojiPlaceholder": "Pick an emoji",
       "kind": "Type",
       "kindHints": {
         "PUBLIC": "All members can post and chat.",

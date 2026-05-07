@@ -2,9 +2,25 @@
 
 import { useState, useTransition } from "react";
 import { saveOnboardingAction } from "@/server/actions/onboarding";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, ChevronDown } from "lucide-react";
+import { TOUR_TARGETS, TOUR_TARGET_BY_ID } from "@/lib/tour-targets";
 
 type Step = { target: string; title: string; body: string; order: number };
+
+const CUSTOM_VALUE = "__custom__";
+const CENTER_VALUE = "__center__";
+
+/**
+ * Translate a stored target value (raw selector) into the dropdown selection.
+ * If it matches a known target's selector, return that target's id; if empty,
+ * the centered card mode; otherwise the special "custom" sentinel.
+ */
+function targetToDropdownValue(target: string): string {
+  if (!target) return CENTER_VALUE;
+  const match = TOUR_TARGETS.find((t) => t.selector === target);
+  if (match) return match.id;
+  return CUSTOM_VALUE;
+}
 
 export function StepsEditor({
   groupId,
@@ -20,7 +36,14 @@ export function StepsEditor({
   const [steps, setSteps] = useState<Step[]>(
     initialSteps.length > 0
       ? [...initialSteps].sort((a, b) => a.order - b.order)
-      : [{ target: "", title: "Welcome!", body: "Let me show you around.", order: 0 }],
+      : [
+          {
+            target: TOUR_TARGET_BY_ID["group-header"]?.selector ?? "",
+            title: "Welcome!",
+            body: "Let me show you around.",
+            order: 0,
+          },
+        ],
   );
   const [saved, setSaved] = useState(false);
 
@@ -31,7 +54,12 @@ export function StepsEditor({
   const add = () =>
     setSteps((p) => [
       ...p,
-      { target: "", title: "New step", body: "", order: p.length },
+      {
+        target: TOUR_TARGET_BY_ID["groups-tabs"]?.selector ?? "",
+        title: "New step",
+        body: "",
+        order: p.length,
+      },
     ]);
 
   const remove = (i: number) =>
@@ -62,41 +90,13 @@ export function StepsEditor({
 
       <div className="space-y-3">
         {steps.map((s, i) => (
-          <div key={i} className="rounded-xl border bg-card p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Step {i + 1}
-              </div>
-              <button
-                onClick={() => remove(i)}
-                className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                aria-label="Remove"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-            <input
-              type="text"
-              placeholder="Target selector (e.g. [data-tour=feed])"
-              value={s.target}
-              onChange={(e) => update(i, { target: e.target.value })}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            />
-            <input
-              type="text"
-              placeholder="Title"
-              value={s.title}
-              onChange={(e) => update(i, { title: e.target.value })}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            />
-            <textarea
-              placeholder="Body"
-              value={s.body}
-              onChange={(e) => update(i, { body: e.target.value })}
-              rows={2}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            />
-          </div>
+          <StepCard
+            key={i}
+            index={i}
+            step={s}
+            onChange={(patch) => update(i, patch)}
+            onRemove={() => remove(i)}
+          />
         ))}
 
         <button
@@ -116,6 +116,122 @@ export function StepsEditor({
           {pending ? "Saving…" : "Save tour"}
         </button>
         {saved && <span className="text-xs text-green-600">Saved ✓</span>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Step card ─────────────────────────────────────────────────────────────
+
+function StepCard({
+  index,
+  step,
+  onChange,
+  onRemove,
+}: {
+  index: number;
+  step: Step;
+  onChange: (patch: Partial<Step>) => void;
+  onRemove: () => void;
+}) {
+  const dropdownValue = targetToDropdownValue(step.target);
+  const isCustom = dropdownValue === CUSTOM_VALUE;
+  const selectedTarget =
+    dropdownValue !== CUSTOM_VALUE && dropdownValue !== CENTER_VALUE
+      ? TOUR_TARGET_BY_ID[dropdownValue]
+      : null;
+
+  const handleDropdown = (value: string) => {
+    if (value === CENTER_VALUE) {
+      onChange({ target: "" });
+    } else if (value === CUSTOM_VALUE) {
+      // Keep whatever is currently in `target` if it's already a custom
+      // selector; otherwise reset to empty so the user can type one in.
+      if (!isCustom) onChange({ target: "" });
+    } else {
+      const t = TOUR_TARGET_BY_ID[value];
+      if (t) onChange({ target: t.selector });
+    }
+  };
+
+  return (
+    <div className="rounded-xl border bg-card p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Step {index + 1}
+        </div>
+        <button
+          onClick={onRemove}
+          className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          aria-label="Remove"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Pick what to highlight */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">
+          What does this step point to?
+        </label>
+        <div className="relative">
+          <select
+            value={dropdownValue}
+            onChange={(e) => handleDropdown(e.target.value)}
+            className="w-full appearance-none rounded-md border bg-background px-3 py-2 pr-8 text-sm focus:border-primary focus:outline-none"
+          >
+            <option value={CENTER_VALUE}>
+              No specific element — show centered card
+            </option>
+            <optgroup label="Highlight on the page">
+              {TOUR_TARGETS.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </optgroup>
+            <option value={CUSTOM_VALUE}>Advanced — custom CSS selector…</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        </div>
+        {selectedTarget ? (
+          <p className="text-xs text-muted-foreground">{selectedTarget.hint}</p>
+        ) : null}
+        {isCustom ? (
+          <input
+            type="text"
+            placeholder='e.g. [data-tour="my-thing"]  or  #my-id  or  .my-class'
+            value={step.target}
+            onChange={(e) => onChange({ target: e.target.value })}
+            className="w-full rounded-md border bg-background px-3 py-2 font-mono text-xs"
+          />
+        ) : null}
+      </div>
+
+      {/* Title */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">Title</label>
+        <input
+          type="text"
+          placeholder="Welcome!"
+          value={step.title}
+          onChange={(e) => onChange({ title: e.target.value })}
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+        />
+      </div>
+
+      {/* Body */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">
+          Body / message
+        </label>
+        <textarea
+          placeholder="Tell the member what this is and why it matters."
+          value={step.body}
+          onChange={(e) => onChange({ body: e.target.value })}
+          rows={2}
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+        />
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { EmojiPicker } from "@/components/ui/emoji-picker";
 import { createChannelAction } from "@/server/channel-actions";
 import { cn } from "@/lib/utils";
 
@@ -51,10 +52,9 @@ export function CreateChannelForm({ groupId }: Props) {
 
       <div className="space-y-1.5">
         <Label htmlFor="emoji">{t("emoji")}</Label>
-        <Input
+        <EmojiPicker
           id="emoji"
           name="emoji"
-          maxLength={4}
           placeholder={t("emojiPlaceholder")}
         />
       </div>

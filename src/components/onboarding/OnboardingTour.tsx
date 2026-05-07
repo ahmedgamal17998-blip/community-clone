@@ -24,18 +24,46 @@ export function OnboardingTour({
   const cur = sorted[idx];
 
   useEffect(() => {
-    if (!cur) return;
-    const el = document.querySelector(cur.target) as HTMLElement | null;
-    if (el) {
+    if (!cur || !cur.target) return;
+
+    let el: HTMLElement | null = null;
+    let cleanup: (() => void) | null = null;
+
+    const tryHighlight = (): boolean => {
+      try {
+        el = document.querySelector(cur.target) as HTMLElement | null;
+      } catch {
+        // Invalid selector typed by an admin in "custom" mode — bail silently
+        // so the centered card still renders.
+        return true;
+      }
+      if (!el) return false;
       el.scrollIntoView({ behavior: "smooth", block: "center" });
+      const prevOutline = el.style.outline;
+      const prevOffset = el.style.outlineOffset;
+      const prevRadius = el.style.borderRadius;
       el.style.outline = "3px solid hsl(var(--primary))";
       el.style.outlineOffset = "2px";
       el.style.borderRadius = "8px";
+      cleanup = () => {
+        if (!el) return;
+        el.style.outline = prevOutline;
+        el.style.outlineOffset = prevOffset;
+        el.style.borderRadius = prevRadius;
+      };
+      return true;
+    };
+
+    // Element may not exist yet (e.g. lazy-mounted sidebar). Retry briefly.
+    if (!tryHighlight()) {
+      const t = setTimeout(() => tryHighlight(), 300);
       return () => {
-        el.style.outline = "";
-        el.style.outlineOffset = "";
+        clearTimeout(t);
+        cleanup?.();
       };
     }
+
+    return () => cleanup?.();
   }, [cur]);
 
   if (!open || !cur) return null;
