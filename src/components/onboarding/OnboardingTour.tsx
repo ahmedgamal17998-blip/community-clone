@@ -1,15 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight, ChevronLeft, X } from "lucide-react";
 import { markOnboardingCompleteAction } from "@/server/actions/onboarding";
+import { cn } from "@/lib/utils";
 
 type Step = { target: string; title: string; body: string; order: number };
 
+type Coords = {
+  /** Card top in viewport pixels. */
+  top: number;
+  /** Card left in viewport pixels. */
+  left: number;
+  /** Where the card sits relative to the highlighted element. */
+  placement: "top" | "bottom" | "center";
+  /** Pixel x-offset of the arrow tip inside the card (for top/bottom). */
+  arrowLeft?: number;
+  /** Highlighted element's bounding rect (for spotlight + outline). */
+  rect?: { top: number; left: number; width: number; height: number };
+};
+
+const POPUP_WIDTH = 380;
+const POPUP_HEIGHT_FALLBACK = 200;
+const GAP = 14;
+const VIEWPORT_PADDING = 16;
+
 /**
- * M21: Lightweight onboarding tour. No external dep — just a centered card
- * with prev/next/skip + a faint backdrop. Can highlight a target via CSS
- * outline if the target selector resolves; otherwise just shows centered.
+ * M21 onboarding tour — version 2:
+ *   • Solid card with strong border + ring (clearly visible in light + dark)
+ *   • Spotlight backdrop dims the rest of the screen, leaving a "hole" around
+ *     the highlighted element so the eye is drawn to it
+ *   • Smart positioning: card pops above or below the target, with a small
+ *     arrow pointing to it. Falls back to bottom-center when no target.
+ *   • Repositions on scroll / resize so the card stays glued to the target
+ *     even if the viewport moves.
  */
 export function OnboardingTour({
   groupId,
@@ -20,51 +44,130 @@ export function OnboardingTour({
 }) {
   const [open, setOpen] = useState(true);
   const [idx, setIdx] = useState(0);
+  const [coords, setCoords] = useState<Coords>({
+    top: 0,
+    left: 0,
+    placement: "center",
+  });
+  const popupRef = useRef<HTMLDivElement>(null);
   const sorted = [...steps].sort((a, b) => a.order - b.order);
   const cur = sorted[idx];
 
-  useEffect(() => {
-    if (!cur || !cur.target) return;
+  // ─── Recompute card position relative to the current target ────────────
+  const computePlacement = useCallback(() => {
+    if (!cur || !cur.target) {
+      setCoords({ top: 0, left: 0, placement: "center" });
+      return;
+    }
 
     let el: HTMLElement | null = null;
-    let cleanup: (() => void) | null = null;
+    try {
+      el = document.querySelector(cur.target) as HTMLElement | null;
+    } catch {
+      // Invalid selector — show centered.
+      setCoords({ top: 0, left: 0, placement: "center" });
+      return;
+    }
+    if (!el) {
+      setCoords({ top: 0, left: 0, placement: "center" });
+      return;
+    }
 
-    const tryHighlight = (): boolean => {
+    const rect = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const popupWidth = Math.min(POPUP_WIDTH, vw - 2 * VIEWPORT_PADDING);
+    const popupHeight = popupRef.current?.offsetHeight ?? POPUP_HEIGHT_FALLBACK;
+
+    // Pick the side with more room; prefer below the target if both fit.
+    const spaceBelow = vh - rect.bottom;
+    const spaceAbove = rect.top;
+    const placement: "top" | "bottom" =
+      spaceBelow >= popupHeight + GAP || spaceBelow >= spaceAbove
+        ? "bottom"
+        : "top";
+
+    // Horizontally: try to center the card over the target, but clamp inside
+    // the viewport with some padding.
+    const targetCenterX = rect.left + rect.width / 2;
+    let left = targetCenterX - popupWidth / 2;
+    left = Math.max(
+      VIEWPORT_PADDING,
+      Math.min(left, vw - popupWidth - VIEWPORT_PADDING),
+    );
+
+    let top =
+      placement === "bottom"
+        ? rect.bottom + GAP
+        : rect.top - popupHeight - GAP;
+    top = Math.max(VIEWPORT_PADDING, top);
+
+    // Arrow tip stays under the target's center, clamped a bit inside the card.
+    const arrowLeft = Math.max(20, Math.min(targetCenterX - left, popupWidth - 20));
+
+    setCoords({
+      top,
+      left,
+      placement,
+      arrowLeft,
+      rect: {
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      },
+    });
+  }, [cur]);
+
+  // Locate the target on each step change. The target may be lazy-mounted
+  // so retry once after 300ms before giving up and centering the card.
+  useEffect(() => {
+    if (!cur) return;
+
+    let cancelled = false;
+    let scrollTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const tryFind = (): boolean => {
+      if (cancelled) return true;
+      let el: HTMLElement | null = null;
       try {
-        el = document.querySelector(cur.target) as HTMLElement | null;
+        el = cur.target
+          ? (document.querySelector(cur.target) as HTMLElement | null)
+          : null;
       } catch {
-        // Invalid selector typed by an admin in "custom" mode — bail silently
-        // so the centered card still renders.
+        computePlacement();
+        return true;
+      }
+      if (!cur.target) {
+        computePlacement();
         return true;
       }
       if (!el) return false;
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      const prevOutline = el.style.outline;
-      const prevOffset = el.style.outlineOffset;
-      const prevRadius = el.style.borderRadius;
-      el.style.outline = "3px solid hsl(var(--primary))";
-      el.style.outlineOffset = "2px";
-      el.style.borderRadius = "8px";
-      cleanup = () => {
-        if (!el) return;
-        el.style.outline = prevOutline;
-        el.style.outlineOffset = prevOffset;
-        el.style.borderRadius = prevRadius;
-      };
+
+      el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      // Compute once now, then again after the smooth scroll has settled.
+      computePlacement();
+      scrollTimer = setTimeout(() => computePlacement(), 350);
       return true;
     };
 
-    // Element may not exist yet (e.g. lazy-mounted sidebar). Retry briefly.
-    if (!tryHighlight()) {
-      const t = setTimeout(() => tryHighlight(), 300);
-      return () => {
-        clearTimeout(t);
-        cleanup?.();
-      };
+    if (!tryFind()) {
+      retryTimer = setTimeout(() => tryFind(), 300);
     }
 
-    return () => cleanup?.();
-  }, [cur]);
+    const onScrollOrResize = () => computePlacement();
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+
+    return () => {
+      cancelled = true;
+      if (scrollTimer) clearTimeout(scrollTimer);
+      if (retryTimer) clearTimeout(retryTimer);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [cur, computePlacement]);
 
   if (!open || !cur) return null;
 
@@ -78,52 +181,123 @@ export function OnboardingTour({
     }
   };
 
+  const isCenter = coords.placement === "center";
+  const hasSpotlight = !isCenter && !!coords.rect;
+
   return (
-    <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4 pointer-events-none">
-      <div className="pointer-events-auto w-full max-w-md rounded-2xl border bg-background p-5 shadow-2xl">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Welcome • Step {idx + 1} of {sorted.length}
+    <>
+      {/* Spotlight backdrop. When a target is found we render a transparent
+          rectangle over it whose huge box-shadow fills the rest of the
+          viewport with a dim color — the "hole" effect. When no target,
+          we just dim the whole screen. */}
+      {hasSpotlight ? (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed z-40 rounded-lg"
+          style={{
+            top: (coords.rect?.top ?? 0) - 6,
+            left: (coords.rect?.left ?? 0) - 6,
+            width: (coords.rect?.width ?? 0) + 12,
+            height: (coords.rect?.height ?? 0) + 12,
+            // 1) huge inset shadow → dims the rest of the screen
+            // 2) primary outline → bright bordered ring around the target
+            // 3) outer glow → soft halo that pops in dark + light mode
+            boxShadow:
+              "0 0 0 9999px rgba(0, 0, 0, 0.55), 0 0 0 4px hsl(var(--primary)), 0 0 0 8px hsla(var(--primary), 0.35), 0 0 28px 4px hsla(var(--primary), 0.6)",
+            transition: "all 220ms ease-out",
+          }}
+        />
+      ) : (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-0 z-40 bg-black/50"
+        />
+      )}
+
+      {/* Popup card */}
+      <div
+        ref={popupRef}
+        role="dialog"
+        aria-label="Onboarding step"
+        className="fixed z-50"
+        style={
+          isCenter
+            ? {
+                bottom: 24,
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: `min(${POPUP_WIDTH}px, calc(100vw - 32px))`,
+              }
+            : {
+                top: coords.top,
+                left: coords.left,
+                width: `min(${POPUP_WIDTH}px, calc(100vw - 32px))`,
+              }
+        }
+      >
+        <div className="relative rounded-2xl border-2 border-primary bg-card p-5 text-foreground shadow-2xl ring-4 ring-primary/20">
+          {/* Arrow pointer (only when anchored to a target) */}
+          {!isCenter && coords.arrowLeft != null ? (
+            <div
+              aria-hidden
+              className={cn(
+                "absolute h-3 w-3 rotate-45 border-2 border-primary bg-card",
+                coords.placement === "bottom"
+                  ? "-top-[8px] border-b-0 border-r-0"
+                  : "-bottom-[8px] border-l-0 border-t-0",
+              )}
+              style={{ left: coords.arrowLeft - 6 }}
+            />
+          ) : null}
+
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Step {idx + 1} of {sorted.length}
+              </div>
+              <h3 className="mt-1 text-base font-semibold text-foreground">
+                {cur.title}
+              </h3>
             </div>
-            <h3 className="mt-1 text-base font-semibold">{cur.title}</h3>
-          </div>
-          <button
-            onClick={finish}
-            className="rounded-md p-1 hover:bg-muted"
-            aria-label="Skip tour"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">
-          {cur.body}
-        </p>
-        <div className="mt-4 flex items-center justify-between">
-          <button
-            onClick={() => setIdx((i) => Math.max(0, i - 1))}
-            disabled={idx === 0}
-            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-30"
-          >
-            <ChevronLeft className="h-4 w-4" /> Back
-          </button>
-          {idx < sorted.length - 1 ? (
-            <button
-              onClick={() => setIdx((i) => i + 1)}
-              className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-            >
-              Next <ChevronRight className="h-4 w-4" />
-            </button>
-          ) : (
             <button
               onClick={finish}
-              className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+              className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Skip tour"
             >
-              Done
+              <X className="h-4 w-4" />
             </button>
-          )}
+          </div>
+
+          <p className="mt-2 whitespace-pre-wrap text-sm text-foreground/80">
+            {cur.body}
+          </p>
+
+          <div className="mt-4 flex items-center justify-between gap-2">
+            <button
+              onClick={() => setIdx((i) => Math.max(0, i - 1))}
+              disabled={idx === 0}
+              className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm text-foreground hover:bg-muted disabled:opacity-30"
+            >
+              <ChevronLeft className="h-4 w-4" /> Back
+            </button>
+            {idx < sorted.length - 1 ? (
+              <button
+                onClick={() => setIdx((i) => i + 1)}
+                className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"
+              >
+                Next <ChevronRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                onClick={finish}
+                className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"
+              >
+                Done
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
