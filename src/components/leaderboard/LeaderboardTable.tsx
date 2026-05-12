@@ -12,7 +12,36 @@ type Props = {
   viewerId: string | null;
 };
 
-/* ── medal config ─────────────────────────────────────────────────────────── */
+/* ── Level system ─────────────────────────────────────────────────────────── */
+export type LevelInfo = {
+  level: number;
+  label: string;
+  nextAt: number | null;
+  progress: number; // 0-100
+};
+
+export function getLevel(points: number): LevelInfo {
+  if (points >= 1000)
+    return { level: 5, label: "Legend", nextAt: null, progress: 100 };
+  if (points >= 500)
+    return { level: 4, label: "Expert", nextAt: 1000, progress: Math.round(((points - 500) / 500) * 100) };
+  if (points >= 200)
+    return { level: 3, label: "Pro", nextAt: 500, progress: Math.round(((points - 200) / 300) * 100) };
+  if (points >= 50)
+    return { level: 2, label: "Member", nextAt: 200, progress: Math.round(((points - 50) / 150) * 100) };
+  return { level: 1, label: "Newcomer", nextAt: 50, progress: Math.round((points / 50) * 100) };
+}
+
+const LEVEL_COLOR = [
+  "", // unused index 0
+  "text-muted-foreground",            // 1 Newcomer
+  "text-blue-500 dark:text-blue-400", // 2 Member
+  "text-emerald-600 dark:text-emerald-400", // 3 Pro
+  "text-violet-600 dark:text-violet-400",   // 4 Expert
+  "text-yellow-600 dark:text-yellow-400",   // 5 Legend
+];
+
+/* ── Medal config ─────────────────────────────────────────────────────────── */
 const MEDAL_CFG = {
   1: {
     ring: "ring-yellow-400 dark:ring-yellow-500",
@@ -52,6 +81,7 @@ function PodiumCard({
 }) {
   const cfg = MEDAL_CFG[row.rank as 1 | 2 | 3];
   const { Icon } = cfg;
+  const lvl = getLevel(row.points);
 
   return (
     <div
@@ -98,7 +128,7 @@ function PodiumCard({
       </div>
 
       {/* name */}
-      <div className="mt-1 min-w-0">
+      <div className="mt-1 min-w-0 w-full">
         <Link
           href={`/profile/@${row.user.handle}`}
           className={cn(
@@ -113,10 +143,15 @@ function PodiumCard({
         </p>
       </div>
 
+      {/* level badge */}
+      <span className={cn("text-[11px] font-semibold", LEVEL_COLOR[lvl.level])}>
+        Lv.{lvl.level} · {lvl.label}
+      </span>
+
       {/* points */}
       <div
         className={cn(
-          "mt-0.5 font-bold tabular-nums leading-none",
+          "font-bold tabular-nums leading-none",
           cfg.text,
           prominent ? "text-2xl" : "text-lg",
         )}
@@ -157,37 +192,27 @@ export function LeaderboardTable({ rows, viewerId }: Props) {
       {hasPodium && (
         <div className="flex items-end justify-center gap-3">
           {/* #2 — left, one step down */}
-          <div className="flex-1 pb-0 pt-10">
+          <div className="flex-1 pt-10">
             {second ? (
-              <PodiumCard
-                row={second}
-                isMe={viewerId === second.userId}
-              />
+              <PodiumCard row={second} isMe={viewerId === second.userId} />
             ) : (
-              <div className="flex-1" />
+              <div />
             )}
           </div>
 
           {/* #1 — center, tallest */}
           <div className="flex-1">
             {first && (
-              <PodiumCard
-                row={first}
-                isMe={viewerId === first.userId}
-                prominent
-              />
+              <PodiumCard row={first} isMe={viewerId === first.userId} prominent />
             )}
           </div>
 
           {/* #3 — right, two steps down */}
-          <div className="flex-1 pb-0 pt-16">
+          <div className="flex-1 pt-16">
             {third ? (
-              <PodiumCard
-                row={third}
-                isMe={viewerId === third.userId}
-              />
+              <PodiumCard row={third} isMe={viewerId === third.userId} />
             ) : (
-              <div className="flex-1" />
+              <div />
             )}
           </div>
         </div>
@@ -198,18 +223,17 @@ export function LeaderboardTable({ rows, viewerId }: Props) {
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           {rest.map((r, idx) => {
             const isMe = viewerId === r.userId;
+            const lvl = getLevel(r.points);
             return (
               <div
                 key={r.userId}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 transition-colors",
                   idx !== 0 && "border-t border-border",
-                  isMe
-                    ? "bg-primary/5"
-                    : "hover:bg-accent/40",
+                  isMe ? "bg-primary/5" : "hover:bg-accent/40",
                 )}
               >
-                {/* rank number */}
+                {/* rank circle */}
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold tabular-nums text-muted-foreground">
                   {r.rank}
                 </div>
@@ -237,8 +261,18 @@ export function LeaderboardTable({ rows, viewerId }: Props) {
                   </p>
                 </div>
 
+                {/* level badge */}
+                <div className="hidden shrink-0 text-right sm:block">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Level
+                  </div>
+                  <div className={cn("text-sm font-semibold", LEVEL_COLOR[lvl.level])}>
+                    {lvl.level} · {lvl.label}
+                  </div>
+                </div>
+
                 {/* points */}
-                <div className="text-right">
+                <div className="shrink-0 text-right">
                   <div className="font-bold tabular-nums text-foreground">
                     {r.points.toLocaleString()}
                   </div>
