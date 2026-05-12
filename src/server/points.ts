@@ -4,12 +4,15 @@
  * Append-only ledger. Idempotency is enforced at the application layer by a
  * findFirst on (userId, groupId, reason, refType, refId) before insert.
  *
- * Earn rules are wired at the callsites:
- *   - post-actions.createPostAction        → +1 POST
- *   - comment-actions.createCommentAction  → +1 COMMENT
- *   - reaction-actions.toggleReactionAction → +1 REACTION_RECEIVED (target author)
- *   - courses.markLessonCompleteAction     → +5 LESSON_COMPLETED (first time only)
- *   - admin adjust                         → ±N ADMIN_ADJUST (with note)
+ * Earn rules:
+ *   - POST                  +5  poster (post-actions.createPostAction)
+ *   - COMMENT               +2  commenter (comment-actions.createCommentAction)
+ *   - REACTION_GIVEN        +1  reactor (reaction-actions.toggleReactionAction)
+ *   - REACTION_RECEIVED     +2  post author | +1 comment author
+ *   - POST_COMMENT_RECEIVED +3  post author when someone comments
+ *   - POST_SAVED            +5  post author when someone saves (save-actions)
+ *   - LESSON_COMPLETED      +5  learner (courses.markLessonCompleteAction, first time only)
+ *   - ADMIN_ADJUST          ±N  admin manual (with note)
  */
 "use server";
 
@@ -22,7 +25,10 @@ import { requireRole } from "@/server/permissions";
 export type PointsReason =
   | "POST"
   | "COMMENT"
+  | "REACTION_GIVEN"
   | "REACTION_RECEIVED"
+  | "POST_COMMENT_RECEIVED"
+  | "POST_SAVED"
   | "LESSON_COMPLETED"
   | "ADMIN_ADJUST";
 

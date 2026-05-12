@@ -232,7 +232,7 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
         await addPoints({
           userId: session.user.id,
           groupId: gate.channel.groupId,
-          delta: 1,
+          delta: 5,
           reason: "POST",
           refType: "post",
           refId: post.id,

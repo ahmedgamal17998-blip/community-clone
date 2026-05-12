@@ -103,20 +103,36 @@ export async function toggleReactionAction(formData: FormData) {
             href: `/groups/${post.channel.group.slug}/channels/${post.channel.slug}#post-${postId}`,
           });
         }
-        // Points: award target post author +1 REACTION_RECEIVED (skip self).
-        if (post && post.authorId !== authorId) {
+        // Points: +1 to reactor (REACTION_GIVEN), +2 to post author (REACTION_RECEIVED, skip self).
+        if (post) {
           try {
+            // Reactor earns +1 for giving a reaction (idempotent per post+emoji)
             await addPoints({
-              userId: post.authorId,
+              userId: authorId,
               groupId: post.channel.groupId,
               delta: 1,
-              reason: "REACTION_RECEIVED",
+              reason: "REACTION_GIVEN",
               refType: "reaction",
-              refId: `post:${postId}:${authorId}:${emoji}`,
+              refId: `given:post:${postId}:${authorId}:${emoji}`,
             });
           } catch (e) {
             // eslint-disable-next-line no-console
-            console.error("addPoints (reaction on post) failed", e);
+            console.error("addPoints (reaction given) failed", e);
+          }
+          if (post.authorId !== authorId) {
+            try {
+              await addPoints({
+                userId: post.authorId,
+                groupId: post.channel.groupId,
+                delta: 2,
+                reason: "REACTION_RECEIVED",
+                refType: "reaction",
+                refId: `post:${postId}:${authorId}:${emoji}`,
+              });
+            } catch (e) {
+              // eslint-disable-next-line no-console
+              console.error("addPoints (reaction on post) failed", e);
+            }
           }
         }
       } catch (e) {
@@ -135,7 +151,7 @@ export async function toggleReactionAction(formData: FormData) {
       await db.reaction.create({
         data: { emoji, authorId, commentId },
       });
-      // Points: award target comment author.
+      // Points: +1 to reactor (REACTION_GIVEN), +1 to comment author (REACTION_RECEIVED).
       try {
         const c = await db.comment.findUnique({
           where: { id: commentId },
@@ -144,15 +160,27 @@ export async function toggleReactionAction(formData: FormData) {
             post: { select: { channel: { select: { groupId: true } } } },
           },
         });
-        if (c && c.authorId !== authorId) {
+        if (c) {
+          // Reactor earns +1
           await addPoints({
-            userId: c.authorId,
+            userId: authorId,
             groupId: c.post.channel.groupId,
             delta: 1,
-            reason: "REACTION_RECEIVED",
+            reason: "REACTION_GIVEN",
             refType: "reaction",
-            refId: `comment:${commentId}:${authorId}:${emoji}`,
+            refId: `given:comment:${commentId}:${authorId}:${emoji}`,
           });
+          // Comment author earns +1 (skip self)
+          if (c.authorId !== authorId) {
+            await addPoints({
+              userId: c.authorId,
+              groupId: c.post.channel.groupId,
+              delta: 1,
+              reason: "REACTION_RECEIVED",
+              refType: "reaction",
+              refId: `comment:${commentId}:${authorId}:${emoji}`,
+            });
+          }
         }
       } catch (e) {
         // eslint-disable-next-line no-console

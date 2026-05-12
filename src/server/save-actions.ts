@@ -6,6 +6,7 @@
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { revalidatePath } from "next/cache";
+import { addPoints } from "@/server/points";
 
 /**
  * Toggle: if already saved → un-save. Otherwise create a SavedPost row.
@@ -18,7 +19,7 @@ export async function toggleSavePostAction(input: { postId: string }) {
   // Verify the post exists + caller can see it (must be ACTIVE in the group).
   const post = await db.post.findUnique({
     where: { id: input.postId },
-    select: { channel: { select: { groupId: true } } },
+    select: { authorId: true, channel: { select: { groupId: true } } },
   });
   if (!post) return { ok: false as const, error: "Post not found" };
 
@@ -54,6 +55,24 @@ export async function toggleSavePostAction(input: { postId: string }) {
   await db.savedPost.create({
     data: { userId: session.user.id, postId: input.postId },
   });
+
+  // Award post author +5 for receiving a save (skip self-save).
+  if (post.authorId && post.authorId !== session.user.id) {
+    try {
+      await addPoints({
+        userId: post.authorId,
+        groupId: post.channel.groupId,
+        delta: 5,
+        reason: "POST_SAVED",
+        refType: "savedPost",
+        refId: `${input.postId}:${session.user.id}`,
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("addPoints (post saved) failed", e);
+    }
+  }
+
   revalidatePath("/saved");
   return { ok: true as const, saved: true };
 }

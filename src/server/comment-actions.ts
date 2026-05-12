@@ -135,14 +135,26 @@ export async function createCommentAction(formData: FormData) {
     });
     if (ctx) {
       try {
+        // +2 to commenter
         await addPoints({
           userId: session.user.id,
           groupId: ctx.channel.groupId,
-          delta: 1,
+          delta: 2,
           reason: "COMMENT",
           refType: "comment",
           refId: comment.id,
         });
+        // +3 to post author (skip if commenter === post author)
+        if (ctx.authorId && ctx.authorId !== session.user.id) {
+          await addPoints({
+            userId: ctx.authorId,
+            groupId: ctx.channel.groupId,
+            delta: 3,
+            reason: "POST_COMMENT_RECEIVED",
+            refType: "comment",
+            refId: comment.id,
+          });
+        }
       } catch (e) {
         // eslint-disable-next-line no-console
         console.error("addPoints (comment) failed", e);

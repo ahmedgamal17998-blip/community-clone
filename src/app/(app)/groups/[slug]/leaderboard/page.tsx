@@ -16,7 +16,8 @@ import {
   getUserPoints,
   type Window,
 } from "@/server/points";
-import { LeaderboardTable, getLevel } from "@/components/leaderboard/LeaderboardTable";
+import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
+import { getLevel } from "@/lib/level";
 import { cn } from "@/lib/utils";
 
 const WINDOWS: Window[] = ["7d", "30d", "all"];
@@ -27,10 +28,13 @@ const WINDOW_LABELS: Record<Window, string> = {
 };
 
 const EARN_RULES = [
-  { icon: PenLine,      label: "Write a post",       pts: 1 },
-  { icon: MessageCircle,label: "Leave a comment",    pts: 1 },
-  { icon: Heart,        label: "Receive a reaction", pts: 1 },
-  { icon: BookOpen,     label: "Complete a lesson",  pts: 5 },
+  { icon: PenLine,       label: "Write a post",              pts: 5  },
+  { icon: MessageCircle, label: "Leave a comment",           pts: 2  },
+  { icon: Heart,         label: "Give a reaction",           pts: 1  },
+  { icon: Heart,         label: "Get a reaction on your post", pts: 2 },
+  { icon: MessageCircle, label: "Get a comment on your post", pts: 3  },
+  { icon: Star,          label: "Someone saves your post",   pts: 5  },
+  { icon: BookOpen,      label: "Complete a lesson",         pts: 5  },
 ] as const;
 
 export default async function LeaderboardPage({
