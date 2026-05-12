@@ -111,7 +111,7 @@ function PodiumCard({
       {/* name */}
       <div className="mt-1 min-w-0 w-full">
         <Link
-          href={`/profile/@${row.user.handle}`}
+          href={`/profile/${row.user.handle}`}
           className={cn(
             "block truncate font-semibold leading-snug hover:underline",
             prominent ? "text-base" : "text-sm",
@@ -232,7 +232,7 @@ export function LeaderboardTable({ rows, viewerId }: Props) {
                 {/* name + handle */}
                 <div className="min-w-0 flex-1">
                   <Link
-                    href={`/profile/@${r.user.handle}`}
+                    href={`/profile/${r.user.handle}`}
                     className="block truncate text-sm font-medium hover:underline"
                   >
                     {r.user.name ?? `@${r.user.handle}`}

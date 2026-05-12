@@ -307,7 +307,7 @@ export default async function AdminOverviewPage({
               recentJoins.map((m) => (
                 <li key={m.id} className="flex items-center gap-2 p-3 text-sm">
                   <Link
-                    href={`/profile/@${m.user.handle}`}
+                    href={`/profile/${m.user.handle}`}
                     className="hover:underline"
                   >
                     {m.user.name ?? `@${m.user.handle}`}

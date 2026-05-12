@@ -249,7 +249,7 @@ export default async function GroupMembersPage({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2">
                     <Link
-                      href={`/profile/@${m.user.handle}`}
+                      href={`/profile/${m.user.handle}`}
                       className="truncate font-medium hover:underline"
                     >
                       {m.user.name}
