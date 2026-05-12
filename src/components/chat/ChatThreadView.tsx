@@ -126,7 +126,11 @@ export function ChatThreadView(props: ChatThreadViewProps) {
 
   const [messages, setMessages] = useState<ChatMessageView[]>(initialMessages);
   const [pinned, setPinned] = useState<ChatMessageView[]>(initialPinned);
-  const [pinnedDismissed, setPinnedDismissed] = useState(false);
+  // "All pins" overlay — opens from the banner when there's more than one pin.
+  const [allPinsOpen, setAllPinsOpen] = useState(false);
+  // ID of the message currently flashed by scroll-to-pin so we can apply a
+  // brief highlight animation without piping refs through every row.
+  const [flashId, setFlashId] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [attached, setAttached] = useState<Attached | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessageView | null>(null);
@@ -366,6 +370,20 @@ export function ChatThreadView(props: ChatThreadViewProps) {
     } catch {}
   }
 
+  // Scroll the chat list to a specific message and briefly highlight it so
+  // the user can spot which one was pinned. Used by the pin banner and the
+  // "all pins" overlay — both fire this with the target message id.
+  function scrollToMessage(messageId: string) {
+    if (!listRef.current) return;
+    const el = listRef.current.querySelector(
+      `[data-message-id="${messageId}"]`,
+    ) as HTMLElement | null;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlashId(messageId);
+    setTimeout(() => setFlashId((cur) => (cur === messageId ? null : cur)), 1800);
+  }
+
   async function handleDelete(messageId: string) {
     if (!confirm("Delete this message?")) return;
     const fd = new FormData();
@@ -416,16 +434,31 @@ export function ChatThreadView(props: ChatThreadViewProps) {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const showPinnedBanner = pinned.length > 0 && !pinnedDismissed;
+  const showPinnedBanner = pinned.length > 0;
 
   return (
     <div className="flex h-[calc(100vh-15rem)] min-h-[520px] flex-col overflow-hidden bg-card">
-      {/* Pinned banner */}
+      {/* Pinned banner — clickable. Single click scrolls to the latest pinned
+          message; when there's more than one pin, a "View all" button opens
+          the full list. Unpinning happens from the message's own menu, not
+          from here. */}
       {showPinnedBanner && (
         <PinnedBanner
           pinned={pinned[0]}
           count={pinned.length}
-          onDismiss={() => setPinnedDismissed(true)}
+          onJumpTo={() => scrollToMessage(pinned[0].id)}
+          onViewAll={() => setAllPinsOpen(true)}
+        />
+      )}
+
+      {allPinsOpen && (
+        <PinnedListPopup
+          pinned={pinned}
+          onClose={() => setAllPinsOpen(false)}
+          onPick={(id) => {
+            setAllPinsOpen(false);
+            scrollToMessage(id);
+          }}
         />
       )}
 
@@ -462,6 +495,7 @@ export function ChatThreadView(props: ChatThreadViewProps) {
                   isChannel={kind === "CHANNEL"}
                   viewerIsAdmin={viewerIsAdmin}
                   localReactions={reactions[item.msg.id] ?? {}}
+                  flashed={flashId === item.msg.id}
                   onReply={() => setReplyTo(item.msg)}
                   onPin={() => handlePin(item.msg.id)}
                   onDelete={() => handleDelete(item.msg.id)}
@@ -530,38 +564,117 @@ export function ChatThreadView(props: ChatThreadViewProps) {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 // ─ Pinned banner ─────────────────────────────────────────────────────────────
+//
+// Renders above the message feed. Clicking the row scrolls to the latest
+// pinned message (and briefly flashes it). When there's more than one pin,
+// a small "View all" button to the right opens the full list overlay.
+// There's intentionally no dismiss button — the only way to remove a pin
+// from this banner is to unpin the message itself (admin action).
 function PinnedBanner({
   pinned,
   count,
-  onDismiss,
+  onJumpTo,
+  onViewAll,
 }: {
   pinned: ChatMessageView;
   count: number;
-  onDismiss: () => void;
+  onJumpTo: () => void;
+  onViewAll: () => void;
 }) {
   return (
     <div
       className="flex items-center gap-3 border-b border-primary/15 px-4 py-3"
       style={{ backgroundColor: "hsl(var(--primary) / 0.10)" }}
     >
-      <Pin className="h-4 w-4 shrink-0 text-primary" />
-      <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-primary/70">
-          Pinned by {pinned.author.name ?? `@${pinned.author.handle}`}
-          {count > 1 && ` · ${count} pins`}
-        </div>
-        <div className="truncate text-[13.5px] font-semibold text-primary">
-          {pinned.body ?? (pinned.mediaType ? `[${pinned.mediaType}]` : "")}
-        </div>
-      </div>
       <button
         type="button"
-        onClick={onDismiss}
-        className="shrink-0 rounded-full p-1 text-primary/60 transition-colors hover:bg-primary/10 hover:text-primary"
-        aria-label="Dismiss pinned"
+        onClick={onJumpTo}
+        className="flex min-w-0 flex-1 items-center gap-3 text-start transition-colors hover:opacity-90"
+        aria-label="Jump to pinned message"
       >
-        <X className="h-3.5 w-3.5" />
+        <Pin className="h-4 w-4 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-primary/70">
+            Pinned by {pinned.author.name ?? `@${pinned.author.handle}`}
+            {count > 1 && ` · ${count} pins`}
+          </div>
+          <div className="truncate text-[13.5px] font-semibold text-primary">
+            {pinned.body ?? (pinned.mediaType ? `[${pinned.mediaType}]` : "")}
+          </div>
+        </div>
       </button>
+      {count > 1 && (
+        <button
+          type="button"
+          onClick={onViewAll}
+          className="shrink-0 rounded-full border border-primary/30 bg-card px-3 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/10"
+        >
+          View all ({count})
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─ All-pins overlay ──────────────────────────────────────────────────────────
+//
+// Lightweight modal listing every pinned message in this thread. Each row
+// is clickable and jumps to the corresponding message in the feed.
+function PinnedListPopup({
+  pinned,
+  onClose,
+  onPick,
+}: {
+  pinned: ChatMessageView[];
+  onClose: () => void;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-4 py-12"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-2xl border-2 border-primary/30 bg-card p-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Pin className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground">
+              Pinned messages ({pinned.length})
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="max-h-[60vh] space-y-1.5 overflow-y-auto">
+          {pinned.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onPick(p.id)}
+              className="block w-full rounded-lg border border-border bg-background px-3 py-2 text-start transition-colors hover:border-primary/40 hover:bg-primary/5"
+            >
+              <div className="text-[11px] font-semibold text-primary/80">
+                {p.author.name ?? `@${p.author.handle}`}
+              </div>
+              <div className="mt-0.5 truncate text-sm text-foreground">
+                {p.body ?? (p.mediaType ? `[${p.mediaType}]` : "—")}
+              </div>
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 text-[11px] text-muted-foreground">
+          To unpin a message, open it and use the … menu.
+        </p>
+      </div>
     </div>
   );
 }
@@ -585,6 +698,7 @@ function MessageRow({
   isChannel,
   viewerIsAdmin,
   localReactions,
+  flashed,
   onReply,
   onPin,
   onDelete,
@@ -596,6 +710,9 @@ function MessageRow({
   isChannel: boolean;
   viewerIsAdmin: boolean;
   localReactions: Record<string, string[]>;
+  /** Set to true briefly when the user jumped to this message from the pin
+      banner. Drives the highlight flash. */
+  flashed?: boolean;
   onReply: () => void;
   onPin: () => void;
   onDelete: () => void;
@@ -641,9 +758,15 @@ function MessageRow({
 
   return (
     <div
+      data-message-id={msg.id}
       className={cn(
-        "group relative mb-0.5 flex items-end gap-1.5",
+        "group relative mb-0.5 flex items-end gap-1.5 rounded-lg",
         isMine ? "flex-row-reverse" : "flex-row",
+        // Brief flash when the user jumps to this message from the pin
+        // banner — a soft primary tint that fades out via transition.
+        flashed
+          ? "ring-2 ring-primary/70 ring-offset-2 ring-offset-card transition-shadow duration-1000"
+          : "transition-shadow duration-700",
       )}
       onMouseEnter={() => setActionsVisible(true)}
       onMouseLeave={() => {
@@ -652,7 +775,9 @@ function MessageRow({
       }}
       style={{
         transform: swipeX !== 0 ? `translateX(${swipeX}px)` : undefined,
-        transition: swipeStart.current ? "none" : "transform 0.2s ease-out",
+        transition: swipeStart.current
+          ? "none"
+          : "transform 0.2s ease-out, box-shadow 0.6s ease-out",
       }}
       onTouchStart={(e) => {
         const t = e.touches[0];
