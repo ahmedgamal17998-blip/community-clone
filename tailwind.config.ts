@@ -30,6 +30,10 @@ const config: Config = {
         // Semantic tokens — see globals.css
         canvas:  "hsl(var(--canvas) / <alpha-value>)",
         card:    "hsl(var(--card) / <alpha-value>)",
+        popover: {
+          DEFAULT: "hsl(var(--popover) / <alpha-value>)",
+          foreground: "hsl(var(--popover-foreground) / <alpha-value>)",
+        },
         border:  "hsl(var(--border) / <alpha-value>)",
         input:   "hsl(var(--input) / <alpha-value>)",
         ring:    "hsl(var(--ring) / <alpha-value>)",

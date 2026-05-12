@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { getGroupForUser } from "@/server/group-queries";
@@ -54,12 +56,21 @@ export default async function NewEventPage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold">New event</h1>
-        <p className="text-xs text-muted-foreground">
-          Create an event for {group.name}.
-        </p>
-      </div>
+      <header className="flex items-center gap-3">
+        <Link
+          href={`/groups/${group.slug}/events`}
+          aria-label="Back to events"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg font-semibold">New event</h1>
+          <p className="text-xs text-muted-foreground">
+            Create an event for {group.name}.
+          </p>
+        </div>
+      </header>
       <div className="rounded-xl border border-border bg-card p-5">
         <EventForm
           groupId={group.id}

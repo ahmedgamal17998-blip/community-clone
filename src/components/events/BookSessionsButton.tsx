@@ -97,7 +97,18 @@ export function BookSessionsButton({
       ) : null}
 
       {tooltip && showTooltip ? (
-        <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-md border border-border bg-popover p-3 text-xs leading-relaxed text-popover-foreground shadow-lg">
+        // Solid card-style tooltip — bg-popover is now defined in
+        // globals.css + tailwind config so this renders opaque. Added a
+        // primary-tinted border + shadow-xl so it visually pops off the
+        // page even on busy backgrounds.
+        <div
+          role="tooltip"
+          className="absolute end-0 top-full z-50 mt-2 w-64 rounded-lg border-2 border-primary/25 bg-popover p-3 text-xs leading-relaxed text-popover-foreground shadow-xl ring-1 ring-black/5"
+        >
+          <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-primary/75">
+            <Info className="h-3 w-3" />
+            About
+          </div>
           {tooltip}
         </div>
       ) : null}

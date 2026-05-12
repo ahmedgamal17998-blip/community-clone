@@ -22,6 +22,11 @@
     --input:               240 6% 90%;
     --ring:                280 45% 40%;
 
+    /* Popovers — same surface as cards but a separate token so a future
+       design pass can tint them differently without touching every card. */
+    --popover:             0 0% 100%;
+    --popover-foreground:  240 13% 14%;
+
     /* Brand (purple) */
     --brand-50:  285 60% 97%;
     --brand-100: 283 56% 92%;
@@ -55,6 +60,11 @@
     --border:              240 6% 24%;
     --input:               240 6% 24%;
     --ring:                282 52% 60%;
+
+    /* Popover surface in dark mode — slightly lighter than card so it
+       reads as "lifted" above the page. */
+    --popover:             240 10% 19%;
+    --popover-foreground:  240 12% 88%;
 
     --brand-500: 282 50% 60%;
     --brand-600: 280 55% 55%;
