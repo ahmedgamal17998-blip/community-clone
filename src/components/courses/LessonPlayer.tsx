@@ -85,7 +85,19 @@ export function LessonPlayer({ title, videoUrl, body, resources }: Props) {
       )}
       {body ? (
         <article className="prose prose-sm max-w-none dark:prose-invert">
-          <ReactMarkdown>{body}</ReactMarkdown>
+          {/* M28+: lesson body comes from the TipTap RichTextEditor as HTML.
+              Old lessons authored with the previous plain-markdown textarea
+              still exist in the DB, so we detect by leading `<` and fall
+              back to ReactMarkdown for them. The HTML is admin-authored
+              and arrives from a constrained TipTap toolbar (no script /
+              iframe nodes registered), so the surface is small — but
+              follow-up: pipe through DOMPurify on save for defense in
+              depth in case an admin account is compromised. */}
+          {body.trimStart().startsWith("<") ? (
+            <div dangerouslySetInnerHTML={{ __html: body }} />
+          ) : (
+            <ReactMarkdown>{body}</ReactMarkdown>
+          )}
         </article>
       ) : null}
 

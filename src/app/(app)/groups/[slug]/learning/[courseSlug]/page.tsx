@@ -49,6 +49,31 @@ export default async function CoursePage({
     if (!allowed) notFound();
   }
 
+  // For drip-release math we need `enrolledAt`. PAID courses already create a
+  // CourseEnrollment row from the Stripe webhook. For FREE courses, auto-create
+  // one the first time the member lands here so the drip clock starts ticking
+  // from a single, stable anchor — not from "now()" on every page load.
+  // Admins skip this so their viewer activity doesn't pollute member data.
+  if (course.priceType === "FREE" && !isAdmin) {
+    await db.courseEnrollment
+      .upsert({
+        where: {
+          userId_courseId: { userId: session.user.id, courseId: course.id },
+        },
+        create: {
+          userId: session.user.id,
+          courseId: course.id,
+          groupId: group.id,
+          status: "ACTIVE",
+          amountPaid: 0,
+        },
+        update: {},
+      })
+      .catch(() => {
+        /* non-fatal — drip falls back to first-visit if upsert fails */
+      });
+  }
+
   const enrollment = await getEnrollmentStatus(session.user.id, course.id);
   const enrolled = enrollment?.status === "ACTIVE";
   const stripeConfigured = !!getStripePK();

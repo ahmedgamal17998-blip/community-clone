@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
@@ -34,7 +36,14 @@ export default async function NewLessonPage({
 
   return (
     <div className="mx-auto max-w-2xl">
-      <header className="mb-6">
+      <header className="mb-6 flex items-center gap-3">
+        <Link
+          href={`/groups/${params.slug}/learning/${params.courseSlug}/outline`}
+          aria-label="Back to course outline"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
         <h1 className="text-2xl font-semibold">New lesson</h1>
       </header>
       <LessonForm mode="create" courseId={course.id} />

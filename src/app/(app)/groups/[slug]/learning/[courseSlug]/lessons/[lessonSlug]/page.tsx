@@ -5,10 +5,12 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { getCourse, getLesson, deleteLessonAction } from "@/server/courses";
+import { getCourseOutline } from "@/server/course-modules";
 import { getEnrollmentStatus } from "@/server/stripe-actions";
 import { Button } from "@/components/ui/button";
 import { LessonSidebar } from "@/components/courses/LessonSidebar";
 import { LessonPlayer } from "@/components/courses/LessonPlayer";
+import { LockedLessonScreen } from "@/components/courses/LockedLessonScreen";
 import { CompleteContinueButton } from "@/components/courses/CompleteContinueButton";
 import { QuizBlock } from "@/components/courses/QuizBlock";
 import { AssignmentBlock } from "@/components/courses/AssignmentBlock";
@@ -57,6 +59,42 @@ export default async function LessonPage({
   });
   if (!lessonData) notFound();
   const { lesson, prev, next, completed } = lessonData;
+
+  // Drip / Locked enforcement.
+  //
+  // We compute the full module outline (which already evaluates release state
+  // per module + lesson) and look up the lesson we're about to render. If it
+  // isn't `available`, we render the locked screen instead of the player.
+  // Admins are exempt — they manage the content and should always see it.
+  const outline = await getCourseOutline({
+    courseId: course.id,
+    viewerId: session.user.id,
+    isAdmin,
+  });
+  const sidebarModulesData = outline.map((m) => ({
+    id: m.id,
+    title: m.title,
+    release: m.release,
+    lessons: m.lessons.map((l) => ({
+      id: l.id,
+      slug: l.slug,
+      title: l.title,
+      completed: l.completed,
+      release: l.release,
+    })),
+  }));
+  // Find the release state for THIS lesson.
+  let lessonRelease: Awaited<
+    ReturnType<typeof getCourseOutline>
+  >[number]["lessons"][number]["release"] = { state: "available" };
+  for (const m of outline) {
+    const found = m.lessons.find((l) => l.id === lesson.id);
+    if (found) {
+      lessonRelease = found.release;
+      break;
+    }
+  }
+  const isLessonLocked = !isAdmin && lessonRelease.state !== "available";
 
   // Phase 2 — fetch quiz/assignment payload based on lesson kind.
   const lessonRow = await db.lesson.findUnique({
@@ -153,7 +191,7 @@ export default async function LessonPage({
           <LessonSidebar
             groupSlug={group.slug}
             courseSlug={course.slug}
-            lessons={lessons}
+            modules={sidebarModulesData}
             activeSlug={lesson.slug}
             progressPercent={progressPercent}
           />
@@ -161,15 +199,24 @@ export default async function LessonPage({
       </aside>
 
       <div className="space-y-6">
-        <LessonPlayer
-          title={lesson.title}
-          videoUrl={lesson.videoUrl}
-          body={lesson.body}
-          resources={lesson.resources ?? null}
-        />
+        {isLessonLocked && lessonRelease.state !== "available" ? (
+          <LockedLessonScreen
+            release={lessonRelease}
+            backHref={`/groups/${group.slug}/learning/${course.slug}`}
+            lessonTitle={lesson.title}
+          />
+        ) : (
+          <LessonPlayer
+            title={lesson.title}
+            videoUrl={lesson.videoUrl}
+            body={lesson.body}
+            resources={lesson.resources ?? null}
+          />
+        )}
 
-        {/* Phase 2: quiz/assignment blocks render below the lesson player. */}
-        {lessonKind === "QUIZ" && (
+        {/* Phase 2: quiz/assignment blocks — hidden when the lesson is gated
+            so members can't reveal quiz content via a direct URL. */}
+        {!isLessonLocked && lessonKind === "QUIZ" && (
           <QuizBlock
             lessonId={lesson.id}
             mode={isAdmin ? "edit" : "play"}
@@ -200,7 +247,7 @@ export default async function LessonPage({
           />
         )}
 
-        {lessonKind === "ASSIGNMENT" && (
+        {!isLessonLocked && lessonKind === "ASSIGNMENT" && (
           <AssignmentBlock
             lessonId={lesson.id}
             mode={isAdmin ? "edit" : "play"}
@@ -282,10 +329,15 @@ export default async function LessonPage({
                 </form>
               </>
             ) : null}
-            <CompleteContinueButton
-              lessonId={lesson.id}
-              alreadyComplete={completed}
-            />
+            {/* "Mark complete" doesn't make sense for a locked lesson —
+                members haven't even seen the content yet. Admins still see
+                it (they bypass the lock). */}
+            {!isLessonLocked && (
+              <CompleteContinueButton
+                lessonId={lesson.id}
+                alreadyComplete={completed}
+              />
+            )}
           </div>
         </div>
       </div>

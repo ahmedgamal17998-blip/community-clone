@@ -8,6 +8,8 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import CharacterCount from "@tiptap/extension-character-count";
 import Mention from "@tiptap/extension-mention";
+import { TextStyle } from "@tiptap/extension-text-style";
+import { Color } from "@tiptap/extension-color";
 import { ReactRenderer } from "@tiptap/react";
 import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
 import {
@@ -20,8 +22,24 @@ import {
   ListOrdered,
   Quote,
   ImageIcon,
+  Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// ─── Color swatches ────────────────────────────────────────────────────────
+//
+// A small curated palette — pro editors expose 30+ colors, but for a
+// community LMS body that's overkill and intimidating. These 6 are enough
+// to highlight key terms, mark warnings, and add a brand pop without
+// turning lessons into a clown show. "Reset" wipes the color back to inherit.
+const COLOR_SWATCHES: { label: string; value: string | null }[] = [
+  { label: "Default", value: null },
+  { label: "Brand", value: "hsl(var(--primary))" },
+  { label: "Red", value: "#e11d48" },
+  { label: "Amber", value: "#d97706" },
+  { label: "Green", value: "#16a34a" },
+  { label: "Blue", value: "#2563eb" },
+];
 
 // ─── Mention suggestion list ────────────────────────────────────────────────
 
@@ -177,6 +195,7 @@ export function RichTextEditor({
   const [linkOpen, setLinkOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [imageOpen, setImageOpen] = useState(false);
+  const [colorOpen, setColorOpen] = useState(false);
   const onKeyDownRef = useRef<((props: SuggestionKeyDownProps) => boolean) | null>(null);
 
   // Build initial content from value prop
@@ -204,6 +223,10 @@ export function RichTextEditor({
       autolink: true,
     }),
     Image,
+    // Text-style is the marker mark; Color sets its `color` attribute. Both
+    // are needed for text-color to work (Color depends on TextStyle).
+    TextStyle,
+    Color,
     ...(maxLength ? [CharacterCount.configure({ limit: maxLength })] : [CharacterCount]),
     ...(groupSlug
       ? [
@@ -397,6 +420,57 @@ export function RichTextEditor({
         >
           <Quote className="h-3.5 w-3.5" />
         </ToolbarButton>
+
+        <span className="mx-1 h-4 w-px bg-border" aria-hidden />
+
+        {/* Text color — small swatch grid in a dropdown. Setting "Default"
+            calls unsetColor so the run inherits the surrounding text color. */}
+        <div className="relative">
+          <ToolbarButton
+            title="Text color"
+            active={colorOpen || editor.isActive("textStyle")}
+            onClick={() => setColorOpen((v) => !v)}
+          >
+            <Palette className="h-3.5 w-3.5" />
+          </ToolbarButton>
+          {colorOpen ? (
+            <>
+              <div
+                className="fixed inset-0 z-30"
+                onClick={() => setColorOpen(false)}
+              />
+              <div className="absolute right-0 top-full z-40 mt-1 flex w-44 flex-wrap gap-1 rounded-md border border-border bg-popover p-2 shadow-md">
+                {COLOR_SWATCHES.map((c) => (
+                  <button
+                    key={c.label}
+                    type="button"
+                    title={c.label}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      if (c.value === null) {
+                        editor.chain().focus().unsetColor().run();
+                      } else {
+                        editor.chain().focus().setColor(c.value).run();
+                      }
+                      setColorOpen(false);
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded border border-border transition-transform hover:scale-110"
+                    style={
+                      c.value
+                        ? { backgroundColor: c.value }
+                        : {
+                            background:
+                              "repeating-linear-gradient(45deg, hsl(var(--muted)), hsl(var(--muted)) 4px, transparent 4px, transparent 8px)",
+                          }
+                    }
+                  >
+                    <span className="sr-only">{c.label}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </div>
 
         <span className="mx-1 h-4 w-px bg-border" aria-hidden />
 

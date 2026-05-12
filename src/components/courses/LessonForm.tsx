@@ -1,10 +1,13 @@
+"use client";
+
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { VideoUpload } from "@/components/courses/VideoUpload";
 import { CoverUpload } from "@/components/courses/CoverUpload";
 import { ResourceUpload } from "@/components/courses/ResourceUpload";
+import { RichTextEditor } from "@/components/editor/RichTextEditor";
 import {
   createLessonAction,
   updateLessonAction,
@@ -24,10 +27,22 @@ type Props =
   | { mode: "create"; courseId: string }
   | { mode: "edit"; courseId: string; lesson: LessonShape };
 
+/**
+ * Lesson editor form. Posts to the server action via plain form submission
+ * (no useFormState because we have no per-field error UI), but `body` is
+ * powered by TipTap so admins can bold / list / color / link without
+ * writing markdown. We serialize the editor's HTML into a hidden input so
+ * the server side sees a normal `body` field.
+ */
 export function LessonForm(props: Props) {
   const isEdit = props.mode === "edit";
   const l = isEdit ? props.lesson : null;
   const action = isEdit ? updateLessonAction : createLessonAction;
+
+  // Rich-text body. We keep the HTML string in state and mirror it to a
+  // hidden input so the existing server action keeps working without any
+  // form-data shape change.
+  const [body, setBody] = useState<string>(l?.body ?? "");
 
   return (
     <form action={action} className="space-y-5">
@@ -70,15 +85,15 @@ export function LessonForm(props: Props) {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="body">Lesson body (markdown)</Label>
-        <Textarea
-          id="body"
-          name="body"
-          rows={10}
+        <Label>Lesson body</Label>
+        <RichTextEditor
+          value={body}
+          onChange={(_json, html) => setBody(html)}
+          placeholder="Write the lesson content — use the toolbar for headings, bold, lists, colors…"
+          minHeight={200}
           maxLength={40000}
-          defaultValue={l?.body ?? ""}
-          placeholder="# Heading&#10;&#10;Write the lesson content in **markdown**."
         />
+        <input type="hidden" name="body" value={body} />
       </div>
 
       <ResourceUpload name="resources" defaultValue={l?.resources ?? null} />

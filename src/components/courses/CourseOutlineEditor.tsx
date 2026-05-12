@@ -42,6 +42,7 @@ import {
   createLessonInModuleAction,
   updateLessonMetaAction,
 } from "@/server/module-actions";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -363,6 +364,9 @@ export function CourseOutlineEditor({
               onChangeDripDays={(dripDays) =>
                 updateModuleField(m, { dripDays })
               }
+              onChangeDrip={(dripDays) =>
+                updateModuleField(m, { releaseMode: "DRIP", dripDays })
+              }
               onTogglePublished={() =>
                 updateModuleField(m, { published: !m.published })
               }
@@ -389,6 +393,7 @@ function ModuleCard({
   onDelete,
   onChangeRelease,
   onChangeDripDays,
+  onChangeDrip,
   onTogglePublished,
   onAddLesson,
   onToggleLessonPublished,
@@ -403,6 +408,9 @@ function ModuleCard({
   onDelete: () => void;
   onChangeRelease: (m: "PUBLISHED" | "DRIP" | "LOCKED") => void;
   onChangeDripDays: (n: number | null) => void;
+  /** Set releaseMode = DRIP and dripDays in one shot — used when the admin
+   *  picks "Drip" from the dropdown and enters how many days. */
+  onChangeDrip: (days: number) => void;
   onTogglePublished: () => void;
   onAddLesson: (kind: "VIDEO" | "TEXT" | "QUIZ" | "ASSIGNMENT") => void;
   onToggleLessonPublished: (l: LessonNode) => void;
@@ -412,6 +420,12 @@ function ModuleCard({
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const [releaseOpen, setReleaseOpen] = useState(false);
+  // Two-step "Drip" picker: clicking Drip swaps the dropdown body to a
+  // "How many days?" form. Saving applies both releaseMode + dripDays.
+  const [dripEditing, setDripEditing] = useState(false);
+  const [dripValue, setDripValue] = useState<string>(
+    m.dripDays != null ? String(m.dripDays) : "7",
+  );
 
   return (
     <div className="rounded-xl border border-border bg-card">
@@ -459,51 +473,138 @@ function ModuleCard({
           </button>
           {releaseOpen && (
             <>
-              <div className="fixed inset-0 z-30" onClick={() => setReleaseOpen(false)} />
-              <div className="absolute right-0 top-full z-40 mt-1 min-w-[160px] overflow-hidden rounded-lg border border-border bg-card py-1 shadow-xl">
-                {RELEASE_OPTIONS.map((opt) => {
-                  const Icon = opt.icon;
-                  const active = m.releaseMode === opt.value;
-                  return (
+              <div
+                className="fixed inset-0 z-30"
+                onClick={() => {
+                  setReleaseOpen(false);
+                  setDripEditing(false);
+                }}
+              />
+              <div className="absolute right-0 top-full z-40 mt-1 min-w-[200px] overflow-hidden rounded-lg border border-border bg-card py-1 shadow-xl">
+                {dripEditing ? (
+                  // ── Drip sub-form ──────────────────────────────────────
+                  <div className="space-y-2 px-3 py-2">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold">
+                      <Hourglass className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                      Unlock after
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={3650}
+                        value={dripValue}
+                        onChange={(e) => setDripValue(e.target.value)}
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const n = Math.max(1, parseInt(dripValue, 10) || 1);
+                            onChangeDrip(n);
+                            setDripEditing(false);
+                            setReleaseOpen(false);
+                          }
+                          if (e.key === "Escape") {
+                            setDripEditing(false);
+                          }
+                        }}
+                        className="h-7 w-16 text-xs"
+                      />
+                      <span className="text-xs text-muted-foreground">days</span>
+                    </div>
+                    <p className="text-[10px] leading-tight text-muted-foreground">
+                      Members see this lesson{m.dripDays != null ? " " : " "}
+                      <strong className="text-foreground/80">
+                        {dripValue || "—"} day{dripValue === "1" ? "" : "s"}
+                      </strong>{" "}
+                      after they enroll.
+                    </p>
+                    <div className="flex items-center justify-end gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setDripEditing(false)}
+                        className="rounded px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const n = Math.max(1, parseInt(dripValue, 10) || 1);
+                          onChangeDrip(n);
+                          setDripEditing(false);
+                          setReleaseOpen(false);
+                        }}
+                        className="rounded bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground hover:opacity-90"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // ── Main dropdown ──────────────────────────────────────
+                  <>
+                    {RELEASE_OPTIONS.map((opt) => {
+                      const Icon = opt.icon;
+                      const active = m.releaseMode === opt.value;
+                      const isDrip = opt.value === "DRIP";
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            if (isDrip) {
+                              // Open the sub-form instead of saving immediately;
+                              // Drip is meaningless without a day count.
+                              setDripValue(
+                                m.dripDays != null ? String(m.dripDays) : "7",
+                              );
+                              setDripEditing(true);
+                              return;
+                            }
+                            setReleaseOpen(false);
+                            onChangeRelease(opt.value);
+                          }}
+                          className={cn(
+                            "flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors hover:bg-accent",
+                            active && "bg-accent",
+                          )}
+                        >
+                          <Icon className={cn("h-3.5 w-3.5", opt.color)} />
+                          <span className="flex-1 text-left">
+                            {opt.label}
+                            {isDrip && m.dripDays != null && (
+                              <span className="ms-1 text-[10px] text-muted-foreground">
+                                ({m.dripDays}d)
+                              </span>
+                            )}
+                          </span>
+                          {active && <Check className="h-3 w-3 text-primary" />}
+                        </button>
+                      );
+                    })}
+                    <div className="border-t border-border" />
                     <button
-                      key={opt.value}
                       type="button"
                       onClick={() => {
                         setReleaseOpen(false);
-                        onChangeRelease(opt.value);
+                        onTogglePublished();
                       }}
-                      className={cn(
-                        "flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors hover:bg-accent",
-                        active && "bg-accent",
-                      )}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors hover:bg-accent"
                     >
-                      <Icon className={cn("h-3.5 w-3.5", opt.color)} />
-                      <span className="flex-1 text-left">{opt.label}</span>
-                      {active && <Check className="h-3 w-3 text-primary" />}
+                      {m.published ? (
+                        <>
+                          <CircleDashed className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span>Set as Draft</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                          <span>Publish</span>
+                        </>
+                      )}
                     </button>
-                  );
-                })}
-                <div className="border-t border-border" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReleaseOpen(false);
-                    onTogglePublished();
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors hover:bg-accent"
-                >
-                  {m.published ? (
-                    <>
-                      <CircleDashed className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span>Set as Draft</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
-                      <span>Publish</span>
-                    </>
-                  )}
-                </button>
+                  </>
+                )}
               </div>
             </>
           )}
