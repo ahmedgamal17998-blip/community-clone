@@ -277,6 +277,11 @@ model Group {
   // falls back to per-resource checks → premium content gets locked.
   freeTrialDays Int?
 
+  // ─── Data retention (auto-cleanup) ───────────────────────────────────────
+  // When set, a daily cron deletes posts, channel chat messages, and comments
+  // older than this many days.  null = disabled (keep forever).
+  retentionDays Int?
+
   // ─── Tracks (M28) ────────────────────────────────────────────────────────
   // Tracks let admins pre-segment members into cohorts (e.g. "Beginner",
   // "Advanced") and gate which channels / courses each cohort sees. When

@@ -116,3 +116,26 @@ export async function setFreeTrialDaysAction(params: {
 
   revalidatePath(`/groups/[slug]/admin/settings`, "page");
 }
+
+// Data retention: auto-delete posts + chat older than N days.  null = off.
+export async function setRetentionDaysAction(params: {
+  groupId: string;
+  days: number | null;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
+  await requireRole({
+    groupId: params.groupId,
+    userId: session.user.id,
+    min: "ADMIN",
+  });
+
+  await db.group.update({
+    where: { id: params.groupId },
+    data: {
+      retentionDays: params.days && params.days > 0 ? params.days : null,
+    },
+  });
+
+  revalidatePath(`/groups/[slug]/admin/settings`, "page");
+}

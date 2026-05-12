@@ -7,6 +7,7 @@ import { LoginPopupForm } from "./_components/LoginPopupForm";
 import { FreeTrialForm } from "./_components/FreeTrialForm";
 import { LeavePopupForm } from "./_components/LeavePopupForm";
 import { PaymentIntegrationCard } from "./_components/PaymentIntegrationCard";
+import { RetentionForm } from "./_components/RetentionForm";
 import { headers } from "next/headers";
 
 export default async function AdminSettingsPage({
@@ -40,6 +41,7 @@ export default async function AdminSettingsPage({
       leavePopupBold: true,
       leavePopupStayLabel: true,
       leavePopupLeaveLabel: true,
+      retentionDays: true,
     },
   });
   if (!group || !session?.user) notFound();
@@ -134,6 +136,32 @@ export default async function AdminSettingsPage({
           <FreeTrialForm
             groupId={group.id}
             initial={group.freeTrialDays ?? 0}
+          />
+        </div>
+      </div>
+
+      {/* Data retention — auto-cleanup */}
+      <div className="overflow-hidden rounded-xl border border-destructive/20 bg-card shadow-sm">
+        <div
+          className="h-1.5 w-full"
+          style={{
+            background:
+              "linear-gradient(90deg, hsl(var(--destructive)) 0%, hsl(var(--destructive) / 0.5) 100%)",
+          }}
+        />
+        <div className="p-5">
+          <h2 className="mb-1 text-sm font-bold text-foreground">
+            Data retention
+          </h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Automatically delete old posts, comments, and channel chat messages
+            after a set number of days. Pinned posts are never deleted.
+            Direct messages are always cleaned up after 180 days globally.
+            Default: <strong>disabled</strong> (keep everything forever).
+          </p>
+          <RetentionForm
+            groupId={group.id}
+            initial={group.retentionDays ?? null}
           />
         </div>
       </div>
