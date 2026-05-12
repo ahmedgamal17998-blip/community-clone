@@ -40,6 +40,41 @@ export default async function CourseOutlinePage({
   });
   if (!course) notFound();
 
+  // Migrate any "orphan" lessons (moduleId IS NULL) into a real module before
+  // we hand the outline to the editor.
+  //
+  // getCourseOutline() injects a synthetic "__orphans__<courseId>" module so
+  // the player can still display un-bucketed lessons. That synthetic id is
+  // not a real CourseModule.id, so any release/drip/lock edit the admin makes
+  // on that row would fail server-side ("Module not found") and the optimistic
+  // pill would silently revert — the bug we're fixing here. By promoting the
+  // orphans to a persisted module up front, the editor only ever sees real
+  // module rows whose ids the update action can actually find.
+  const orphanCount = await db.lesson.count({
+    where: { courseId: course.id, moduleId: null },
+  });
+  if (orphanCount > 0) {
+    const lastModule = await db.courseModule.findFirst({
+      where: { courseId: course.id },
+      orderBy: { position: "desc" },
+      select: { position: true },
+    });
+    const newModule = await db.courseModule.create({
+      data: {
+        courseId: course.id,
+        title: "Lessons",
+        position: (lastModule?.position ?? -1) + 1,
+        releaseMode: "PUBLISHED",
+        published: true,
+      },
+      select: { id: true },
+    });
+    await db.lesson.updateMany({
+      where: { courseId: course.id, moduleId: null },
+      data: { moduleId: newModule.id },
+    });
+  }
+
   const outline = await getCourseOutline({
     courseId: course.id,
     viewerId: session.user.id,
