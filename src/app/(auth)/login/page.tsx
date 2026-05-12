@@ -3,8 +3,6 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { auth, signIn } from "@/server/auth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { PasswordSignInForm } from "./_components/PasswordSignInForm";
 
 const hasGoogle = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
@@ -28,13 +26,6 @@ export default async function LoginPage({
   if (session?.user) redirect(searchParams.callbackUrl ?? "/home");
   const t = await getTranslations("login");
   const callbackUrl = searchParams.callbackUrl ?? "/home";
-
-  async function emailSignIn(formData: FormData) {
-    "use server";
-    const email = String(formData.get("email") ?? "").trim();
-    if (!email) return;
-    await signIn("resend", { email, redirectTo: "/verify" });
-  }
 
   async function googleSignIn() {
     "use server";
@@ -65,10 +56,10 @@ export default async function LoginPage({
         </div>
       ) : null}
 
-      {/* Google OAuth — surfaced at the top because it's the lowest-friction
-          path for users with a Google account. Renders only when the env
-          vars are configured; otherwise we silently fall through to email
-          + password / magic link. */}
+      {/* Google OAuth — top action when configured. The Google provider in
+          auth.ts handles both first-time sign-up and returning sign-in via
+          PrismaAdapter.createUser, so this single button covers both cases.
+          Hidden if AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET aren't set. */}
       {!isDemoMode && hasGoogle ? (
         <div className="mt-6">
           <form action={googleSignIn}>
@@ -86,32 +77,6 @@ export default async function LoginPage({
       ) : null}
 
       {!isDemoMode && <PasswordSignInForm callbackUrl={callbackUrl} />}
-
-      {!isDemoMode && (
-        <>
-          <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            <span className="uppercase tracking-wider">or use a magic link</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-          <form action={emailSignIn} className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="magic-email">{t("emailLabel")}</Label>
-              <Input
-                id="magic-email"
-                name="email"
-                type="email"
-                required
-                autoComplete="email"
-                placeholder={t("emailPlaceholder")}
-              />
-            </div>
-            <Button type="submit" variant="outline" className="w-full" size="lg">
-              Email me a sign-in link
-            </Button>
-          </form>
-        </>
-      )}
 
       {!isDemoMode && (
         <p className="mt-6 text-center text-sm text-muted-foreground">

@@ -13,13 +13,13 @@
     "settings": "الإعدادات"
   },
   "login": {
-    "title": "تسجيل الدخول إلى Nadi",
-    "subtitle": "هنبعتلك لينك دخول سحري — من غير باسورد.",
+    "title": "أهلاً بعودتك",
+    "subtitle": "سجّل الدخول لحسابك على Nadi.",
     "emailLabel": "البريد الإلكتروني",
     "emailPlaceholder": "you@example.com",
     "continue": "المتابعة بالبريد",
     "orContinueWith": "أو متابعة عبر",
-    "google": "جوجل",
+    "google": "المتابعة بحساب جوجل",
     "legal": "بالمتابعة أنت توافق على الشروط."
   },
   "verify": {

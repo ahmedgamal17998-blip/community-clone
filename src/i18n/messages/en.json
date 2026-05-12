@@ -13,13 +13,13 @@
     "settings": "Settings"
   },
   "login": {
-    "title": "Sign in to Nadi",
-    "subtitle": "We'll send you a magic link — no password needed.",
+    "title": "Welcome back",
+    "subtitle": "Sign in to your Nadi account.",
     "emailLabel": "Email",
     "emailPlaceholder": "you@example.com",
     "continue": "Continue with email",
     "orContinueWith": "Or continue with",
-    "google": "Google",
+    "google": "Continue with Google",
     "legal": "By continuing you agree to our terms."
   },
   "verify": {
