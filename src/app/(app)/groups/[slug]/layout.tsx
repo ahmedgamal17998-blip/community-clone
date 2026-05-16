@@ -16,6 +16,7 @@ import { PaywallPopupMount } from "@/components/access/PaywallPopup";
 import { LoginPopup } from "@/components/layout/LoginPopup";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { AnnouncementPopup } from "@/components/layout/AnnouncementPopup";
+import { CheckInMount } from "@/components/group/CheckInPopup";
 import { db } from "@/server/db";
 
 export default async function GroupLayout({
@@ -254,6 +255,9 @@ export default async function GroupLayout({
           reshowHours={group.loginPopupReshowHours ?? 4}
         />
       )}
+
+      {/* Daily check-in — fires once per 24 h, awards points + streak */}
+      {isActiveMember && <CheckInMount groupId={group.id} />}
 
       {/* M21: onboarding tour (loaded async) */}
       {isActiveMember && myMembership && !myMembership.onboardingCompletedAt && (

@@ -178,6 +178,9 @@ model User {
   // Bookmarks
   savedPosts SavedPost[]
 
+  // Daily check-ins (per group)
+  checkIns MemberCheckIn[]
+
   // M28 — Track membership + audit
   trackMemberships TrackMember[]
   trackAssignments TrackMember[] @relation("TrackAssignor")
@@ -344,6 +347,9 @@ model Group {
 
   // M31 relations (Booky)
   bookingOfferings BookingOffering[]
+
+  // Daily check-ins
+  checkIns MemberCheckIn[]
 
   @@index([communityId])
 }
@@ -1330,6 +1336,25 @@ model LoginHistory {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+// ─── Daily Check-in ──────────────────────────────────────────────────────────
+// One row per successful check-in. The server action enforces a cooldown so
+// only one row per user per group per 24 h is ever created.
+// streak     = how many consecutive days (resets if gap > STREAK_BREAK_HOURS)
+// pointsEarned = base + any milestone bonus awarded that day
+model MemberCheckIn {
+  id           String   @id @default(cuid())
+  userId       String
+  groupId      String
+  checkedAt    DateTime @default(now())
+  streak       Int      @default(1)
+  pointsEarned Int      @default(2)
+
+  user  User  @relation(fields: [userId],  references: [id],  onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id],  onDelete: Cascade)
+
+  @@index([userId, groupId, checkedAt])
 }
 
 // ─── M19: Granular Admin Permissions ────────────────────────────────────────

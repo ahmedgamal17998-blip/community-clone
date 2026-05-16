@@ -28,6 +28,7 @@ const WINDOW_LABELS: Record<Window, string> = {
 };
 
 const EARN_RULES = [
+  { icon: Zap,           label: "Daily check-in",            pts: 2  },
   { icon: PenLine,       label: "Write a post",              pts: 5  },
   { icon: MessageCircle, label: "Leave a comment",           pts: 2  },
   { icon: Heart,         label: "Give a reaction",           pts: 1  },

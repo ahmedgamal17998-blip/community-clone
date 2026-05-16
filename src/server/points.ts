@@ -30,6 +30,8 @@ export type PointsReason =
   | "POST_COMMENT_RECEIVED"
   | "POST_SAVED"
   | "LESSON_COMPLETED"
+  | "DAILY_CHECK_IN"
+  | "STREAK_BONUS"
   | "ADMIN_ADJUST";
 
 export type Window = "7d" | "30d" | "all";
