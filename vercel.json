@@ -1,7 +1,8 @@
 {
   "crons": [
-    { "path": "/api/cron/event-reminders", "schedule": "0 8 * * *" },
-    { "path": "/api/cron/purge-archived-groups",  "schedule": "0 3 * * *" },
-    { "path": "/api/cron/cleanup-old-content",    "schedule": "0 4 * * *" }
+    { "path": "/api/cron/event-reminders",          "schedule": "0 8 * * *" },
+    { "path": "/api/cron/purge-archived-groups",    "schedule": "0 3 * * *" },
+    { "path": "/api/cron/cleanup-old-content",      "schedule": "0 4 * * *" },
+    { "path": "/api/cron/expire-subscriptions",     "schedule": "0 * * * *" }
   ]
 }

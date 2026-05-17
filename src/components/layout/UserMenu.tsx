@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, LogOut, DoorOpen, Building2 } from "lucide-react";
+import { LayoutDashboard, LogOut, DoorOpen, Building2, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { initialsFrom } from "@/lib/initials";
 import {
@@ -82,6 +82,12 @@ export function UserMenu({ name, email, image, handle, currentGroup }: Props) {
           <Link href="/owner/dashboard" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             My communities
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/admin" className="flex items-center gap-2">
+            <LayoutDashboard className="h-4 w-4" />
+            Workspace admin
           </Link>
         </DropdownMenuItem>
 

@@ -28,17 +28,17 @@ import { PLAN_CONFIGS } from "@/lib/plans";
 // ─── Plan badge ──────────────────────────────────────────────────────────────
 
 function PlanBadge({ plan }: { plan: string }) {
-  const cfg = PLAN_CONFIGS[plan as Plan] ?? PLAN_CONFIGS.FREE;
+  const cfg = PLAN_CONFIGS[plan as Plan] ?? PLAN_CONFIGS.STARTER;
   const colors: Record<Plan, string> = {
-    FREE:       "bg-muted text-muted-foreground",
-    PRO:        "bg-primary/10 text-primary",
-    ENTERPRISE: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    STARTER:  "bg-muted text-muted-foreground",
+    PRO:      "bg-primary/10 text-primary",
+    BUSINESS: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   };
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-        colors[(plan as Plan) in colors ? (plan as Plan) : "FREE"],
+        colors[(plan as Plan) in colors ? (plan as Plan) : "STARTER"],
       )}
     >
       {cfg.label}

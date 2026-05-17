@@ -1,53 +1,88 @@
 /**
- * SaaS plan definitions.
+ * Nadi SaaS plan definitions.
+ *
+ * These are the plans that Nadi charges workspace owners (Tenants).
+ * They control how many groups, members, courses, etc. a Tenant can have.
  *
  * To change any limit, edit only this file — nothing else needs to change.
+ *
+ * Note: "Community plan" (on Community.plan) uses these same tier names
+ * and mirrors the parent Tenant's plan for legacy group-level checks.
  */
 
-export type Plan = "FREE" | "PRO" | "ENTERPRISE";
+export type Plan = "STARTER" | "PRO" | "BUSINESS";
 
 export interface PlanConfig {
   label: string;
-  price: string;        // Display string, e.g. "$0/mo"
-  maxGroups: number;    // -1 = unlimited
-  maxMembersPerGroup: number; // -1 = unlimited
+  monthlyPriceCents: number; // 0 = free / trial
+  yearlyPriceCents: number;  // 0 = free / trial
+  /** Display string, e.g. "$0/mo" */
+  price: string;
+  // Hard limits (-1 = unlimited)
+  maxGroups: number;
+  maxMembersPerGroup: number;
+  maxCourses: number;
+  maxTeamMembers: number;     // admin seats
+  maxStorageBytes: number;    // -1 = unlimited
   features: string[];
 }
 
 export const PLAN_CONFIGS: Record<Plan, PlanConfig> = {
-  FREE: {
-    label: "Free",
+  STARTER: {
+    label: "Starter",
+    monthlyPriceCents: 0,
+    yearlyPriceCents: 0,
     price: "$0/mo",
     maxGroups: 1,
-    maxMembersPerGroup: 100,
+    maxMembersPerGroup: 50,
+    maxCourses: 1,
+    maxTeamMembers: 0,
+    maxStorageBytes: 1_073_741_824, // 1 GB
     features: [
       "1 group",
-      "Up to 100 members",
-      "Posts, chat & courses",
+      "Up to 50 members",
+      "1 course",
+      "Posts, chat & events",
       "Basic analytics",
     ],
   },
   PRO: {
     label: "Pro",
+    monthlyPriceCents: 2900,
+    yearlyPriceCents: 29900,
     price: "$29/mo",
-    maxGroups: -1,
-    maxMembersPerGroup: -1,
+    maxGroups: 3,
+    maxMembersPerGroup: 500,
+    maxCourses: 10,
+    maxTeamMembers: 3,
+    maxStorageBytes: 16_106_127_360, // 15 GB
     features: [
-      "Unlimited groups",
-      "Unlimited members",
+      "Up to 3 groups",
+      "Up to 500 members",
+      "10 courses",
       "Custom branding & domain",
       "Advanced analytics",
+      "3 admin team seats",
       "Priority support",
     ],
   },
-  ENTERPRISE: {
-    label: "Enterprise",
-    price: "Custom",
+  BUSINESS: {
+    label: "Business",
+    monthlyPriceCents: 7900,
+    yearlyPriceCents: 79900,
+    price: "$79/mo",
     maxGroups: -1,
     maxMembersPerGroup: -1,
+    maxCourses: -1,
+    maxTeamMembers: 10,
+    maxStorageBytes: 53_687_091_200, // 50 GB
     features: [
-      "Everything in Pro",
-      "White-label",
+      "Unlimited groups",
+      "Unlimited members",
+      "Unlimited courses",
+      "White-label & custom domain",
+      "Full analytics & exports",
+      "10 admin team seats",
       "Dedicated support",
       "SLA",
       "Custom integrations",

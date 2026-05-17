@@ -136,7 +136,7 @@ export async function assertCanCreateGroup(communityId: string) {
   if (!community) throw new Error("Community not found");
   if (!canCreateGroup(community.plan as Plan, community._count.groups)) {
     throw new Error(
-      `Your Free plan is limited to 1 group. Upgrade to Pro to create more.`,
+      `Your Starter plan is limited to 1 group. Upgrade to Pro or Business to create more.`,
     );
   }
 }

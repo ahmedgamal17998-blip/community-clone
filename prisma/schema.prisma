@@ -1,12 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Community Clone — Prisma schema (M1–M5)
+// Nadi — Prisma schema
 //
-// M1 surface: User / Account / Session / VerificationToken / Presence
-// M2 adds:    Community / Group / GroupMembership
-// M3 adds:    Channel / ChannelAccess / ChatThread / ChatParticipant
-// M4 adds:    Post
-// M5 adds:    Comment / Reaction / Poll / PollOption / PollVote
-// Later milestones add ChatMessage, Booking, etc.
+// Core auth:    User / Account / Session / VerificationToken / Presence
+// Multi-tenant: Tenant / PaymentMethod / Invoice
+// SaaS content: Community / Group / GroupMembership
+// Channels:     Channel / ChannelAccess / ChatThread / ChatParticipant
+// Content:      Post / Comment / Reaction / Poll
+// Monetisation: Subscription / SubscriptionPlan / MemberAccess
+// Courses:      Course / CourseModule / Lesson / LessonProgress
+// Events:       Event / EventRSVP
+// Gamification: PointsLedger / MemberCheckIn
+// Tracks:       Track / TrackMember / TrackChannel / TrackCourse
+// Booking:      BookingOffering (Booky embed)
 // ─────────────────────────────────────────────────────────────────────────────
 
 generator client {
@@ -184,6 +189,12 @@ model User {
   // M28 — Track membership + audit
   trackMemberships TrackMember[]
   trackAssignments TrackMember[] @relation("TrackAssignor")
+
+  // SaaS tenant ownership
+  ownedTenants Tenant[] @relation("TenantOwner")
+
+  // Subscription approvals (admin action)
+  approvedSubscriptions Subscription[] @relation("SubscriptionApprover")
 }
 
 // Single row per user. Updated by a debounced heartbeat (M6).
@@ -213,11 +224,113 @@ model Presence {
 // Enums are encoded as Strings (SQLite has no native enum). Values are
 // constrained at the application layer via Zod.
 
+// ─── SaaS: Tenant (top-level billing entity) ────────────────────────────────
+//
+// One Tenant per Nadi workspace owner (e.g. "Acme Academy").
+// A Tenant owns Communities which own Groups.
+// plan / planStatus drive feature gating at the server action layer.
+// Usage counters are denormalised for fast limit checks; reconciled by cron.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Tenant {
+  id     String @id @default(cuid())
+  slug   String @unique // e.g. "acme" → acme.nadi.app (or custom domain)
+  name   String
+  ownerId String
+
+  // SaaS plan tier
+  plan       String    @default("STARTER") // STARTER | PRO | BUSINESS
+  planStatus String    @default("TRIAL")   // TRIAL | ACTIVE | PAST_DUE | CANCELED | SUSPENDED
+  trialEndsAt DateTime?
+
+  // Plan limits (copied from the plan at subscription time; allows overrides)
+  memberLimit  Int @default(50)
+  groupLimit   Int @default(1)
+  courseLimit  Int @default(1)
+  teamLimit    Int @default(0)
+  storageLimit Int @default(1073741824) // 1 GB in bytes
+
+  // Usage counters — incremented / decremented by server actions
+  currentMembers Int @default(0)
+  currentGroups  Int @default(0)
+  currentCourses Int @default(0)
+  currentTeam    Int @default(0)
+  currentStorage Int @default(0) // bytes
+
+  // Billing (Nadi's own Stripe account — Salezprint LLC)
+  billingEmail         String?
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+
+  // Custom domain (set after DNS verification)
+  customDomain String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner          User            @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  communities    Community[]
+  paymentMethods PaymentMethod[]
+  invoices       Invoice[]
+
+  @@index([ownerId])
+}
+
+// ─── SaaS: Payment Methods (per-Tenant, for member subscriptions) ────────────
+//
+// type encodes the payment rail:
+//   MANUAL_*  — admin manually verifies a proof-of-payment screenshot
+//   PAYMOB    — automated via Paymob webhook
+//   STRIPE    — automated via Stripe webhook
+// credentialsEnc stores AES-256-GCM encrypted JSON with rail-specific creds.
+
+model PaymentMethod {
+  id      String  @id @default(cuid())
+  tenantId String
+  type    String  // MANUAL_VODAFONE_CASH | MANUAL_INSTAPAY | MANUAL_BANK_TRANSFER | MANUAL_FAWRY | MANUAL_CUSTOM | PAYMOB | STRIPE
+  label   String  // display name, e.g. "Vodafone Cash – 01012345678"
+  // AES-256-GCM encrypted JSON blob.
+  // MANUAL*: { instructions: string, accountDetails: string }
+  // PAYMOB:  { apiKey, integrationId, hmacSecret }
+  // STRIPE:  { secretKey, webhookSecret, publishableKey }
+  credentialsEnc String?
+  active    Boolean @default(true)
+  isDefault Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+
+  @@index([tenantId, active])
+}
+
+// ─── SaaS: Invoices (Nadi billing invoices for tenant plan) ─────────────────
+
+model Invoice {
+  id              String    @id @default(cuid())
+  tenantId        String
+  amountCents     Int       // in cents
+  currency        String    @default("usd")
+  status          String    @default("PENDING") // PENDING | PAID | VOID | UNCOLLECTIBLE
+  description     String?
+  stripeInvoiceId String?   @unique
+  paidAt          DateTime?
+  dueAt           DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([createdAt])
+}
+
 // ─── SaaS plans ─────────────────────────────────────────────────────────────
 // Tune limits here. Checked at group-creation time.
-// FREE        → up to FREE_GROUP_LIMIT groups
-// PRO         → unlimited groups + analytics + branding
-// ENTERPRISE  → PRO + white-label + dedicated support
+// STARTER     → 1 group, 50 members, 1 course
+// PRO         → 3 groups, 500 members, 10 courses + branding
+// BUSINESS    → unlimited + white-label + dedicated support
 // ─────────────────────────────────────────────────────────────────────────────
 
 model Community {
@@ -234,13 +347,19 @@ model Community {
   ownerId     String
   owner       User     @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
 
-  // SaaS plan — controls feature access and limits (see PLAN_LIMITS in src/lib/plans.ts)
-  plan        String   @default("FREE")   // FREE | PRO | ENTERPRISE
+  // Tenant this community belongs to (null for legacy data pre-SaaS)
+  tenantId    String?
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  // SaaS plan — controls feature access and limits (see src/server/billing/plans.ts)
+  plan        String   @default("STARTER") // STARTER | PRO | BUSINESS
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   groups Group[]
+
+  @@index([tenantId])
 }
 
 model Group {
@@ -291,6 +410,15 @@ model Group {
   // to (joinedAt + freeTrialDays). After it expires, hasAccess() naturally
   // falls back to per-resource checks → premium content gets locked.
   freeTrialDays Int?
+
+  // ─── Group-level paid access (SaaS) ──────────────────────────────────────
+  // When isPaid = true, new members must purchase a subscription before they
+  // get ACTIVE state. Admins can still invite / manually approve for free.
+  isPaid         Boolean @default(false)
+  priceCents     Int?    // price in cents (e.g. 2900 = $29)
+  priceCurrency  String  @default("usd")
+  paidDurationDays Int?  // subscription period (30 = monthly, 365 = yearly)
+  paidTrialDays  Int?    // trial period before billing kicks in
 
   // ─── Data retention (auto-cleanup) ───────────────────────────────────────
   // When set, a daily cron deletes posts, channel chat messages, and comments
@@ -404,6 +532,10 @@ model GroupMembership {
 
   // M21: onboarding tour completion
   onboardingCompletedAt DateTime?
+
+  // SaaS billing gate — flipped false by auto-lock cron when subscription expires
+  hasAccess       Boolean   @default(true)
+  accessRevokedAt DateTime?
 
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1286,10 +1418,23 @@ model Subscription {
   planId                 String
   startedAt              DateTime  @default(now())
   currentPeriodEnd       DateTime
-  status                 String    @default("ACTIVE") // ACTIVE | EXPIRED | CANCELED
-  // ─── External payment-system fields (Subscription-base / Paymob) ──
-  // We store the external sub ID so the admin Cancel action can call
-  // POST /api/subscriptions/:id/cancel on the payment system.
+  // Status: PENDING_APPROVAL (manual payment awaiting admin review)
+  //         ACTIVE           (access granted)
+  //         EXPIRED          (period ended, not renewed)
+  //         CANCELED         (user or admin cancelled)
+  //         REJECTED         (admin rejected manual payment proof)
+  status                 String    @default("ACTIVE")
+
+  // ─── Manual payment fields ────────────────────────────────────────────────
+  paymentMethodId String?        // which PaymentMethod was used
+  paymentProofUrl String?        // uploaded screenshot of transfer
+  paymentRef      String?        // reference number from transfer
+  amountPaid      Int?           // actual amount paid (in cents)
+  approvedById    String?        // admin who approved/rejected
+  approvedAt      DateTime?
+  rejectedReason  String?
+
+  // ─── External payment-system fields (Paymob webhook) ─────────────────────
   externalSubscriptionId Int?
   externalProductId      Int?
   externalPlanType       String?
@@ -1302,17 +1447,24 @@ model Subscription {
 
   externalRef String? // legacy / generic reference
 
+  // Reminder tracking
+  reminderSentAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  plan  SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group         Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  plan          SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  paymentMethod PaymentMethod?   @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  approvedBy    User?            @relation("SubscriptionApprover", fields: [approvedById], references: [id], onDelete: SetNull)
 
   @@index([userId, groupId, status])
   @@index([groupId, status])
   @@index([externalSubscriptionId])
   @@index([userId, planId, status])
+  @@index([status, currentPeriodEnd]) // for auto-lock cron
+  @@index([paymentMethodId])
 }
 
 // ─── Inbound payment-webhook audit / idempotency log ───────────────────
