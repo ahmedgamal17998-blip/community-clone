@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, LogOut, DoorOpen } from "lucide-react";
+import { LayoutDashboard, LogOut, DoorOpen, Building2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { initialsFrom } from "@/lib/initials";
 import {
@@ -77,6 +77,12 @@ export function UserMenu({ name, email, image, handle, currentGroup }: Props) {
         )}
         <DropdownMenuItem asChild>
           <Link href="/settings/profile">{t("settings")}</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/owner/dashboard" className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            My communities
+          </Link>
         </DropdownMenuItem>
 
         {/* Group context — Admin dashboard + Leave group, only when the

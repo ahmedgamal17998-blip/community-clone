@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Flame, X, Zap, Star } from "lucide-react";
 import { dailyCheckInAction, type CheckInResult } from "@/server/checkin";
 import { cn } from "@/lib/utils";
@@ -11,8 +11,14 @@ const AUTO_DISMISS_MS = 5_000;   // how long the popup stays before fading out
 
 export function CheckInMount({ groupId }: { groupId: string }) {
   const [result, setResult] = useState<CheckInResult | null>(null);
+  // Guard against React StrictMode double-invocation (dev only).
+  // The server action itself is idempotent, but we want to avoid showing
+  // { awarded: false } overwriting an earlier { awarded: true } result.
+  const firedRef = useRef(false);
 
   useEffect(() => {
+    if (firedRef.current) return;
+    firedRef.current = true;
     dailyCheckInAction({ groupId }).then(setResult);
   }, [groupId]);
 

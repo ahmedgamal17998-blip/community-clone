@@ -22,11 +22,12 @@ const DM_RETENTION_DAYS = parseInt(
 );
 
 export async function GET(req: Request) {
-  const isVercelCron = req.headers.get("x-vercel-cron");
+  // Require CRON_SECRET regardless of source.
+  // The x-vercel-cron header alone is NOT sufficient — any caller can spoof it.
+  // Vercel's own crons send both the header AND the Bearer token when configured.
   const authHeader = req.headers.get("authorization");
   const secret = process.env.CRON_SECRET;
-  const secretOk = secret && authHeader === `Bearer ${secret}`;
-  if (!isVercelCron && !secretOk) {
+  if (!secret || authHeader !== `Bearer ${secret}`) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 

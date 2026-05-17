@@ -21,6 +21,7 @@ import { z } from "zod";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { requireRole } from "@/server/permissions";
+import { Prisma } from "@prisma/client";
 
 export type PointsReason =
   | "POST"
@@ -49,32 +50,27 @@ export type AddPointsInput = {
 /** Insert a ledger row (idempotent on natural key). */
 export async function addPoints(input: AddPointsInput) {
   if (!input.userId || !input.groupId || !Number.isFinite(input.delta)) return null;
-  // Idempotency: only re-add for a given (user,group,reason,refType,refId) once.
-  if (input.refType && input.refId && input.reason !== "ADMIN_ADJUST") {
-    const existing = await db.pointsLedger.findFirst({
-      where: {
+
+  try {
+    return await db.pointsLedger.create({
+      data: {
         userId: input.userId,
         groupId: input.groupId,
+        delta: input.delta,
         reason: input.reason,
-        refType: input.refType,
-        refId: input.refId,
+        refType: input.refType ?? null,
+        refId: input.refId ?? null,
+        note: input.note ?? null,
       },
       select: { id: true },
     });
-    if (existing) return existing;
+  } catch (err) {
+    // P2002 = unique constraint violation → already awarded, silently skip.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return null;
+    }
+    throw err;
   }
-  return db.pointsLedger.create({
-    data: {
-      userId: input.userId,
-      groupId: input.groupId,
-      delta: input.delta,
-      reason: input.reason,
-      refType: input.refType ?? null,
-      refId: input.refId ?? null,
-      note: input.note ?? null,
-    },
-    select: { id: true },
-  });
 }
 
 function windowStart(win: Window): Date | null {

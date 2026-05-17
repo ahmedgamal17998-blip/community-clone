@@ -9,6 +9,7 @@
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { addPoints } from "@/server/points";
+import { Prisma } from "@prisma/client";
 
 // ─── Tune these to change behaviour — no need to touch the logic below ───────
 
@@ -84,10 +85,25 @@ export async function dailyCheckInAction(params: {
   }
   const totalPoints = BASE_POINTS + milestoneBonus;
 
+  // Cooldown bucket — used both as the DB uniqueness key and the points refId.
+  // Declared here so it's available to both the MemberCheckIn create and addPoints.
+  const bucket = Math.floor(now.getTime() / cooldownMs);
+
   // ── 4. Persist check-in ───────────────────────────────────────────────────
-  await db.memberCheckIn.create({
-    data: { userId, groupId, streak: newStreak, pointsEarned: totalPoints },
-  });
+  // `bucket` enforces DB-level uniqueness per cooldown window, so concurrent
+  // requests can't both write a check-in for the same window.
+  try {
+    await db.memberCheckIn.create({
+      data: { userId, groupId, streak: newStreak, pointsEarned: totalPoints, bucket },
+    });
+  } catch (err) {
+    // P2002 = unique(userId, groupId, bucket) violated by a concurrent request.
+    // Another request won the race — this one is a no-op.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return { awarded: false };
+    }
+    throw err;
+  }
 
   // Also write to the admin-visible LoginHistory so admins can see daily visits.
   await db.loginHistory.create({
@@ -95,9 +111,6 @@ export async function dailyCheckInAction(params: {
   }).catch(() => { /* non-critical */ });
 
   // ── 5. Award points ────────────────────────────────────────────────────────
-  // Base check-in points — idempotency key uses the cooldown bucket so the
-  // ledger can't be double-credited even on concurrent requests.
-  const bucket = Math.floor(now.getTime() / cooldownMs);
 
   await addPoints({
     userId, groupId,

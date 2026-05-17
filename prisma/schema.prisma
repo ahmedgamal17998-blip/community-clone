@@ -213,10 +213,18 @@ model Presence {
 // Enums are encoded as Strings (SQLite has no native enum). Values are
 // constrained at the application layer via Zod.
 
+// ─── SaaS plans ─────────────────────────────────────────────────────────────
+// Tune limits here. Checked at group-creation time.
+// FREE        → up to FREE_GROUP_LIMIT groups
+// PRO         → unlimited groups + analytics + branding
+// ENTERPRISE  → PRO + white-label + dedicated support
+// ─────────────────────────────────────────────────────────────────────────────
+
 model Community {
   id          String   @id @default(cuid())
   slug        String   @unique
   name        String
+  tagline     String?  // short one-liner shown on the landing page
   description String?
   logoUrl     String?
   coverUrl    String?
@@ -225,6 +233,10 @@ model Community {
   primaryHsl  String   @default("263 74% 58%")
   ownerId     String
   owner       User     @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+
+  // SaaS plan — controls feature access and limits (see PLAN_LIMITS in src/lib/plans.ts)
+  plan        String   @default("FREE")   // FREE | PRO | ENTERPRISE
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -1166,6 +1178,10 @@ model PointsLedger {
   user  User  @relation("PointsUser", fields: [userId], references: [id], onDelete: Cascade)
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
+  // DB-level idempotency guard: only one row per (user, group, reason, refType, refId).
+  // PostgreSQL treats NULL != NULL in unique indexes so ADMIN_ADJUST rows (refId null)
+  // are never blocked — each manual adjustment gets its own row.
+  @@unique([userId, groupId, reason, refType, refId])
   @@index([groupId, userId, createdAt])
   @@index([groupId, createdAt])
 }
@@ -1350,10 +1366,15 @@ model MemberCheckIn {
   checkedAt    DateTime @default(now())
   streak       Int      @default(1)
   pointsEarned Int      @default(2)
+  // Integer bucket = floor(unixEpochMs / cooldownMs).
+  // Unique per (user, group) within a cooldown window — DB-level race guard.
+  // Nullable so legacy rows (no bucket) don't conflict; new rows always supply it.
+  bucket       Int?
 
   user  User  @relation(fields: [userId],  references: [id],  onDelete: Cascade)
   group Group @relation(fields: [groupId], references: [id],  onDelete: Cascade)
 
+  @@unique([userId, groupId, bucket])
   @@index([userId, groupId, checkedAt])
 }
 

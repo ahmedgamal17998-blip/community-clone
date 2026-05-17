@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Plus, Compass } from "lucide-react";
+import { Plus, Compass, LayoutDashboard } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/server/auth";
-import { db } from "@/server/db";
 import { listMyGroups } from "@/server/group-queries";
+import { getOwnedCommunities } from "@/server/community";
 import { GroupAvatar } from "@/components/group/GroupAvatar";
 import { Button } from "@/components/ui/button";
 
@@ -12,14 +12,15 @@ export default async function HomePage() {
   const t = await getTranslations("home");
   const tg = await getTranslations("groups");
 
-  const mine = session?.user ? await listMyGroups(session.user.id) : [];
-  const me = session?.user
-    ? await db.user.findUnique({
-        where: { id: session.user.id },
-        select: { canCreateGroups: true },
-      })
-    : null;
-  const canCreate = !!me?.canCreateGroups;
+  const [mine, owned] = session?.user
+    ? await Promise.all([
+        listMyGroups(session.user.id),
+        getOwnedCommunities(session.user.id),
+      ])
+    : [[], []];
+
+  const canCreate = true; // any logged-in user can create a community
+  const hasCommunities = owned.length > 0;
 
   return (
     <section className="mx-auto max-w-3xl space-y-8">
@@ -39,9 +40,17 @@ export default async function HomePage() {
                 {tg("discover")}
               </Link>
             </Button>
+            {hasCommunities && (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/owner/dashboard" className="gap-2">
+                  <LayoutDashboard className="h-4 w-4" />
+                  Dashboard
+                </Link>
+              </Button>
+            )}
             {canCreate && (
               <Button asChild size="sm">
-                <Link href="/groups/new" className="gap-2">
+                <Link href="/create" className="gap-2">
                   <Plus className="h-4 w-4" />
                   {tg("create")}
                 </Link>

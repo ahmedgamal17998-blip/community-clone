@@ -35,8 +35,8 @@ export default async function GroupLayout({
 
   // Soft-deleted groups: only OWNER sees; others get 404.
   if (group.deletedAt && myMembership?.role !== "OWNER") notFound();
-  // HIDDEN groups: only visible to members.
-  if (group.visibility === "HIDDEN" && !myMembership) notFound();
+  // HIDDEN groups: only visible to ACTIVE members (REQUESTED state does not grant visibility).
+  if (group.visibility === "HIDDEN" && myMembership?.state !== "ACTIVE") notFound();
   // BANNED users: treat as not found to avoid leaking state.
   if (myMembership?.state === "BANNED") notFound();
 
