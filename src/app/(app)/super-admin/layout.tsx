@@ -9,17 +9,17 @@ import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { isSuperAdmin } from "@/server/super-admin";
 import {
-  LayoutDashboard, Users, Building2, CreditCard,
-  Settings, ShieldAlert,
+  LayoutDashboard, Building2, FileText,
+  TrendingUp, Bell, ShieldAlert,
 } from "lucide-react";
 import { AdminNavLink } from "@/components/admin/AdminNavLink";
 
 const NAV = [
-  { href: "/super-admin",          label: "Overview",  icon: LayoutDashboard },
-  { href: "/super-admin/tenants",  label: "Tenants",   icon: Building2 },
-  { href: "/super-admin/users",    label: "Users",     icon: Users },
-  { href: "/super-admin/revenue",  label: "Revenue",   icon: CreditCard },
-  { href: "/super-admin/settings", label: "Settings",  icon: Settings },
+  { href: "/super-admin",               label: "Overview",      icon: <LayoutDashboard className="h-4 w-4 shrink-0" /> },
+  { href: "/super-admin/tenants",       label: "Tenants",       icon: <Building2       className="h-4 w-4 shrink-0" /> },
+  { href: "/super-admin/invoices",      label: "Invoices",      icon: <FileText        className="h-4 w-4 shrink-0" /> },
+  { href: "/super-admin/revenue",       label: "Revenue",       icon: <TrendingUp      className="h-4 w-4 shrink-0" /> },
+  { href: "/super-admin/notifications", label: "Notifications", icon: <Bell            className="h-4 w-4 shrink-0" /> },
 ];
 
 export default async function SuperAdminLayout({

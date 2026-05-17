@@ -15,11 +15,11 @@ import {
 import { AdminNavLink } from "@/components/admin/AdminNavLink";
 
 const NAV = [
-  { href: "/admin",                label: "Overview",        icon: LayoutDashboard },
-  { href: "/admin/subscriptions",  label: "Subscriptions",   icon: Users },
-  { href: "/admin/payment-methods",label: "Payment Methods", icon: CreditCard },
-  { href: "/admin/billing",        label: "Billing & Plan",  icon: Receipt },
-  { href: "/admin/settings",       label: "Settings",        icon: Settings },
+  { href: "/admin",                 label: "Overview",        icon: <LayoutDashboard className="h-4 w-4 shrink-0" /> },
+  { href: "/admin/subscriptions",   label: "Subscriptions",   icon: <Users            className="h-4 w-4 shrink-0" /> },
+  { href: "/admin/payment-methods", label: "Payment Methods", icon: <CreditCard       className="h-4 w-4 shrink-0" /> },
+  { href: "/admin/billing",         label: "Billing & Plan",  icon: <Receipt          className="h-4 w-4 shrink-0" /> },
+  { href: "/admin/settings",        label: "Settings",        icon: <Settings         className="h-4 w-4 shrink-0" /> },
 ];
 
 export default async function AdminLayout({

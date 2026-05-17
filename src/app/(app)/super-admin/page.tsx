@@ -1,11 +1,13 @@
 /**
  * /super-admin — Platform overview for Nadi (Salezprint LLC).
  */
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { isSuperAdmin } from "@/server/super-admin";
-import { Building2, Users, CreditCard, TrendingUp, AlertCircle } from "lucide-react";
+import { format } from "date-fns";
+import { Building2, Users, TrendingUp, AlertCircle } from "lucide-react";
 
 export default async function SuperAdminPage() {
   const session = await auth();
@@ -15,14 +17,12 @@ export default async function SuperAdminPage() {
   const [
     tenantCount,
     userCount,
-    activeSubs,
     pendingApprovals,
     trialTenants,
     recentTenants,
   ] = await Promise.all([
     db.tenant.count(),
     db.user.count(),
-    db.subscription.count({ where: { status: "ACTIVE" } }),
     db.subscription.count({ where: { status: "PENDING_APPROVAL" } }),
     db.tenant.count({ where: { planStatus: "TRIAL" } }),
     db.tenant.findMany({
@@ -45,7 +45,7 @@ export default async function SuperAdminPage() {
   const stats = [
     { label: "Total tenants",     value: tenantCount,      icon: Building2,   sub: `${trialTenants} on trial` },
     { label: "Total users",       value: userCount,        icon: Users,       sub: "across all tenants" },
-    { label: "Active subs",       value: activeSubs,       icon: TrendingUp,  sub: "member subscriptions" },
+    { label: "Paying tenants",    value: payingTenants,    icon: TrendingUp,  sub: "PRO + BUSINESS active" },
     { label: "Pending approvals", value: pendingApprovals, icon: AlertCircle, sub: "need action", urgent: pendingApprovals > 0 },
   ];
 
@@ -77,9 +77,14 @@ export default async function SuperAdminPage() {
 
       {/* Recent tenants */}
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Recent workspaces
-        </h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Recent workspaces
+          </h2>
+          <Link href="/super-admin/tenants" className="text-xs text-primary hover:underline">
+            View all →
+          </Link>
+        </div>
         <div className="overflow-hidden rounded-2xl border border-border bg-card">
           <table className="w-full text-sm">
             <thead>
@@ -89,18 +94,19 @@ export default async function SuperAdminPage() {
                 <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Plan</th>
                 <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Members</th>
                 <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Groups</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Joined</th>
               </tr>
             </thead>
             <tbody>
               {recentTenants.map((t) => (
                 <tr key={t.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
                   <td className="px-4 py-3">
-                    <div>
+                    <Link href={`/super-admin/tenants/${t.id}`} className="block hover:text-primary transition-colors">
                       <p className="font-medium">{t.name}</p>
                       <p className="text-xs text-muted-foreground">{t.slug}.nadi.app</p>
-                    </div>
+                    </Link>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{t.owner.name ?? t.owner.email}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{t.owner.name ?? t.owner.email}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
                       t.planStatus === "TRIAL" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
@@ -113,6 +119,9 @@ export default async function SuperAdminPage() {
                   </td>
                   <td className="px-4 py-3 text-right text-muted-foreground">{t.currentMembers}</td>
                   <td className="px-4 py-3 text-right text-muted-foreground">{t.currentGroups}</td>
+                  <td className="px-4 py-3 text-right text-xs text-muted-foreground">
+                    {format(new Date(t.createdAt), "dd MMM yy")}
+                  </td>
                 </tr>
               ))}
             </tbody>

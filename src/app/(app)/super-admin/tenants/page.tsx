@@ -1,6 +1,7 @@
 /**
  * /super-admin/tenants — Full tenant list with search + plan management.
  */
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
@@ -71,7 +72,7 @@ export default async function SuperAdminTenantsPage({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              {["Workspace","Owner","Plan","Status","Members","Groups","Created","Actions"].map((h) => (
+              {["Workspace","Owner","Plan","Status","Members","Groups","Created","Actions",""].map((h) => (
                 <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground first:pl-4 last:pr-4">
                   {h}
                 </th>
@@ -110,8 +111,16 @@ export default async function SuperAdminTenantsPage({
                 <td className="px-3 py-3 text-xs text-muted-foreground">
                   {format(new Date(t.createdAt), "dd MMM yy")}
                 </td>
-                <td className="pr-4 py-3">
+                <td className="py-3">
                   <SuperAdminTenantActions tenantId={t.id} currentPlan={t.plan} currentStatus={t.planStatus} />
+                </td>
+                <td className="pr-4 py-3">
+                  <Link
+                    href={`/super-admin/tenants/${t.id}`}
+                    className="rounded-lg px-2 py-1 text-xs text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    View →
+                  </Link>
                 </td>
               </tr>
             ))}

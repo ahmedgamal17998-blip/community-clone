@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon: ReactNode; // pre-rendered JSX — never pass the component function from a Server Component
 }
 
 export function AdminNavLink({ item }: { item: NavItem }) {
@@ -16,6 +16,8 @@ export function AdminNavLink({ item }: { item: NavItem }) {
   const active =
     item.href === "/admin"
       ? pathname === "/admin"
+      : item.href === "/super-admin"
+      ? pathname === "/super-admin"
       : pathname.startsWith(item.href);
 
   return (
@@ -28,7 +30,7 @@ export function AdminNavLink({ item }: { item: NavItem }) {
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      <item.icon className="h-4 w-4 shrink-0" />
+      {item.icon}
       {item.label}
     </Link>
   );
