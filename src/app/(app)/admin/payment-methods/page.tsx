@@ -15,6 +15,7 @@ const TYPE_LABELS: Record<string, string> = {
   MANUAL_CUSTOM:         "Custom Manual",
   PAYMOB:                "Paymob (Automated)",
   STRIPE:                "Stripe (Automated)",
+  SUBSCRIPTION_BASE:     "Subscription-base (External)",
 };
 
 export default async function PaymentMethodsPage() {
@@ -23,9 +24,9 @@ export default async function PaymentMethodsPage() {
 
   const tenant = await db.tenant.findFirst({
     where: { ownerId: session.user.id },
-    select: { id: true },
+    select: { id: true, subscriptionBaseEnabled: true },
   });
-  if (!tenant) redirect("/onboarding");
+  if (!tenant) redirect("/admin/setup");
 
   const methods = await db.paymentMethod.findMany({
     where: { tenantId: tenant.id },
@@ -58,6 +59,7 @@ export default async function PaymentMethodsPage() {
       <PaymentMethodsClient
         tenantId={tenant.id}
         methods={methods.map((m) => ({ ...m, typeLabel: TYPE_LABELS[m.type] ?? m.type }))}
+        subscriptionBaseEnabled={tenant.subscriptionBaseEnabled}
       />
     </div>
   );

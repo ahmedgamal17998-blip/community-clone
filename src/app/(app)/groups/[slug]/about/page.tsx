@@ -6,7 +6,6 @@ export default async function GroupAboutPage({ params }: { params: { slug: strin
   const t = await getTranslations("groups");
   const group = await db.group.findUnique({
     where: { slug: params.slug },
-    include: { community: true },
   });
   if (!group) notFound();
 
@@ -17,13 +16,6 @@ export default async function GroupAboutPage({ params }: { params: { slug: strin
         <p className="mt-2 text-sm text-muted-foreground dir-auto">
           {group.description ?? t("about.noDescription")}
         </p>
-      </div>
-      <div className="rounded-xl border border-border bg-card p-6">
-        <h2 className="text-base font-semibold">{t("about.partOfCommunity")}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">{group.community.name}</p>
-        {group.community.description ? (
-          <p className="mt-1 text-xs text-muted-foreground dir-auto">{group.community.description}</p>
-        ) : null}
       </div>
     </section>
   );

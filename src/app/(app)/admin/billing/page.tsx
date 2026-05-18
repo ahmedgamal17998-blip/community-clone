@@ -23,7 +23,7 @@ export default async function AdminBillingPage() {
       stripeCustomerId: true, stripeSubscriptionId: true,
     },
   });
-  if (!tenant) redirect("/onboarding");
+  if (!tenant) redirect("/admin/setup");
 
   const plan = tenant.plan as Plan;
   const cfg  = PLAN_CONFIGS[plan];

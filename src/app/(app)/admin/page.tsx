@@ -17,26 +17,22 @@ export default async function AdminOverviewPage() {
     where: { ownerId: session.user.id },
     orderBy: { createdAt: "desc" },
     include: {
-      communities: {
-        include: {
-          groups: {
-            where: { deletedAt: null },
-            select: { id: true, name: true, slug: true, isPaid: true,
-              _count: { select: { memberships: { where: { state: "ACTIVE" } } } } },
-          },
-        },
+      groups: {
+        where: { deletedAt: null },
+        select: { id: true, name: true, slug: true, isPaid: true,
+          _count: { select: { memberships: { where: { state: "ACTIVE" } } } } },
       },
       paymentMethods: { where: { active: true }, select: { id: true } },
     },
   });
 
-  if (!tenant) redirect("/onboarding");
+  if (!tenant) redirect("/admin/setup");
 
   // Pending approvals count
   const pendingCount = await db.subscription.count({
     where: {
       status: "PENDING_APPROVAL",
-      group: { community: { tenantId: tenant.id } },
+      group: { tenantId: tenant.id },
     },
   });
 
@@ -45,11 +41,11 @@ export default async function AdminOverviewPage() {
     where: {
       status: "ACTIVE",
       startedAt: { gte: new Date(Date.now() - 30 * 86400000) },
-      group: { community: { tenantId: tenant.id } },
+      group: { tenantId: tenant.id },
     },
   });
 
-  const groups = tenant.communities.flatMap((c) => c.groups);
+  const groups = tenant.groups;
   const totalMembers = groups.reduce((acc, g) => acc + g._count.memberships, 0);
   const trialDaysLeft = tenant.trialEndsAt
     ? Math.max(0, Math.ceil((tenant.trialEndsAt.getTime() - Date.now()) / 86400000))

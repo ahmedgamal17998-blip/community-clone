@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Plus, Compass, LayoutDashboard } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/server/auth";
+import { db } from "@/server/db";
 import { listMyGroups } from "@/server/group-queries";
-import { getOwnedCommunities } from "@/server/community";
 import { GroupAvatar } from "@/components/group/GroupAvatar";
 import { Button } from "@/components/ui/button";
 
@@ -12,15 +12,15 @@ export default async function HomePage() {
   const t = await getTranslations("home");
   const tg = await getTranslations("groups");
 
-  const [mine, owned] = session?.user
+  const [mine, hasTenantResult] = session?.user
     ? await Promise.all([
         listMyGroups(session.user.id),
-        getOwnedCommunities(session.user.id),
+        db.tenant.findFirst({ where: { ownerId: session.user.id }, select: { id: true } }),
       ])
-    : [[], []];
+    : [[], null];
 
-  const canCreate = true; // any logged-in user can create a community
-  const hasCommunities = owned.length > 0;
+  const canCreate = true; // any logged-in user can create a workspace
+  const hasTenant = !!hasTenantResult;
 
   return (
     <section className="mx-auto max-w-3xl space-y-8">
@@ -40,9 +40,9 @@ export default async function HomePage() {
                 {tg("discover")}
               </Link>
             </Button>
-            {hasCommunities && (
+            {hasTenant && (
               <Button asChild variant="outline" size="sm">
-                <Link href="/owner/dashboard" className="gap-2">
+                <Link href="/admin" className="gap-2">
                   <LayoutDashboard className="h-4 w-4" />
                   Dashboard
                 </Link>

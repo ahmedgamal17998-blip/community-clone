@@ -2,17 +2,20 @@
  * Daily cron: delete old posts, channel chat messages, and DMs.
  *
  * Per-group content (posts + channel chat):
- *   Deleted when older than group.retentionDays.
- *   null = disabled for that group (keep forever).
+ *   1. If group.retentionDays is set  → use that value.
+ *   2. If null                        → fall back to platform default
+ *      (PlatformSetting "content.retentionDays", default 90 days).
+ *   The platform default of 90 days is the SaaS-wide standard;
+ *   individual groups can opt out by setting retentionDays = 0 (keep forever).
  *
  * Direct messages (cross-group):
  *   Deleted when older than DM_RETENTION_DAYS env var (default 180).
- *   Always runs — not per-group.
  *
- * Auth: x-vercel-cron header OR Authorization Bearer CRON_SECRET.
+ * Auth: Authorization Bearer CRON_SECRET.
  */
 import { NextResponse } from "next/server";
 import { db } from "@/server/db";
+import { getContentRetentionDays } from "@/server/platform-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -22,14 +25,14 @@ const DM_RETENTION_DAYS = parseInt(
 );
 
 export async function GET(req: Request) {
-  // Require CRON_SECRET regardless of source.
-  // The x-vercel-cron header alone is NOT sufficient — any caller can spoof it.
-  // Vercel's own crons send both the header AND the Bearer token when configured.
   const authHeader = req.headers.get("authorization");
   const secret = process.env.CRON_SECRET;
   if (!secret || authHeader !== `Bearer ${secret}`) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
+
+  // Read platform-wide default once per run.
+  const platformRetentionDays = await getContentRetentionDays();
 
   const stats = {
     posts: 0,
@@ -38,35 +41,35 @@ export async function GET(req: Request) {
     dmMessages: 0,
   };
 
-  // ── 1. Per-group: posts + channel chat ─────────────────────────────────
+  // ── 1. Per-group content cleanup ────────────────────────────────────────
+  // Fetch ALL active groups (not just those with explicit retentionDays set).
+  // Groups with retentionDays = 0 are explicitly opted-out (keep forever).
+  // Groups with retentionDays = null use the platform default.
   const groups = await db.group.findMany({
-    where: { retentionDays: { not: null }, deletedAt: null },
+    where: {
+      deletedAt: null,
+      // retentionDays = 0 means "keep forever" — skip those
+      NOT: { retentionDays: 0 },
+    },
     select: { id: true, retentionDays: true },
   });
 
   for (const group of groups) {
-    const cutoff = new Date(
-      Date.now() - group.retentionDays! * 24 * 3600 * 1000,
-    );
+    const days = group.retentionDays ?? platformRetentionDays;
+    const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000);
 
-    // Delete old posts (cascade removes comments, reactions, saves, polls).
     const deletedPosts = await db.post.deleteMany({
       where: {
         channel: { groupId: group.id },
         createdAt: { lt: cutoff },
-        pinned: false, // Never auto-delete pinned posts.
+        pinned: false,
       },
     });
     stats.posts += deletedPosts.count;
 
-    // Delete old channel chat messages (soft-delete → hard-delete).
-    // We hard-delete directly since the UI hides soft-deleted messages.
     const deletedMsgs = await db.chatMessage.deleteMany({
       where: {
-        thread: {
-          groupId: group.id,
-          kind: { in: ["GROUP", "CHANNEL"] },
-        },
+        thread: { groupId: group.id, kind: { in: ["GROUP", "CHANNEL"] } },
         createdAt: { lt: cutoff },
         pinned: false,
       },
@@ -78,22 +81,15 @@ export async function GET(req: Request) {
   if (DM_RETENTION_DAYS > 0) {
     const dmCutoff = new Date(Date.now() - DM_RETENTION_DAYS * 24 * 3600 * 1000);
     const deletedDms = await db.chatMessage.deleteMany({
-      where: {
-        thread: { kind: "DIRECT" },
-        createdAt: { lt: dmCutoff },
-      },
+      where: { thread: { kind: "DIRECT" }, createdAt: { lt: dmCutoff } },
     });
     stats.dmMessages += deletedDms.count;
 
-    // Prune empty DM threads (all messages gone).
     await db.chatThread.deleteMany({
-      where: {
-        kind: "DIRECT",
-        messages: { none: {} },
-      },
+      where: { kind: "DIRECT", messages: { none: {} } },
     });
   }
 
-  console.log("[cleanup-old-content]", JSON.stringify(stats));
+  console.log("[cleanup-old-content]", JSON.stringify({ ...stats, platformRetentionDays }));
   return NextResponse.json(stats);
 }

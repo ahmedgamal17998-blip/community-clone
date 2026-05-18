@@ -2,7 +2,7 @@
  * Tenant server actions — create, update, onboard.
  *
  * A Tenant is the top-level SaaS billing entity (one per workspace owner).
- * Creating a Tenant also creates the first Community + Group atomically.
+ * Creating a Tenant also creates the first Group atomically.
  */
 "use server";
 
@@ -15,20 +15,17 @@ import { Prisma } from "@prisma/client";
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 
 const CreateTenantSchema = z.object({
-  tenantName:     z.string().min(2).max(60),
-  tenantSlug:     z.string().min(2).max(40).regex(/^[a-z0-9-]+$/, "Lowercase letters, numbers and hyphens only"),
-  communityName:  z.string().min(2).max(60),
-  communitySlug:  z.string().min(2).max(40).regex(/^[a-z0-9-]+$/, "Lowercase letters, numbers and hyphens only"),
-  tagline:        z.string().max(120).optional(),
-  groupName:      z.string().min(2).max(60),
-  groupSlug:      z.string().min(2).max(40).regex(/^[a-z0-9-]+$/, "Lowercase letters, numbers and hyphens only"),
-  visibility:     z.enum(["PUBLIC", "PRIVATE", "HIDDEN"]).default("PUBLIC"),
+  tenantName:  z.string().min(2).max(60),
+  tenantSlug:  z.string().min(2).max(40).regex(/^[a-z0-9-]+$/, "Lowercase letters, numbers and hyphens only"),
+  groupName:   z.string().min(2).max(60),
+  groupSlug:   z.string().min(2).max(40).regex(/^[a-z0-9-]+$/, "Lowercase letters, numbers and hyphens only"),
+  visibility:  z.enum(["PUBLIC", "PRIVATE", "HIDDEN"]).default("PUBLIC"),
 });
 
 export type CreateTenantInput = z.infer<typeof CreateTenantSchema>;
 export type CreateTenantError  = { field?: string; message: string };
 
-// ─── Create tenant + community + first group ─────────────────────────────────
+// ─── Create tenant + first group ─────────────────────────────────────────────
 
 export async function createTenantAction(
   raw: CreateTenantInput,
@@ -42,18 +39,15 @@ export async function createTenantAction(
     return { ok: false, error: { field: first.path[0]?.toString(), message: first.message } };
   }
 
-  const { tenantName, tenantSlug, communityName, communitySlug, tagline, groupName, groupSlug, visibility } =
-    parsed.data;
+  const { tenantName, tenantSlug, groupName, groupSlug, visibility } = parsed.data;
 
   // Pre-flight uniqueness checks
-  const [tenantExists, communityExists, groupExists] = await Promise.all([
+  const [tenantExists, groupExists] = await Promise.all([
     db.tenant.findUnique({ where: { slug: tenantSlug }, select: { id: true } }),
-    db.community.findUnique({ where: { slug: communitySlug }, select: { id: true } }),
     db.group.findUnique({ where: { slug: groupSlug }, select: { id: true } }),
   ]);
-  if (tenantExists)    return { ok: false, error: { field: "tenantSlug",    message: "Workspace URL already taken" } };
-  if (communityExists) return { ok: false, error: { field: "communitySlug", message: "Community URL already taken" } };
-  if (groupExists)     return { ok: false, error: { field: "groupSlug",     message: "Group URL already taken" } };
+  if (tenantExists) return { ok: false, error: { field: "tenantSlug", message: "Workspace URL already taken" } };
+  if (groupExists)  return { ok: false, error: { field: "groupSlug",  message: "Group URL already taken" } };
 
   // Calculate 14-day trial end
   const trialEndsAt = new Date(Date.now() + 14 * 24 * 3_600_000);
@@ -72,22 +66,11 @@ export async function createTenantAction(
         },
       });
 
-      const community = await tx.community.create({
-        data: {
-          slug:      communitySlug,
-          name:      communityName,
-          tagline:   tagline ?? null,
-          ownerId:   session.user.id,
-          tenantId:  tenant.id,
-          plan:      "STARTER",
-        },
-      });
-
       const group = await tx.group.create({
         data: {
-          communityId: community.id,
-          slug:        groupSlug,
-          name:        groupName,
+          tenantId:   tenant.id,
+          slug:       groupSlug,
+          name:       groupName,
           visibility,
         },
       });
@@ -115,8 +98,6 @@ export async function createTenantAction(
       const target = String((err.meta as { target?: string[] })?.target ?? "");
       const field = target.includes("tenant")
         ? "tenantSlug"
-        : target.includes("community")
-        ? "communitySlug"
         : target.includes("group")
         ? "groupSlug"
         : undefined;
@@ -173,8 +154,9 @@ export async function getOwnedTenants(userId: string) {
     where: { ownerId: userId },
     orderBy: { createdAt: "desc" },
     include: {
-      communities: {
-        include: { _count: { select: { groups: true } } },
+      groups: {
+        where: { deletedAt: null },
+        select: { id: true, slug: true, name: true, isPaid: true, _count: { select: { memberships: true } } },
       },
       _count: { select: { paymentMethods: true } },
     },
@@ -186,13 +168,9 @@ export async function getTenantForAdmin(tenantId: string, userId: string) {
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
     include: {
-      communities: {
-        include: {
-          groups: {
-            where: { deletedAt: null },
-            include: { _count: { select: { memberships: { where: { state: "ACTIVE" } } } } },
-          },
-        },
+      groups: {
+        where: { deletedAt: null },
+        include: { _count: { select: { memberships: { where: { state: "ACTIVE" } } } } },
       },
       paymentMethods: { orderBy: { createdAt: "asc" } },
     },

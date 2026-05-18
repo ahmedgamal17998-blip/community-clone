@@ -3,7 +3,7 @@
  *
  * Creates:
  *  - 10 users (bilingual bios)
- *  - 2 Communities ("English Super Fast", "Focus Labs")
+ *  - 2 Tenants ("English Super Fast" owned by Alex, "Focus Labs" owned by Samir)
  *  - 3 Groups ("English to Work", "Arabic Learners", "Deep Work Club")
  *  - GroupMemberships spanning all 4 roles + a REQUESTED and a BANNED state
  *  - 8 Channels across the 3 groups (mix of PUBLIC / PRIVATE / ANNOUNCEMENT),
@@ -62,18 +62,21 @@ async function main() {
     console.log(`   ✓ ${u.name}  <${u.email}>  @${user.handle}`);
   }
 
-  console.log("⚙️  Seeding communities + groups…");
+  console.log("⚙️  Seeding tenants + groups…");
 
-  // ─── Community 1: English Super Fast (owned by Alex) ────────────────────────
-  const esf = await prisma.community.upsert({
+  // ─── Tenant 1: English Super Fast (owned by Alex) ───────────────────────────
+  const esfTenant = await prisma.tenant.upsert({
     where: { slug: "english-super-fast" },
     update: {},
     create: {
       slug: "english-super-fast",
       name: "English Super Fast",
-      description: "Speak English with confidence — intensive cohort-style learning.",
-      primaryHsl: "263 74% 58%", // purple
       ownerId: created["alex@example.com"].id,
+      plan: "PRO",
+      planStatus: "ACTIVE",
+      memberLimit: 500,
+      groupLimit: 3,
+      courseLimit: 10,
     },
   });
 
@@ -81,7 +84,7 @@ async function main() {
     where: { slug: "english-to-work" },
     update: {},
     create: {
-      communityId: esf.id,
+      tenantId: esfTenant.id,
       slug: "english-to-work",
       name: "English to Work",
       description: "Business English for remote professionals.",
@@ -94,7 +97,7 @@ async function main() {
     where: { slug: "arabic-learners" },
     update: {},
     create: {
-      communityId: esf.id,
+      tenantId: esfTenant.id,
       slug: "arabic-learners",
       name: "Arabic Learners",
       description: "تعلّم عربي فصيح + عامية مصرية.",
@@ -103,16 +106,19 @@ async function main() {
     },
   });
 
-  // ─── Community 2: Focus Labs (owned by Samir) ───────────────────────────────
-  const focusLabs = await prisma.community.upsert({
+  // ─── Tenant 2: Focus Labs (owned by Samir) ──────────────────────────────────
+  const focusLabsTenant = await prisma.tenant.upsert({
     where: { slug: "focus-labs" },
     update: {},
     create: {
       slug: "focus-labs",
       name: "Focus Labs",
-      description: "Deep-work communities for knowledge workers.",
-      primaryHsl: "174 72% 36%", // teal
       ownerId: created["samir@example.com"].id,
+      plan: "STARTER",
+      planStatus: "ACTIVE",
+      memberLimit: 50,
+      groupLimit: 1,
+      courseLimit: 1,
     },
   });
 
@@ -120,7 +126,7 @@ async function main() {
     where: { slug: "deep-work-club" },
     update: {},
     create: {
-      communityId: focusLabs.id,
+      tenantId: focusLabsTenant.id,
       slug: "deep-work-club",
       name: "Deep Work Club",
       description: "Weekly focus sprints + accountability.",
@@ -706,7 +712,7 @@ async function main() {
   }
 
   console.log(`✅ Done.`);
-  console.log(`   Communities: 2`);
+  console.log(`   Tenants:     2  (english-super-fast, focus-labs)`);
   console.log(`   Groups:      3  (english-to-work, arabic-learners, deep-work-club)`);
   console.log(`   Memberships: ${seats.reduce((n, s) => n + s.rows.length, 0)} across 10 users`);
   console.log(`   Channels:    ${channelSeeds.length} with auto-provisioned chat threads`);

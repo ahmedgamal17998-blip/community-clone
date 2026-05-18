@@ -34,7 +34,7 @@ const MANUAL_TYPES: PaymentMethodType[] = [
   "MANUAL_CUSTOM",
 ];
 
-const TYPE_OPTIONS = [
+const BASE_TYPE_OPTIONS = [
   { value: "MANUAL_VODAFONE_CASH", label: "Vodafone Cash" },
   { value: "MANUAL_INSTAPAY",      label: "InstaPay" },
   { value: "MANUAL_BANK_TRANSFER", label: "Bank Transfer" },
@@ -47,9 +47,11 @@ const TYPE_OPTIONS = [
 export function PaymentMethodsClient({
   tenantId,
   methods: initialMethods,
+  subscriptionBaseEnabled = false,
 }: {
   tenantId: string;
   methods: MethodRow[];
+  subscriptionBaseEnabled?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -68,10 +70,18 @@ export function PaymentMethodsClient({
   const [secretKey, setSecretKey] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
   const [publishableKey, setPublishableKey] = useState("");
+  const [subBaseUrl, setSubBaseUrl] = useState("");
+  const [subAdminApiKey, setSubAdminApiKey] = useState("");
+  const [subWebhookSecret, setSubWebhookSecret] = useState("");
 
   const isManual = MANUAL_TYPES.includes(type);
   const isPaymob = type === "PAYMOB";
   const isStripe  = type === "STRIPE";
+  const isSubscriptionBase = type === "SUBSCRIPTION_BASE";
+
+  const typeOptions = subscriptionBaseEnabled
+    ? [...BASE_TYPE_OPTIONS, { value: "SUBSCRIPTION_BASE", label: "Subscription-base (External)" }]
+    : BASE_TYPE_OPTIONS;
 
   function handleAdd() {
     setFormError(null);
@@ -87,6 +97,8 @@ export function PaymentMethodsClient({
       };
     } else if (isPaymob) {
       input = { ...base, type: "PAYMOB", apiKey, integrationId, hmacSecret, iframeId: iframeId || undefined };
+    } else if (isSubscriptionBase) {
+      input = { ...base, type: "SUBSCRIPTION_BASE", baseUrl: subBaseUrl, adminApiKey: subAdminApiKey, webhookSecret: subWebhookSecret || undefined };
     } else {
       input = { ...base, type: "STRIPE", secretKey, webhookSecret, publishableKey };
     }
@@ -104,6 +116,7 @@ export function PaymentMethodsClient({
     setLabel(""); setInstructions(""); setAccountDetails("");
     setApiKey(""); setIntegrationId(""); setHmacSecret(""); setIframeId("");
     setSecretKey(""); setWebhookSecret(""); setPublishableKey("");
+    setSubBaseUrl(""); setSubAdminApiKey(""); setSubWebhookSecret("");
     setFormError(null);
   }
 
@@ -212,7 +225,7 @@ export function PaymentMethodsClient({
               onChange={(e) => setType(e.target.value as PaymentMethodType)}
               className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
             >
-              {TYPE_OPTIONS.map((o) => (
+              {typeOptions.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
@@ -224,7 +237,12 @@ export function PaymentMethodsClient({
             <input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              placeholder={isManual ? "e.g. Vodafone Cash – 01012345678" : isPaymob ? "Paymob Integration" : "Stripe Live"}
+              placeholder={
+                isManual ? "e.g. Vodafone Cash – 01012345678"
+                : isPaymob ? "Paymob Integration"
+                : isSubscriptionBase ? "Subscription-base Checkout"
+                : "Stripe Live"
+              }
               className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
             />
           </div>
@@ -292,6 +310,33 @@ export function PaymentMethodsClient({
                     onChange={(e) => f.set(e.target.value)}
                     placeholder={f.ph}
                     type="password"
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                  />
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Subscription-base-specific fields */}
+          {isSubscriptionBase && (
+            <>
+              <div className="rounded-xl bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 px-3 py-2.5 text-xs text-violet-700 dark:text-violet-300">
+                Members will be redirected to the external Subscription-base checkout. Activation is
+                driven by inbound webhooks — make sure your webhook endpoint is configured in the
+                external system.
+              </div>
+              {[
+                { label: "Base URL",                    value: subBaseUrl,        set: setSubBaseUrl,        ph: "https://p.englishsuperfast.com", pw: false },
+                { label: "Admin API Key",               value: subAdminApiKey,    set: setSubAdminApiKey,    ph: "Your admin API key",             pw: true  },
+                { label: "Webhook Secret (optional)",   value: subWebhookSecret,  set: setSubWebhookSecret,  ph: "HMAC secret for webhook verify", pw: true  },
+              ].map((f) => (
+                <div key={f.label} className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">{f.label}</label>
+                  <input
+                    value={f.value}
+                    onChange={(e) => f.set(e.target.value)}
+                    placeholder={f.ph}
+                    type={f.pw ? "password" : "text"}
                     className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
                   />
                 </div>

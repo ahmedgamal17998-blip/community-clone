@@ -178,15 +178,15 @@ export async function reconcileUsage(tenantId: string): Promise<void> {
   const [memberCount, groupCount, courseCount] = await Promise.all([
     db.groupMembership.count({
       where: {
-        group: { community: { tenantId }, deletedAt: null },
+        group: { tenantId, deletedAt: null },
         state: "ACTIVE",
       },
     }),
     db.group.count({
-      where: { community: { tenantId }, deletedAt: null },
+      where: { tenantId, deletedAt: null },
     }),
     db.course.count({
-      where: { group: { community: { tenantId } }, published: true },
+      where: { group: { tenantId }, published: true },
     }),
   ]);
 

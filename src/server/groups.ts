@@ -120,21 +120,7 @@ async function uniqueGroupSlug(base: string): Promise<string> {
   return candidate;
 }
 
-async function uniqueCommunitySlug(base: string): Promise<string> {
-  const root = base || "community";
-  let candidate = root;
-  let i = 2;
-  while (await db.community.findUnique({ where: { slug: candidate }, select: { id: true } })) {
-    candidate = `${root}-${i++}`;
-    if (i > 50) {
-      candidate = `${root}-${Date.now().toString(36)}`;
-      break;
-    }
-  }
-  return candidate;
-}
-
-// ─── Create community + group (wizard) ──────────────────────────────────────
+// ─── Create group under existing tenant ─────────────────────────────────────
 
 // HSL triplet like "263 74% 58%"
 const hslSchema = z
@@ -152,17 +138,15 @@ export async function createGroupAction(_prev: unknown, formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("UNAUTHENTICATED");
 
-  // SaaS gate: only users with canCreateGroups (paying subscribers / pre-
-  // seeded owners) can create top-level communities. Members get a clear
-  // error so the UI can surface it.
-  const me = await db.user.findUnique({
-    where: { id: session.user.id },
-    select: { canCreateGroups: true },
+  // Require an existing tenant owned by this user
+  const tenant = await db.tenant.findFirst({
+    where: { ownerId: session.user.id },
+    select: { id: true },
   });
-  if (!me?.canCreateGroups) {
+  if (!tenant) {
     return {
       ok: false as const,
-      error: "Creating a community requires an owner subscription. Contact support to upgrade.",
+      error: "You need to set up a workspace first.",
     };
   }
 
@@ -181,24 +165,11 @@ export async function createGroupAction(_prev: unknown, formData: FormData) {
 
   const base = slugify(name);
   const groupSlug = await uniqueGroupSlug(base);
-  const communitySlug = await uniqueCommunitySlug(base);
 
-  // First-time community? Each group in M2 gets its own community container
-  // by default. Later milestones may let admins nest groups under an existing
-  // community — for now the wizard creates a 1:1 pair so ownership is clean.
   const group = await db.$transaction(async (tx) => {
-    const community = await tx.community.create({
-      data: {
-        slug: communitySlug,
-        name,
-        description,
-        primaryHsl,
-        ownerId: session.user!.id,
-      },
-    });
     const group = await tx.group.create({
       data: {
-        communityId: community.id,
+        tenantId: tenant.id,
         slug: groupSlug,
         name,
         description,

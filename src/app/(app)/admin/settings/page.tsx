@@ -18,7 +18,7 @@ export default async function AdminSettingsPage() {
       plan: true,
     },
   });
-  if (!tenant) redirect("/onboarding");
+  if (!tenant) redirect("/admin/setup");
 
   return (
     <div className="space-y-6">

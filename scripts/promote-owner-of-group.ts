@@ -3,7 +3,7 @@
  *
  *   npx tsx --env-file=.env scripts/promote-owner-of-group.ts
  *
- * Idempotent. Also bumps the parent Community.ownerId if it points elsewhere.
+ * Idempotent. Also bumps the parent Tenant.ownerId if it points elsewhere.
  */
 import { PrismaClient } from "@prisma/client";
 
@@ -34,8 +34,8 @@ async function main() {
       id: true,
       slug: true,
       name: true,
-      communityId: true,
-      community: { select: { id: true, ownerId: true, name: true } },
+      tenantId: true,
+      tenant: { select: { id: true, ownerId: true, name: true } },
     },
   });
   if (!group) {
@@ -45,7 +45,7 @@ async function main() {
 
   console.log("Target user:", user);
   console.log("Target group:", { id: group.id, slug: group.slug, name: group.name });
-  console.log("Parent community:", group.community);
+  console.log("Parent tenant:", group.tenant);
 
   // 1. Upsert membership as OWNER + ACTIVE.
   const membership = await db.groupMembership.upsert({
@@ -82,17 +82,17 @@ async function main() {
     console.log("No other OWNER memberships to demote.");
   }
 
-  // 3. If the parent Community has a different ownerId, repoint it.
-  if (group.community.ownerId !== user.id) {
-    await db.community.update({
-      where: { id: group.community.id },
+  // 3. If the parent Tenant has a different ownerId, repoint it.
+  if (group.tenant.ownerId !== user.id) {
+    await db.tenant.update({
+      where: { id: group.tenant.id },
       data: { ownerId: user.id },
     });
     console.log(
-      `Community "${group.community.name}" ownerId switched to ${user.id}.`,
+      `Tenant "${group.tenant.name}" ownerId switched to ${user.id}.`,
     );
   } else {
-    console.log("Community ownerId already correct.");
+    console.log("Tenant ownerId already correct.");
   }
 }
 

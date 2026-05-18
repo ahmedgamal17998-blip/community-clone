@@ -104,7 +104,6 @@ model User {
   presence Presence?
 
   // M2 relations
-  ownedCommunities Community[]       @relation("CommunityOwner")
   memberships      GroupMembership[]
 
   // M3 relations
@@ -265,11 +264,16 @@ model Tenant {
   // Custom domain (set after DNS verification)
   customDomain String? @unique
 
+  // Feature flag: enable Subscription-base payment integration for this tenant only.
+  // When true, the tenant owner sees SUBSCRIPTION_BASE as a payment method option.
+  // Intended for the platform operator's own workspace — not exposed to other tenants.
+  subscriptionBaseEnabled Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   owner          User            @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  communities    Community[]
+  groups         Group[]         @relation("TenantDirectGroups")
   paymentMethods PaymentMethod[]
   invoices       Invoice[]
 
@@ -326,46 +330,47 @@ model Invoice {
   @@index([createdAt])
 }
 
-// ─── SaaS plans ─────────────────────────────────────────────────────────────
-// Tune limits here. Checked at group-creation time.
-// STARTER     → 1 group, 50 members, 1 course
-// PRO         → 3 groups, 500 members, 10 courses + branding
-// BUSINESS    → unlimited + white-label + dedicated support
+// ─── Platform settings (super-admin key/value store) ────────────────────────
+//
+// Arbitrary platform-wide configuration stored as JSON-encoded values.
+// Keys are namespaced: "platform.gateway", "content.retentionDays", etc.
 // ─────────────────────────────────────────────────────────────────────────────
 
-model Community {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  name        String
-  tagline     String?  // short one-liner shown on the landing page
-  description String?
-  logoUrl     String?
-  coverUrl    String?
-  // Canonical brand color stored as HSL triplet "H S% L%" so it slots straight
-  // into CSS vars without runtime parsing. Default = our audited purple.
-  primaryHsl  String   @default("263 74% 58%")
-  ownerId     String
-  owner       User     @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+model PlatformSetting {
+  key       String   @id
+  value     String   // JSON-encoded (string, number, boolean, object)
+  updatedAt DateTime @updatedAt
+}
 
-  // Tenant this community belongs to (null for legacy data pre-SaaS)
-  tenantId    String?
-  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+// ─── SaaS plan configuration (DB-managed by super-admin) ────────────────────
+//
+// STARTER / PRO / BUSINESS configs are seeded once and editable at runtime
+// via /super-admin/plans — no redeploy needed to change prices or limits.
+// -1 on any limit field means "unlimited".
+// ─────────────────────────────────────────────────────────────────────────────
 
-  // SaaS plan — controls feature access and limits (see src/server/billing/plans.ts)
-  plan        String   @default("STARTER") // STARTER | PRO | BUSINESS
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  groups Group[]
-
-  @@index([tenantId])
+model PlanConfig {
+  id                 String   @id @default(cuid())
+  plan               String   @unique // STARTER | PRO | BUSINESS
+  label              String
+  monthlyPriceCents  Int      @default(0)
+  yearlyPriceCents   Int      @default(0)
+  maxGroups          Int      @default(1)    // -1 = unlimited
+  maxMembersPerGroup Int      @default(50)   // -1 = unlimited
+  maxCourses         Int      @default(1)    // -1 = unlimited
+  maxTeamMembers     Int      @default(0)
+  maxStorageGb       Int      @default(1)
+  features           String   @default("[]") // JSON array of strings
+  isVisible          Boolean  @default(true)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 model Group {
-  id          String    @id @default(cuid())
-  communityId String
-  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  tenantId String
+  tenant   Tenant @relation("TenantDirectGroups", fields: [tenantId], references: [id], onDelete: Cascade)
 
   slug        String    @unique // route segment, globally unique
   name        String
@@ -491,7 +496,39 @@ model Group {
   // Daily check-ins
   checkIns MemberCheckIn[]
 
-  @@index([communityId])
+  // Notification config (admin-controlled per-group)
+  notifConfig GroupNotifConfig?
+
+  @@index([tenantId])
+}
+
+// ─── Group notification configuration (admin-controlled) ────────────────────
+//
+// Each toggle controls whether a given event class generates in-app
+// notifications for the relevant audience inside this group.
+//
+// Admin audience:
+//   adminOnNewMember  — bell when a member's ACTIVE state is set
+//   adminOnSubRequest — bell when a payment subscription request arrives
+//
+// Member audience:
+//   memberOnEventReminder — bell ~24h before an event the member RSVP'd
+//   memberOnNewPost       — bell when a new post is published in any channel
+//                           the member is in (off by default — high volume)
+//   memberOnAnnouncement  — bell when admin publishes an announcement
+// ─────────────────────────────────────────────────────────────────────────────
+
+model GroupNotifConfig {
+  id      String  @id @default(cuid())
+  groupId String  @unique
+
+  adminOnNewMember      Boolean @default(true)
+  adminOnSubRequest     Boolean @default(true)
+  memberOnEventReminder Boolean @default(true)
+  memberOnNewPost       Boolean @default(false)
+  memberOnAnnouncement  Boolean @default(true)
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
 }
 
 // ─── Invites (M6) ───────────────────────────────────────────────────────────

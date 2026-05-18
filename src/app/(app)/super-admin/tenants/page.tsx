@@ -68,7 +68,7 @@ export default async function SuperAdminTenantsPage({
       </form>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="rounded-2xl border border-border bg-card">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
@@ -112,7 +112,7 @@ export default async function SuperAdminTenantsPage({
                   {format(new Date(t.createdAt), "dd MMM yy")}
                 </td>
                 <td className="py-3">
-                  <SuperAdminTenantActions tenantId={t.id} currentPlan={t.plan} currentStatus={t.planStatus} />
+                  <SuperAdminTenantActions tenantId={t.id} currentPlan={t.plan} currentStatus={t.planStatus} subscriptionBaseEnabled={t.subscriptionBaseEnabled} />
                 </td>
                 <td className="pr-4 py-3">
                   <Link

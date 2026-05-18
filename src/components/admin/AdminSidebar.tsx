@@ -19,6 +19,7 @@ import {
   Settings,
   MessageSquare,
   CalendarClock,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -53,8 +54,9 @@ const SECTIONS: Array<{ title: string; items: Item[] }> = [
   {
     title: "Engagement",
     items: [
-      { href: "/announcements", label: "Announcements", icon: Megaphone },
-      { href: "/onboarding", label: "Onboarding", icon: Sparkles },
+      { href: "/announcements",  label: "Announcements",  icon: Megaphone },
+      { href: "/onboarding",     label: "Onboarding",     icon: Sparkles  },
+      { href: "/notifications",  label: "Notifications",  icon: Bell      },
     ],
   },
   {

@@ -32,14 +32,14 @@ export default async function AdminSubscriptionsPage({
     where: { ownerId: session.user.id },
     select: { id: true },
   });
-  if (!tenant) redirect("/onboarding");
+  if (!tenant) redirect("/admin/setup");
 
   const statusFilter = searchParams.status;
   const groupFilter  = searchParams.group;
 
   const subscriptions = await db.subscription.findMany({
     where: {
-      group: { community: { tenantId: tenant.id } },
+      group: { tenantId: tenant.id },
       ...(statusFilter ? { status: statusFilter } : {}),
       ...(groupFilter  ? { groupId: groupFilter }  : {}),
     },

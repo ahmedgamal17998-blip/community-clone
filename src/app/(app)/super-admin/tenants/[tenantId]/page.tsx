@@ -30,14 +30,11 @@ export default async function TenantDetailPage({
         take: 5,
         select: { id: true, amountCents: true, currency: true, status: true, createdAt: true, paidAt: true, description: true },
       },
-      communities: {
-        include: {
-          groups: {
-            select: {
-              id: true, name: true, slug: true, visibility: true, isPaid: true, priceCents: true,
-              _count: { select: { memberships: { where: { state: "ACTIVE" } } } },
-            },
-          },
+      groups: {
+        where: { deletedAt: null },
+        select: {
+          id: true, name: true, slug: true, visibility: true, isPaid: true, priceCents: true,
+          _count: { select: { memberships: { where: { state: "ACTIVE" } } } },
         },
       },
     },
@@ -46,7 +43,7 @@ export default async function TenantDetailPage({
   if (!tenant) notFound();
 
   // Recent member subscriptions across all groups in this tenant
-  const groupIds = tenant.communities.flatMap((c) => c.groups.map((g) => g.id));
+  const groupIds = tenant.groups.map((g) => g.id);
   const recentSubs = groupIds.length
     ? await db.subscription.findMany({
         where: { groupId: { in: groupIds } },
@@ -102,10 +99,16 @@ export default async function TenantDetailPage({
           <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
             {tenant.plan}
           </span>
+          {tenant.subscriptionBaseEnabled && (
+            <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+              Sub-base ✓
+            </span>
+          )}
           <SuperAdminTenantActions
             tenantId={tenant.id}
             currentPlan={tenant.plan}
             currentStatus={tenant.planStatus}
+            subscriptionBaseEnabled={tenant.subscriptionBaseEnabled}
           />
         </div>
       </div>
@@ -183,7 +186,7 @@ export default async function TenantDetailPage({
       {/* Groups */}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Groups</h2>
-        {tenant.communities.flatMap((c) => c.groups).length === 0 ? (
+        {tenant.groups.length === 0 ? (
           <p className="text-sm text-muted-foreground">No groups yet.</p>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -198,27 +201,25 @@ export default async function TenantDetailPage({
                 </tr>
               </thead>
               <tbody>
-                {tenant.communities.flatMap((c) =>
-                  c.groups.map((g) => (
-                    <tr key={g.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                      <td className="pl-4 pr-3 py-3">
-                        <p className="font-medium">{g.name}</p>
-                        <p className="text-xs text-muted-foreground">/{g.slug}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase">
-                          {g.visibility}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {g.isPaid ? `${((g.priceCents ?? 0) / 100).toFixed(2)} USD/period` : "Free"}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {g._count.memberships}
-                      </td>
-                    </tr>
-                  ))
-                )}
+                {tenant.groups.map((g) => (
+                  <tr key={g.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                    <td className="pl-4 pr-3 py-3">
+                      <p className="font-medium">{g.name}</p>
+                      <p className="text-xs text-muted-foreground">/{g.slug}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase">
+                        {g.visibility}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {g.isPaid ? `${((g.priceCents ?? 0) / 100).toFixed(2)} USD/period` : "Free"}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {g._count.memberships}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

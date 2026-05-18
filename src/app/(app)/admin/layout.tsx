@@ -1,7 +1,7 @@
 /**
  * /admin — Tenant admin shell.
  *
- * Requires the user to own at least one Tenant.
+ * Requires the user to own at least one Tenant with at least one group.
  * Wraps all /admin/* pages with the side navigation.
  */
 import Link from "next/link";
@@ -33,10 +33,14 @@ export default async function AdminLayout({
   const tenant = await db.tenant.findFirst({
     where: { ownerId: session.user.id },
     orderBy: { createdAt: "desc" },
-    select: { id: true, name: true, slug: true, plan: true, planStatus: true },
+    select: {
+      id: true, name: true, slug: true, plan: true, planStatus: true,
+      _count: { select: { groups: { where: { deletedAt: null } } } },
+    },
   });
 
-  if (!tenant) redirect("/onboarding");
+  if (!tenant) redirect("/admin/setup");
+  if (tenant._count.groups === 0) redirect("/admin/setup?step=group");
 
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-0 px-3 py-6 sm:flex-row sm:gap-8 sm:px-4">
@@ -63,11 +67,11 @@ export default async function AdminLayout({
 
         <div className="mt-4 border-t border-border pt-4">
           <Link
-            href="/owner/dashboard"
+            href="/admin/setup"
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <Building2 className="h-3.5 w-3.5" />
-            All communities
+            Workspace setup
             <ChevronRight className="ml-auto h-3 w-3" />
           </Link>
         </div>

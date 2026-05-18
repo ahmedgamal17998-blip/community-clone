@@ -80,7 +80,7 @@ export async function getGroupForUser(slug: string, userId: string | undefined) 
   const group = await db.group.findUnique({
     where: { slug },
     include: {
-      community: { select: { id: true, name: true, slug: true } },
+      tenant: { select: { id: true, name: true, slug: true } },
       _count: { select: { memberships: { where: { state: "ACTIVE" } } } },
     },
   });

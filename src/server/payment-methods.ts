@@ -12,6 +12,9 @@
  *   MANUAL_CUSTOM         — any other manual method
  *   PAYMOB                — automated via Paymob webhook
  *   STRIPE                — automated via Stripe webhook
+ *   SUBSCRIPTION_BASE     — redirect to external Subscription-base checkout;
+ *                           activation driven by /api/webhooks/payment.
+ *                           Only available when tenant.subscriptionBaseEnabled = true.
  */
 "use server";
 
@@ -29,7 +32,8 @@ export type PaymentMethodType =
   | "MANUAL_FAWRY"
   | "MANUAL_CUSTOM"
   | "PAYMOB"
-  | "STRIPE";
+  | "STRIPE"
+  | "SUBSCRIPTION_BASE";
 
 export interface ManualCredentials {
   instructions: string;      // shown to member at checkout
@@ -47,6 +51,15 @@ export interface StripeCredentials {
   secretKey: string;
   webhookSecret: string;
   publishableKey: string;
+}
+
+export interface SubscriptionBaseCredentials {
+  /** Base URL of the external Subscription-base system, e.g. "https://p.englishsuperfast.com" */
+  baseUrl: string;
+  /** API key for admin-facing API calls (creating checkout sessions, querying status) */
+  adminApiKey: string;
+  /** HMAC-SHA256 secret for verifying inbound webhook events (optional; falls back to PAYMENT_WEBHOOK_SECRET env) */
+  webhookSecret?: string;
 }
 
 // ─── Schemas ─────────────────────────────────────────────────────────────────
@@ -83,6 +96,14 @@ const CreateSchema = z.discriminatedUnion("type", [
     secretKey: z.string().startsWith("sk_"),
     webhookSecret: z.string().startsWith("whsec_"),
     publishableKey: z.string().startsWith("pk_"),
+  }),
+  z.object({
+    type: z.literal("SUBSCRIPTION_BASE"),
+    tenantId: z.string().cuid(),
+    label: z.string().min(2).max(80),
+    baseUrl: z.string().url(),
+    adminApiKey: z.string().min(8),
+    webhookSecret: z.string().optional(),
   }),
 ]);
 
@@ -142,6 +163,14 @@ export async function createPaymentMethodAction(
       secretKey:      d.secretKey,
       webhookSecret:  d.webhookSecret,
       publishableKey: d.publishableKey,
+    };
+    credentialsEnc = encryptJson(creds);
+  } else if (data.type === "SUBSCRIPTION_BASE") {
+    const d = data as { baseUrl: string; adminApiKey: string; webhookSecret?: string };
+    const creds: SubscriptionBaseCredentials = {
+      baseUrl:       d.baseUrl,
+      adminApiKey:   d.adminApiKey,
+      webhookSecret: d.webhookSecret,
     };
     credentialsEnc = encryptJson(creds);
   }
@@ -236,5 +265,6 @@ export async function getPaymentMethodCredentials(id: string) {
   if (type.startsWith("MANUAL_")) return decryptJson<ManualCredentials>(pm.credentialsEnc);
   if (type === "PAYMOB") return decryptJson<PaymobCredentials>(pm.credentialsEnc);
   if (type === "STRIPE") return decryptJson<StripeCredentials>(pm.credentialsEnc);
+  if (type === "SUBSCRIPTION_BASE") return decryptJson<SubscriptionBaseCredentials>(pm.credentialsEnc);
   return null;
 }

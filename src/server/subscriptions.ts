@@ -14,6 +14,7 @@ import { z } from "zod";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { Prisma } from "@prisma/client";
+import { getPaymentMethodCredentials, type SubscriptionBaseCredentials } from "@/server/payment-methods";
 
 // ─── Subscribe (initiate) ─────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ export type SubscribeInput = z.infer<typeof SubscribeSchema>;
 
 export async function subscribeAction(
   raw: SubscribeInput,
-): Promise<{ ok: true; subscriptionId: string; status: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; subscriptionId: string; status: string; checkoutUrl?: string } | { ok: false; error: string }> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: "Not authenticated" };
 
@@ -54,6 +55,36 @@ export async function subscribeAction(
     select: { type: true, active: true },
   });
   if (!pm || !pm.active) return { ok: false, error: "Payment method not available" };
+
+  // ── SUBSCRIPTION_BASE: redirect to external checkout, no local sub row yet ──
+  if (pm.type === "SUBSCRIPTION_BASE") {
+    // Fetch the plan's external product slug (maps to the Subscription-base product)
+    const planFull = await db.subscriptionPlan.findUnique({
+      where: { id: planId },
+      select: { externalProductSlug: true, externalProductId: true },
+    });
+    const productSlug = planFull?.externalProductSlug;
+    const productId   = planFull?.externalProductId;
+
+    if (!productSlug && !productId) {
+      return { ok: false, error: "This plan is not yet linked to a Subscription-base product. Ask the workspace admin to configure it." };
+    }
+
+    const creds = await getPaymentMethodCredentials(paymentMethodId) as SubscriptionBaseCredentials | null;
+    if (!creds?.baseUrl) {
+      return { ok: false, error: "Subscription-base credentials are not configured." };
+    }
+
+    // Build checkout URL: prefer slug route, fall back to product-id route
+    const checkoutPath = productSlug
+      ? `/subscribe/${productSlug}`
+      : `/checkout/product/${productId}`;
+    const checkoutUrl = `${creds.baseUrl.replace(/\/$/, "")}${checkoutPath}`;
+
+    // Return early — activation will happen via the /api/webhooks/payment handler
+    // once the member completes payment on the external system.
+    return { ok: true, subscriptionId: "", status: "REDIRECT", checkoutUrl };
+  }
 
   const isManual = pm.type.startsWith("MANUAL_");
   const status = isManual ? "PENDING_APPROVAL" : "ACTIVE";
@@ -151,7 +182,7 @@ export async function approveSubscriptionAction(
     where: { id: subscriptionId },
     include: {
       group: {
-        include: { community: { select: { ownerId: true } } },
+        include: { tenant: { select: { ownerId: true } } },
       },
     },
   });
@@ -163,7 +194,7 @@ export async function approveSubscriptionAction(
     where: { groupId_userId: { groupId: sub.groupId, userId: session.user.id } },
     select: { role: true },
   });
-  const isOwnerOfCommunity = sub.group.community.ownerId === session.user.id;
+  const isOwnerOfCommunity = sub.group.tenant.ownerId === session.user.id;
   const isAdmin = membership?.role === "OWNER" || membership?.role === "ADMIN";
   if (!isAdmin && !isOwnerOfCommunity) return { ok: false, error: "Unauthorized" };
 
@@ -217,7 +248,7 @@ export async function rejectSubscriptionAction(
   const sub = await db.subscription.findUnique({
     where: { id: subscriptionId },
     include: {
-      group: { include: { community: { select: { ownerId: true } } } },
+      group: { include: { tenant: { select: { ownerId: true } } } },
     },
   });
   if (!sub) return { ok: false, error: "Subscription not found" };
@@ -227,7 +258,7 @@ export async function rejectSubscriptionAction(
     where: { groupId_userId: { groupId: sub.groupId, userId: session.user.id } },
     select: { role: true },
   });
-  const isOwnerOfCommunity = sub.group.community.ownerId === session.user.id;
+  const isOwnerOfCommunity = sub.group.tenant.ownerId === session.user.id;
   const isAdmin = membership?.role === "OWNER" || membership?.role === "ADMIN";
   if (!isAdmin && !isOwnerOfCommunity) return { ok: false, error: "Unauthorized" };
 
