@@ -33,6 +33,20 @@ export default async function MemberSelfPage({
   });
   if (!group) notFound();
 
+  // Fetch active payment methods for this group's workspace
+  const paymentMethods = await db.paymentMethod.findMany({
+    where: { tenantId: group.tenantId, active: true },
+    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      type: true,
+      label: true,
+      instructions: true,
+      accountDetails: true,
+      isDefault: true,
+    },
+  });
+
   const me = await db.user.findUnique({
     where: { id: session.user.id },
     select: { id: true, name: true, bio: true, image: true, handle: true, email: true },
@@ -71,6 +85,8 @@ export default async function MemberSelfPage({
 
       <SubscriptionCard
         remainingDays={days}
+        groupId={group.id}
+        paymentMethods={paymentMethods}
         activeSubs={activeSubs.map((s) => ({
           id: s.id,
           planName: s.plan.name,
@@ -85,7 +101,7 @@ export default async function MemberSelfPage({
           priceCents: p.priceCents,
           currency: p.currency,
           externalProductSlug: p.externalProductSlug,
-          externalPlanType: p.externalPlanType,
+          externalProductId: p.externalProductId,
         }))}
       />
 
