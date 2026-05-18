@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { timeAgo, cn } from "@/lib/utils";
+import { getPlanConfigs } from "@/server/plan-configs";
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   usd: "$",
@@ -35,7 +36,10 @@ export default async function AdminOverviewPage({
   const session = await auth();
   const group = await db.group.findUnique({
     where: { slug: params.slug },
-    select: { id: true, slug: true },
+    select: {
+      id: true, slug: true,
+      tenant: { select: { plan: true, groupLimit: true, memberLimit: true } },
+    },
   });
   if (!group || !session?.user) notFound();
 
@@ -52,6 +56,7 @@ export default async function AdminOverviewPage({
     groupGrants,
     recentJoins,
     recentPosts,
+    planConfigs,
   ] = await Promise.all([
     // Total ACTIVE memberships in the group.
     db.groupMembership.findMany({
@@ -133,7 +138,14 @@ export default async function AdminOverviewPage({
         channel: { select: { slug: true, name: true } },
       },
     }),
+    getPlanConfigs(),
   ]);
+
+  // ─── Workspace plan (live from DB) ───────────────────────────────────────
+  const tenantPlanKey = (group.tenant?.plan ?? "STARTER").toUpperCase();
+  const workspacePlan = planConfigs.find(
+    (p) => p.plan.toUpperCase() === tenantPlanKey,
+  ) ?? planConfigs[0];
 
   // ─── Bucket the active membership ────────────────────────────────────────
   const totalActive = activeMemberships.length;
@@ -192,6 +204,34 @@ export default async function AdminOverviewPage({
           Snapshot of activity in this group.
         </p>
       </div>
+
+      {/* ── Workspace Nadi plan (live from DB) ── */}
+      {workspacePlan && (
+        <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+          <div className="flex items-center gap-3">
+            <span className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary uppercase tracking-wider">
+              {workspacePlan.label}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {workspacePlan.monthlyPriceCents === 0
+                ? "Free"
+                : `$${(workspacePlan.monthlyPriceCents / 100).toFixed(0)}/mo`}
+              &nbsp;·&nbsp;
+              {workspacePlan.maxMembersPerGroup === -1 ? "∞" : workspacePlan.maxMembersPerGroup} members
+              &nbsp;·&nbsp;
+              {workspacePlan.maxGroups === -1 ? "∞" : workspacePlan.maxGroups} groups
+              &nbsp;·&nbsp;
+              {workspacePlan.maxCourses === -1 ? "∞" : workspacePlan.maxCourses} courses
+            </span>
+          </div>
+          <Link
+            href="/pricing"
+            className="text-xs text-primary hover:underline"
+          >
+            Change plan →
+          </Link>
+        </div>
+      )}
 
       {/* ── Membership breakdown ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

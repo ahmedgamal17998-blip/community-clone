@@ -11,9 +11,11 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type GatewayMode = "NONE" | "STRIPE" | "SUBSCRIPTION_BASE" | "BOTH";
+
 interface Props {
   retentionDays:       number;
-  activeGateway:       "STRIPE" | "SUBSCRIPTION_BASE" | "NONE";
+  activeGateway:       GatewayMode;
   stripeConfigured:    boolean;
   stripePublishableKey: string;
   subBaseConfigured:   boolean;
@@ -69,11 +71,11 @@ export function SuperAdminSettingsClient({
   };
 
   // ── Gateway selection ──────────────────────────────────────────────────────
-  const [gateway, setGateway]         = useState(initialGateway);
+  const [gateway, setGateway]         = useState<GatewayMode>(initialGateway);
   const [gatewayPending, startGW]     = useTransition();
   const [gatewayStatus, setGS]        = useState<null | { ok: boolean; error?: string }>(null);
 
-  const saveGateway = (gw: typeof gateway) => {
+  const saveGateway = (gw: GatewayMode) => {
     setGateway(gw);
     startGW(async () => {
       const r = await saveActiveGatewayAction(gw);
@@ -140,9 +142,10 @@ export function SuperAdminSettingsClient({
           </button>
           {retentionStatus && <SaveStatus ok={retentionStatus.ok} error={retentionStatus.error} />}
         </div>
-        <p className="text-[11px] text-muted-foreground">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-900/10 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-400">
+          ⚠️ <strong>Applies to all groups</strong> — this default affects every group that hasn&apos;t set its own retention days (including existing ones). Groups can opt out by setting &quot;0 days&quot; in their own Admin → Settings.
           Current default: <strong>{retention} days</strong>. Pinned posts and pinned messages are never auto-deleted.
-        </p>
+        </div>
       </section>
 
       {/* ── 2. Platform billing gateway ──────────────────────────────────── */}
@@ -154,20 +157,33 @@ export function SuperAdminSettingsClient({
           </p>
         </div>
 
-        {/* Active gateway radio */}
+        {/* Active gateway selector — supports BOTH for multi-gateway checkout */}
         <div className="flex flex-wrap gap-3">
-          {(["NONE", "STRIPE", "SUBSCRIPTION_BASE"] as const).map((gw) => (
-            <label key={gw} className={`flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-sm transition-colors select-none ${
-              gateway === gw ? "border-primary bg-primary/5 font-semibold" : "border-border bg-card hover:bg-muted/40"
+          {([
+            { val: "NONE",              label: "No gateway",              desc: "Billing disabled" },
+            { val: "STRIPE",            label: "Stripe only",             desc: "International cards" },
+            { val: "SUBSCRIPTION_BASE", label: "Subscription-base only",  desc: "Paymob / EGP" },
+            { val: "BOTH",              label: "Both gateways",           desc: "Customer chooses at checkout" },
+          ] as const).map(({ val, label, desc }) => (
+            <label key={val} className={`flex cursor-pointer flex-col rounded-xl border px-4 py-2.5 text-sm transition-colors select-none ${
+              gateway === val ? "border-primary bg-primary/5 font-semibold" : "border-border bg-card hover:bg-muted/40"
             }`}>
-              <input type="radio" name="gateway" value={gw} checked={gateway === gw}
-                onChange={() => saveGateway(gw)} disabled={gatewayPending}
-                className="accent-primary" />
-              {gw === "NONE" ? "No gateway" : gw === "STRIPE" ? "Stripe" : "Subscription-base"}
+              <span className="flex items-center gap-2">
+                <input type="radio" name="gateway" value={val} checked={gateway === val}
+                  onChange={() => saveGateway(val)} disabled={gatewayPending}
+                  className="accent-primary" />
+                {label}
+              </span>
+              <span className="mt-0.5 ms-5 text-[10px] font-normal text-muted-foreground">{desc}</span>
             </label>
           ))}
           {gatewayStatus && <SaveStatus ok={gatewayStatus.ok} error={gatewayStatus.error} />}
         </div>
+        {gateway === "BOTH" && (
+          <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
+            💡 <strong>Both gateways active:</strong> customers see a payment method selector at checkout — Stripe for international cards, Subscription-base (Paymob) for EGP payments. Make sure both are configured below.
+          </p>
+        )}
 
         {/* Stripe credentials */}
         <CredentialSection

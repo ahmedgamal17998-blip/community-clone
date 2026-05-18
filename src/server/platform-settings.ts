@@ -44,11 +44,25 @@ export async function getContentRetentionDays(): Promise<number> {
   return n > 0 ? n : 90;
 }
 
-export async function getActiveGateway(): Promise<"STRIPE" | "SUBSCRIPTION_BASE" | "NONE"> {
+export type GatewayMode = "NONE" | "STRIPE" | "SUBSCRIPTION_BASE" | "BOTH";
+
+export async function getActiveGateway(): Promise<GatewayMode> {
   const raw = await getRaw("platform.activeGateway");
   const val = raw ? (JSON.parse(raw) as string) : "NONE";
-  if (val === "STRIPE" || val === "SUBSCRIPTION_BASE") return val;
+  if (val === "STRIPE" || val === "SUBSCRIPTION_BASE" || val === "BOTH") return val;
   return "NONE";
+}
+
+/** Returns true when Stripe is active (STRIPE or BOTH). */
+export async function isStripeActive(): Promise<boolean> {
+  const gw = await getActiveGateway();
+  return gw === "STRIPE" || gw === "BOTH";
+}
+
+/** Returns true when Subscription-base is active (SUBSCRIPTION_BASE or BOTH). */
+export async function isSubBaseActive(): Promise<boolean> {
+  const gw = await getActiveGateway();
+  return gw === "SUBSCRIPTION_BASE" || gw === "BOTH";
 }
 
 // ─── Stripe credential helpers ────────────────────────────────────────────────
@@ -111,7 +125,7 @@ export async function saveContentRetentionAction(
 }
 
 export async function saveActiveGatewayAction(
-  gateway: "STRIPE" | "SUBSCRIPTION_BASE" | "NONE",
+  gateway: GatewayMode,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     await assertSuperAdmin();
@@ -161,7 +175,7 @@ export async function getPlatformSettingsForPage() {
 
   return {
     retentionDays,
-    activeGateway,
+    activeGateway,                           // "NONE" | "STRIPE" | "SUBSCRIPTION_BASE" | "BOTH"
     stripeConfigured:   !!stripe,
     stripePublishableKey: stripe?.publishableKey ?? "",
     // NEVER return secret keys to the browser — return only masked status
