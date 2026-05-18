@@ -25,7 +25,7 @@ export default async function AdminBillingPage() {
     db.tenant.findFirst({
       where: { ownerId: session.user.id },
       select: {
-        id: true, plan: true, planStatus: true, trialEndsAt: true,
+        id: true, plan: true, planStatus: true,
         currentMembers: true, currentGroups: true, currentCourses: true,
         memberLimit: true, groupLimit: true, courseLimit: true,
         stripeCustomerId: true, stripeSubscriptionId: true,
@@ -39,10 +39,6 @@ export default async function AdminBillingPage() {
 
   // Live config from DB — falls back to first plan if somehow missing
   const cfg = planConfigs.find((p) => p.plan === plan) ?? planConfigs[0];
-
-  const trialDaysLeft = tenant.trialEndsAt
-    ? Math.max(0, Math.ceil((tenant.trialEndsAt.getTime() - Date.now()) / 86400000))
-    : null;
 
   const usage = [
     { label: "Members",  current: tenant.currentMembers, limit: tenant.memberLimit,  icon: "👥" },
@@ -75,13 +71,9 @@ export default async function AdminBillingPage() {
               "inline-flex rounded-full px-2.5 py-1 text-xs font-semibold",
               tenant.planStatus === "ACTIVE"
                 ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                : tenant.planStatus === "TRIAL"
-                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-                  : "bg-destructive/10 text-destructive",
+                : "bg-destructive/10 text-destructive",
             )}>
-              {tenant.planStatus === "TRIAL"
-                ? `Trial · ${trialDaysLeft}d left`
-                : tenant.planStatus}
+              {tenant.planStatus}
             </span>
           </div>
         </div>

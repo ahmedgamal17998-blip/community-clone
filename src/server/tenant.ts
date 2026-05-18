@@ -49,20 +49,16 @@ export async function createTenantAction(
   if (tenantExists) return { ok: false, error: { field: "tenantSlug", message: "Workspace URL already taken" } };
   if (groupExists)  return { ok: false, error: { field: "groupSlug",  message: "Group URL already taken" } };
 
-  // Calculate 14-day trial end
-  const trialEndsAt = new Date(Date.now() + 14 * 24 * 3_600_000);
-
   let redirectGroupSlug: string;
   try {
     const result = await db.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
         data: {
-          slug:        tenantSlug,
-          name:        tenantName,
-          ownerId:     session.user.id,
-          plan:        "STARTER",
-          planStatus:  "TRIAL",
-          trialEndsAt,
+          slug:       tenantSlug,
+          name:       tenantName,
+          ownerId:    session.user.id,
+          plan:       "STARTER",
+          planStatus: "ACTIVE",
         },
       });
 

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
-import { Users, FolderOpen, CreditCard, Clock, ArrowRight, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Users, FolderOpen, CreditCard, Clock, ArrowRight, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -47,10 +47,6 @@ export default async function AdminOverviewPage() {
 
   const groups = tenant.groups;
   const totalMembers = groups.reduce((acc, g) => acc + g._count.memberships, 0);
-  const trialDaysLeft = tenant.trialEndsAt
-    ? Math.max(0, Math.ceil((tenant.trialEndsAt.getTime() - Date.now()) / 86400000))
-    : null;
-
   const stats = [
     { label: "Total members", value: totalMembers.toLocaleString(), icon: Users, href: "/admin/subscriptions" },
     { label: "Groups",        value: groups.length.toString(),       icon: FolderOpen, href: null },
@@ -66,31 +62,6 @@ export default async function AdminOverviewPage() {
           Manage your workspace, payments and members.
         </p>
       </div>
-
-      {/* Trial / plan alert */}
-      {tenant.planStatus === "TRIAL" && (
-        <div className={cn(
-          "flex items-start gap-3 rounded-xl border p-4",
-          trialDaysLeft !== null && trialDaysLeft <= 3
-            ? "border-destructive/30 bg-destructive/5 text-destructive"
-            : "border-amber-300/50 bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400",
-        )}>
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium">
-              {trialDaysLeft !== null
-                ? `Free trial — ${trialDaysLeft} day${trialDaysLeft !== 1 ? "s" : ""} remaining`
-                : "Free trial active"}
-            </p>
-            <p className="mt-0.5 text-xs opacity-80">
-              Upgrade to Pro or Business to continue after your trial ends.
-            </p>
-          </div>
-          <Button asChild size="sm" variant="outline" className="shrink-0">
-            <Link href="/admin/billing">Upgrade</Link>
-          </Button>
-        </div>
-      )}
 
       {/* Pending approvals banner */}
       {pendingCount > 0 && (
