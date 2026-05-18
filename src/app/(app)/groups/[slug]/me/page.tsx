@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { remainingDays } from "@/server/access";
+import { decryptJson } from "@/lib/encryption";
+import type { ManualCredentials } from "@/server/payment-methods";
 import { SubscriptionCard } from "./_components/SubscriptionCard";
 import { AccessibleResources } from "./_components/AccessibleResources";
 import { ProfileEditor } from "./_components/ProfileEditor";
@@ -34,17 +36,32 @@ export default async function MemberSelfPage({
   if (!group) notFound();
 
   // Fetch active payment methods for this group's workspace
-  const paymentMethods = await db.paymentMethod.findMany({
+  const rawPaymentMethods = await db.paymentMethod.findMany({
     where: { tenantId: group.tenantId, active: true },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
     select: {
       id: true,
       type: true,
       label: true,
-      instructions: true,
-      accountDetails: true,
+      credentialsEnc: true,
       isDefault: true,
     },
+  });
+
+  // Decrypt instructions/accountDetails for manual methods (server-side only)
+  const paymentMethods = rawPaymentMethods.map((m) => {
+    let instructions: string | null = null;
+    let accountDetails: string | null = null;
+    if (m.type.startsWith("MANUAL_") && m.credentialsEnc) {
+      try {
+        const creds = decryptJson<ManualCredentials>(m.credentialsEnc);
+        instructions = creds.instructions ?? null;
+        accountDetails = creds.accountDetails ?? null;
+      } catch {
+        // leave null if decryption fails
+      }
+    }
+    return { id: m.id, type: m.type, label: m.label, isDefault: m.isDefault, instructions, accountDetails };
   });
 
   const me = await db.user.findUnique({
