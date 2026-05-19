@@ -14,7 +14,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
-import { enforceLimit, incrementUsage, PlanLimitExceeded } from "@/server/billing/limits";
+import { enforceLimit, incrementUsage } from "@/server/billing/limits";
+import { PlanLimitExceeded } from "@/server/billing/errors";
 import {
   requireRole,
   hasMinRole,

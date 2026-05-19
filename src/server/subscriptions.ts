@@ -13,7 +13,8 @@
 import { z } from "zod";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
-import { enforceLimit, incrementUsage, PlanLimitExceeded } from "@/server/billing/limits";
+import { enforceLimit, incrementUsage } from "@/server/billing/limits";
+import { PlanLimitExceeded } from "@/server/billing/errors";
 import { Prisma } from "@prisma/client";
 import { getPaymentMethodCredentials, type SubscriptionBaseCredentials } from "@/server/payment-methods";
 

@@ -16,35 +16,7 @@
 import { db } from "@/server/db";
 import { TENANT_PLAN_LIMITS } from "@/server/billing/plans";
 import type { Plan } from "@/lib/plans";
-
-// ─── Error types ─────────────────────────────────────────────────────────────
-
-export class PlanLimitExceeded extends Error {
-  constructor(
-    public readonly resource: string,
-    public readonly limit: number,
-    public readonly plan: Plan,
-  ) {
-    super(
-      `Your ${plan} plan allows up to ${limit === -1 ? "unlimited" : limit} ${resource}. ` +
-        `Upgrade to increase this limit.`,
-    );
-    this.name = "PlanLimitExceeded";
-  }
-}
-
-export class FeatureNotAvailable extends Error {
-  constructor(
-    public readonly feature: string,
-    public readonly plan: Plan,
-  ) {
-    super(
-      `The "${feature}" feature is not available on the ${plan} plan. ` +
-        `Upgrade to unlock it.`,
-    );
-    this.name = "FeatureNotAvailable";
-  }
-}
+import { PlanLimitExceeded, FeatureNotAvailable } from "@/server/billing/errors";
 
 // ─── Tenant fetcher (memoised per-request via unstable_cache in call sites) ──
 
