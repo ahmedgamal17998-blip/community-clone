@@ -83,19 +83,10 @@ export async function subscribeAction(
 
     // Prefill user info and build return URLs so the member lands back
     // on the community after payment succeeds or is cancelled.
-    const [userRow, groupRow] = await Promise.all([
-      db.user.findUnique({
-        where: { id: userId },
-        select: { name: true, email: true, phone: true },
-      }),
-      db.group.findUnique({
-        where: { id: groupId },
-        select: { slug: true },
-      }),
-    ]);
-
-    const appBase = (process.env.AUTH_URL ?? "").replace(/\/$/, "");
-    const mePage  = `${appBase}/groups/${groupRow?.slug ?? groupId}/me`;
+    const userRow = await db.user.findUnique({
+      where: { id: userId },
+      select: { name: true, email: true, phone: true },
+    });
 
     // Build checkout URL: prefer slug route, fall back to product-id route
     const checkoutPath = productSlug
@@ -111,13 +102,8 @@ export async function subscribeAction(
       checkoutUrl.searchParams.set("plan", planFull.externalPlanType);
     }
 
-    // Return URLs — payment system should redirect here after success/cancel.
-    // Even if the payment system ignores them the webhook still activates
-    // the subscription; these just improve UX by bringing the member back.
-    if (appBase) {
-      checkoutUrl.searchParams.set("success_url", `${mePage}?paid=1`);
-      checkoutUrl.searchParams.set("cancel_url",  `${mePage}?payment_failed=1`);
-    }
+    // Note: success_url / cancel_url are configured manually in the payment
+    // system's admin panel — not passed as query params here.
 
     // Return early — activation will happen via the /api/webhooks/payment handler
     // once the member completes payment on the external system.
