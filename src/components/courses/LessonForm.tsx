@@ -23,8 +23,10 @@ type LessonShape = {
   durationSec: number | null;
 };
 
+type ModuleOption = { id: string; title: string };
+
 type Props =
-  | { mode: "create"; courseId: string }
+  | { mode: "create"; courseId: string; modules?: ModuleOption[] }
   | { mode: "edit"; courseId: string; lesson: LessonShape };
 
 /**
@@ -50,6 +52,25 @@ export function LessonForm(props: Props) {
         <input type="hidden" name="lessonId" value={l!.id} />
       ) : (
         <input type="hidden" name="courseId" value={props.courseId} />
+      )}
+
+      {/* Module picker — only shown when creating and modules exist */}
+      {!isEdit && props.mode === "create" && props.modules && props.modules.length > 0 && (
+        <div className="space-y-1.5">
+          <Label htmlFor="moduleId">Add to module</Label>
+          <select
+            id="moduleId"
+            name="moduleId"
+            defaultValue={props.modules[props.modules.length - 1]!.id}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            {props.modules.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.title}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
 
       <div className="space-y-1.5">

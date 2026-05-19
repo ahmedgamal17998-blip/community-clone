@@ -419,6 +419,7 @@ export async function deleteCourseAction(formData: FormData) {
 
 const createLessonSchema = z.object({
   courseId: z.string().cuid(),
+  moduleId: z.string().cuid().optional(),
   title: z.string().trim().min(2).max(140),
   body: z.string().trim().max(40000).optional(),
   videoUrl: z.string().trim().url().optional().or(z.literal("")),
@@ -433,6 +434,7 @@ export async function createLessonAction(formData: FormData) {
 
   const parsed = createLessonSchema.safeParse({
     courseId: formData.get("courseId"),
+    moduleId: formData.get("moduleId") || undefined,
     title: formData.get("title"),
     body: formData.get("body") || undefined,
     videoUrl: formData.get("videoUrl") || undefined,
@@ -450,8 +452,20 @@ export async function createLessonAction(formData: FormData) {
 
   await requireRole({ groupId: course.groupId, userId: session.user.id, min: "ADMIN" });
 
+  // Resolve moduleId: use the one chosen, else fall back to the last module in the course.
+  let moduleId: string | null = parsed.data.moduleId ?? null;
+  if (!moduleId) {
+    const lastModule = await db.courseModule.findFirst({
+      where: { courseId: course.id },
+      orderBy: { position: "desc" },
+      select: { id: true },
+    });
+    moduleId = lastModule?.id ?? null;
+  }
+
+  // Compute position within the target module (or global if orphan).
   const last = await db.lesson.findFirst({
-    where: { courseId: course.id },
+    where: { courseId: course.id, moduleId: moduleId ?? undefined },
     orderBy: { position: "desc" },
     select: { position: true },
   });
@@ -462,6 +476,7 @@ export async function createLessonAction(formData: FormData) {
   const lesson = await db.lesson.create({
     data: {
       courseId: course.id,
+      moduleId,
       slug,
       title: parsed.data.title,
       body: parsed.data.body,

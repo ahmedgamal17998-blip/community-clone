@@ -34,6 +34,13 @@ export default async function NewLessonPage({
   });
   if (!course) notFound();
 
+  // Fetch modules so the form can show a picker (default = last module).
+  const modules = await db.courseModule.findMany({
+    where: { courseId: course.id },
+    orderBy: { position: "asc" },
+    select: { id: true, title: true },
+  });
+
   return (
     <div className="mx-auto max-w-2xl">
       <header className="mb-6 flex items-center gap-3">
@@ -46,7 +53,7 @@ export default async function NewLessonPage({
         </Link>
         <h1 className="text-2xl font-semibold">New lesson</h1>
       </header>
-      <LessonForm mode="create" courseId={course.id} />
+      <LessonForm mode="create" courseId={course.id} modules={modules} />
     </div>
   );
 }
