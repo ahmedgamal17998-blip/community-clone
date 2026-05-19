@@ -13,6 +13,7 @@
 import { z } from "zod";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
+import { enforceLimit, incrementUsage, PlanLimitExceeded } from "@/server/billing/limits";
 import { Prisma } from "@prisma/client";
 import { getPaymentMethodCredentials, type SubscriptionBaseCredentials } from "@/server/payment-methods";
 
@@ -198,6 +199,16 @@ export async function approveSubscriptionAction(
   const isAdmin = membership?.role === "OWNER" || membership?.role === "ADMIN";
   if (!isAdmin && !isOwnerOfCommunity) return { ok: false, error: "Unauthorized" };
 
+  // Enforce member limit before activating
+  try {
+    await enforceLimit("members", sub.group.tenantId);
+  } catch (e) {
+    if (e instanceof PlanLimitExceeded) {
+      return { ok: false, error: e.message };
+    }
+    throw e;
+  }
+
   await db.$transaction([
     // Activate the subscription
     db.subscription.update({
@@ -233,6 +244,7 @@ export async function approveSubscriptionAction(
     });
   }
 
+  await incrementUsage("currentMembers", sub.group.tenantId);
   return { ok: true };
 }
 

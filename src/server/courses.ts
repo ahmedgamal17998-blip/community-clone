@@ -19,6 +19,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
+import { enforceLimit, incrementUsage, PlanLimitExceeded } from "@/server/billing/limits";
 import { hasMinRole, isAtLeast, requireRole, type Role } from "@/server/permissions";
 import { addPoints } from "@/server/points";
 
@@ -244,9 +245,19 @@ export async function createCourseAction(formData: FormData) {
 
   const group = await db.group.findUnique({
     where: { id: parsed.data.groupId },
-    select: { slug: true },
+    select: { slug: true, tenantId: true },
   });
   if (!group) throw new Error("Group not found");
+
+  // Enforce course limit
+  try {
+    await enforceLimit("courses", group.tenantId);
+  } catch (e) {
+    if (e instanceof PlanLimitExceeded) {
+      throw new Error(e.message); // surfaces to the form as an error
+    }
+    throw e;
+  }
 
   const last = await db.course.findFirst({
     where: { groupId: parsed.data.groupId },
@@ -279,6 +290,7 @@ export async function createCourseAction(formData: FormData) {
     },
   });
 
+  await incrementUsage("currentCourses", group.tenantId);
   revalidatePath(`/groups/${group.slug}/learning`);
   redirect(`/groups/${group.slug}/learning/${course.slug}`);
 }

@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import Link from "next/link";
-import { Lock } from "lucide-react";
+import { Lock, Zap } from "lucide-react";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
+import { TENANT_PLAN_LIMITS } from "@/server/billing/plans";
+import type { Plan } from "@/lib/plans";
 import { CreateGroupForm } from "@/components/group/CreateGroupForm";
 
 export default async function NewGroupPage() {
@@ -11,29 +13,48 @@ export default async function NewGroupPage() {
   if (!session?.user) redirect("/login");
   const t = await getTranslations("groups.wizard");
 
-  // SaaS gate — only users with canCreateGroups can reach this form.
-  const me = await db.user.findUnique({
-    where: { id: session.user.id },
-    select: { canCreateGroups: true },
+  // Gate: only tenant owners can create groups.
+  const tenant = await db.tenant.findFirst({
+    where: { ownerId: session.user.id },
+    select: { id: true, plan: true, currentGroups: true, groupLimit: true },
   });
-  if (!me?.canCreateGroups) {
+
+  if (!tenant) {
+    redirect("/create"); // no workspace yet → setup wizard
+  }
+
+  // Pre-check group limit — show upgrade screen before form.
+  const planLimits = TENANT_PLAN_LIMITS[tenant.plan as Plan];
+  const groupLimit = tenant.groupLimit ?? planLimits.maxGroups;
+  const isAtLimit = groupLimit !== -1 && tenant.currentGroups >= groupLimit;
+
+  if (isAtLimit) {
     return (
       <section className="mx-auto flex max-w-md flex-col items-center justify-center px-4 py-16 text-center">
-        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
           <Lock className="h-5 w-5" />
         </div>
-        <h1 className="text-lg font-semibold">Owner subscription required</h1>
+        <h1 className="text-lg font-semibold">Group limit reached</h1>
         <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
-          Creating a community is reserved for owners. Once subscriptions go
-          live you'll be able to upgrade here. For now, contact the platform
-          owner to request access.
+          Your <span className="font-medium">{tenant.plan}</span> plan allows up to{" "}
+          <span className="font-medium">{groupLimit} group{groupLimit !== 1 ? "s" : ""}</span>.
+          Upgrade your plan to create more groups.
         </p>
-        <Link
-          href="/groups"
-          className="mt-5 inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-semibold transition-colors hover:bg-accent"
-        >
-          Back to groups
-        </Link>
+        <div className="mt-5 flex gap-3">
+          <Link
+            href="/admin/billing"
+            className="inline-flex items-center gap-1.5 justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <Zap className="h-3.5 w-3.5" />
+            Upgrade plan
+          </Link>
+          <Link
+            href="/groups"
+            className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-semibold transition-colors hover:bg-accent"
+          >
+            Back to groups
+          </Link>
+        </div>
       </section>
     );
   }

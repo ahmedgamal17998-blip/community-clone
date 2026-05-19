@@ -50,7 +50,7 @@ export default async function HomePage() {
             )}
             {canCreate && (
               <Button asChild size="sm">
-                <Link href="/create" className="gap-2">
+                <Link href={hasTenant ? "/groups/new" : "/create"} className="gap-2">
                   <Plus className="h-4 w-4" />
                   {tg("create")}
                 </Link>

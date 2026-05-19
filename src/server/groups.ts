@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
+import { enforceLimit, incrementUsage, PlanLimitExceeded } from "@/server/billing/limits";
 import {
   requireRole,
   hasMinRole,
@@ -150,6 +151,16 @@ export async function createGroupAction(_prev: unknown, formData: FormData) {
     };
   }
 
+  // Enforce plan group limit before creating
+  try {
+    await enforceLimit("groups", tenant.id);
+  } catch (e) {
+    if (e instanceof PlanLimitExceeded) {
+      return { ok: false as const, error: e.message };
+    }
+    throw e;
+  }
+
   const parsed = createGroupSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description") || undefined,
@@ -188,6 +199,7 @@ export async function createGroupAction(_prev: unknown, formData: FormData) {
     return group;
   });
 
+  await incrementUsage("currentGroups", tenant.id);
   revalidatePath("/home");
   revalidatePath("/groups");
   redirect(`/groups/${group.slug}`);
