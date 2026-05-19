@@ -60,10 +60,14 @@ export async function subscribeAction(
 
   // ── SUBSCRIPTION_BASE: redirect to external checkout, no local sub row yet ──
   if (pm.type === "SUBSCRIPTION_BASE") {
-    // Fetch the plan's external product slug (maps to the Subscription-base product)
+    // Fetch the plan's external product slug + plan type
     const planFull = await db.subscriptionPlan.findUnique({
       where: { id: planId },
-      select: { externalProductSlug: true, externalProductId: true },
+      select: {
+        externalProductSlug: true,
+        externalProductId:   true,
+        externalPlanType:    true,
+      },
     });
     const productSlug = planFull?.externalProductSlug;
     const productId   = planFull?.externalProductId;
@@ -77,15 +81,47 @@ export async function subscribeAction(
       return { ok: false, error: "Subscription-base credentials are not configured." };
     }
 
+    // Prefill user info and build return URLs so the member lands back
+    // on the community after payment succeeds or is cancelled.
+    const [userRow, groupRow] = await Promise.all([
+      db.user.findUnique({
+        where: { id: userId },
+        select: { name: true, email: true, phone: true },
+      }),
+      db.group.findUnique({
+        where: { id: groupId },
+        select: { slug: true },
+      }),
+    ]);
+
+    const appBase = (process.env.AUTH_URL ?? "").replace(/\/$/, "");
+    const mePage  = `${appBase}/groups/${groupRow?.slug ?? groupId}/me`;
+
     // Build checkout URL: prefer slug route, fall back to product-id route
     const checkoutPath = productSlug
       ? `/subscribe/${productSlug}`
       : `/checkout/product/${productId}`;
-    const checkoutUrl = `${creds.baseUrl.replace(/\/$/, "")}${checkoutPath}`;
+    const checkoutUrl = new URL(`${creds.baseUrl.replace(/\/$/, "")}${checkoutPath}`);
+
+    // Prefill member details so they don't have to retype on the payment page
+    if (userRow?.email) checkoutUrl.searchParams.set("email", userRow.email);
+    if (userRow?.name)  checkoutUrl.searchParams.set("name",  userRow.name);
+    if (userRow?.phone) checkoutUrl.searchParams.set("phone", userRow.phone);
+    if (planFull?.externalPlanType) {
+      checkoutUrl.searchParams.set("plan", planFull.externalPlanType);
+    }
+
+    // Return URLs — payment system should redirect here after success/cancel.
+    // Even if the payment system ignores them the webhook still activates
+    // the subscription; these just improve UX by bringing the member back.
+    if (appBase) {
+      checkoutUrl.searchParams.set("success_url", `${mePage}?paid=1`);
+      checkoutUrl.searchParams.set("cancel_url",  `${mePage}?payment_failed=1`);
+    }
 
     // Return early — activation will happen via the /api/webhooks/payment handler
     // once the member completes payment on the external system.
-    return { ok: true, subscriptionId: "", status: "REDIRECT", checkoutUrl };
+    return { ok: true, subscriptionId: "", status: "REDIRECT", checkoutUrl: checkoutUrl.toString() };
   }
 
   const isManual = pm.type.startsWith("MANUAL_");

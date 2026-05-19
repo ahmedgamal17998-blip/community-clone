@@ -18,8 +18,10 @@ import { ProfileEditor } from "./_components/ProfileEditor";
  */
 export default async function MemberSelfPage({
   params,
+  searchParams,
 }: {
   params: { slug: string };
+  searchParams?: { paid?: string; payment_failed?: string };
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
@@ -99,6 +101,18 @@ export default async function MemberSelfPage({
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">My subscription</h1>
+
+      {/* Payment return banners — shown after redirect back from external checkout */}
+      {searchParams?.paid === "1" && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-700 dark:text-emerald-300">
+          🎉 Payment received! Your subscription will be activated shortly. Refresh in a few seconds if your access hasn&apos;t updated yet.
+        </div>
+      )}
+      {searchParams?.payment_failed === "1" && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          ❌ Payment was not completed. Please try again or choose a different payment method.
+        </div>
+      )}
 
       <SubscriptionCard
         remainingDays={days}
