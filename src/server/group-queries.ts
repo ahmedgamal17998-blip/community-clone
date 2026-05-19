@@ -18,7 +18,11 @@ export type GroupListItem = {
 /** Groups this user belongs to — ACTIVE + REQUESTED. Ordered by joinedAt desc. */
 export async function listMyGroups(userId: string): Promise<GroupListItem[]> {
   const rows = await db.groupMembership.findMany({
-    where: { userId, state: { in: ["ACTIVE", "REQUESTED"] } },
+    where: {
+      userId,
+      state: { in: ["ACTIVE", "REQUESTED"] },
+      group: { deletedAt: null }, // hide soft-deleted groups from home/sidebar
+    },
     orderBy: { joinedAt: "desc" },
     select: {
       role: true,
