@@ -177,6 +177,18 @@ export default async function GroupLayout({
               myMembership={myMembership}
             />
           </div>
+
+          {/* Mobile-only join/request bar — only shown to non-members and
+              pending members on small screens where GroupHeader is hidden. */}
+          {(!myMembership || myMembership.state === "REQUESTED") && (
+            <MobileJoinBar
+              groupId={group.id}
+              groupSlug={group.slug}
+              visibility={group.visibility}
+              isPending={myMembership?.state === "REQUESTED"}
+            />
+          )}
+
           <GroupTabs slug={group.slug} canManage={canManage} />
         </div>
       </div>
@@ -279,6 +291,43 @@ export default async function GroupLayout({
           open it without prop-drilling). */}
       {isActiveMember && <PaywallPopupMount />}
     </GroupThemeProvider>
+  );
+}
+
+/** Mobile-only strip with Join / Request to Join button.
+ *  Visible only on sm:hidden so it doesn't duplicate the desktop GroupHeader.
+ *  Rendered for non-members and REQUESTED-state members only. */
+function MobileJoinBar({
+  groupId,
+  groupSlug,
+  visibility,
+  isPending,
+}: {
+  groupId: string;
+  groupSlug: string;
+  visibility: string;
+  isPending: boolean;
+}) {
+  void groupSlug; // reserved for future "pending" copy that includes group name
+  if (isPending) {
+    return (
+      <div className="flex items-center justify-end py-2 sm:hidden">
+        <span className="inline-flex h-8 items-center rounded-md border border-border bg-muted px-3 text-xs font-medium text-muted-foreground">
+          Request pending…
+        </span>
+      </div>
+    );
+  }
+  return (
+    <form action={joinGroupAction} className="flex items-center justify-end py-2 sm:hidden">
+      <input type="hidden" name="groupId" value={groupId} />
+      <button
+        type="submit"
+        className="inline-flex h-8 items-center rounded-md bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+      >
+        {visibility === "PUBLIC" ? "Join group" : "Request to join"}
+      </button>
+    </form>
   );
 }
 
