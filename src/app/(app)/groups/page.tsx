@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
+// canCreateGroups user-flag is no longer used — only tenant owners see the button
 import { listMyGroups, listDiscoverableGroups } from "@/server/group-queries";
 import { GroupAvatar } from "@/components/group/GroupAvatar";
 import { Button } from "@/components/ui/button";
@@ -13,15 +14,16 @@ export default async function GroupsDirectoryPage() {
   if (!session?.user) redirect("/login");
   const t = await getTranslations("groups");
 
-  const [me, mine, discover] = await Promise.all([
-    db.user.findUnique({
-      where: { id: session.user.id },
-      select: { canCreateGroups: true },
+  const [isTenantOwner, mine, discover] = await Promise.all([
+    // Only tenant owners can create new groups.
+    db.tenant.findFirst({
+      where: { ownerId: session.user.id },
+      select: { id: true },
     }),
     listMyGroups(session.user.id),
     listDiscoverableGroups(session.user.id),
   ]);
-  const canCreate = !!me?.canCreateGroups;
+  const canCreate = !!isTenantOwner;
 
   return (
     <div className="space-y-10">
