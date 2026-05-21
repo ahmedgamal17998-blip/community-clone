@@ -19,8 +19,10 @@ export default async function HomePage() {
       ])
     : [[], null];
 
-  const canCreate = true; // any logged-in user can create a workspace
+  // Only tenant owners can create a new group.
+  // Regular members never see the create button.
   const hasTenant = !!hasTenantResult;
+  const canCreate = hasTenant;
 
   return (
     <section className="mx-auto max-w-3xl space-y-8">
@@ -60,8 +62,27 @@ export default async function HomePage() {
         </div>
 
         {mine.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground dir-auto">
-            {tg("noneYet")}
+          <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center space-y-4">
+            <p className="text-sm text-muted-foreground">{tg("noneYet")}</p>
+            {/* Smart onboarding CTAs for brand-new users */}
+            <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+              <a
+                href="/groups"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent"
+              >
+                <Compass className="h-4 w-4" />
+                Browse communities to join
+              </a>
+              {!hasTenant && (
+                <a
+                  href="/admin/setup"
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create your own community
+                </a>
+              )}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
