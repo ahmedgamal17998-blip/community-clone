@@ -22,6 +22,7 @@ export default async function HomePage() {
   // Only tenant owners can create a new group.
   // Regular members never see the create button.
   const hasTenant = !!hasTenantResult;
+  const isOwner = (session?.user as any)?.accountType === "OWNER" || hasTenant; // existing owners keep access
   const canCreate = hasTenant;
 
   return (
@@ -73,7 +74,7 @@ export default async function HomePage() {
                 <Compass className="h-4 w-4" />
                 Browse communities to join
               </a>
-              {!hasTenant && (
+              {isOwner && !hasTenant && (
                 <a
                   href="/admin/setup"
                   className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"

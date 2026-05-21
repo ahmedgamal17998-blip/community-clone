@@ -11,7 +11,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   EMAIL_TAKEN: "An account with that email already exists. Try signing in.",
 };
 
-export function RegisterForm({ callbackUrl }: { callbackUrl: string }) {
+export function RegisterForm({ callbackUrl, accountType }: { callbackUrl: string; accountType?: string }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -19,6 +19,7 @@ export function RegisterForm({ callbackUrl }: { callbackUrl: string }) {
     <form
       action={(formData) => {
         formData.set("callbackUrl", callbackUrl);
+        formData.set("accountType", accountType ?? "MEMBER");
         setError(null);
         startTransition(async () => {
           const result = await registerWithPasswordAction(formData);

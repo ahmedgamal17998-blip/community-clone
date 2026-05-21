@@ -92,6 +92,7 @@ const registerSchema = z.object({
   name: z.string().trim().min(1).max(80),
   email: z.string().trim().email().toLowerCase(),
   password: z.string().min(8).max(200),
+  accountType: z.enum(["MEMBER", "OWNER"]).default("MEMBER"),
 });
 
 export async function registerWithPasswordAction(formData: FormData) {
@@ -99,6 +100,7 @@ export async function registerWithPasswordAction(formData: FormData) {
     name: formData.get("name"),
     email: formData.get("email"),
     password: formData.get("password"),
+    accountType: formData.get("accountType") as string ?? "MEMBER",
   });
   if (!parsed.success) {
     return { ok: false as const, error: "INVALID_INPUT" };
@@ -124,6 +126,7 @@ export async function registerWithPasswordAction(formData: FormData) {
       email: parsed.data.email,
       passwordHash,
       handle,
+      accountType: parsed.data.accountType,
       emailVerified: new Date(), // password registration counts as verification
       presence: { create: { status: "OFFLINE" } },
     },

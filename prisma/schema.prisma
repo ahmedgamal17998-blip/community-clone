@@ -92,6 +92,10 @@ model User {
   // subscription webhook OR backfilled for users who already own a group.
   canCreateGroups Boolean @default(false)
 
+  // Account type — set at registration. OWNER can create workspaces;
+  // MEMBER can only join communities.
+  accountType  String  @default("MEMBER") // "MEMBER" | "OWNER"
+
   // M28: Email + password auth. Optional — users created via magic link or
   // OAuth have this null. Only the Credentials provider sets / verifies it.
   passwordHash String?

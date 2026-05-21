@@ -11,7 +11,7 @@ const hasGoogle = Boolean(
 export default async function RegisterPage({
   searchParams,
 }: {
-  searchParams: { callbackUrl?: string };
+  searchParams: { callbackUrl?: string; accountType?: string };
 }) {
   const session = await auth();
   if (session?.user) redirect(searchParams.callbackUrl ?? "/home");
@@ -48,7 +48,7 @@ export default async function RegisterPage({
         </div>
       ) : null}
 
-      <RegisterForm callbackUrl={callbackUrl} />
+      <RegisterForm callbackUrl={callbackUrl} accountType={searchParams.accountType} />
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Already have an account?{" "}

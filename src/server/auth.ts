@@ -118,11 +118,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Hydrate handle from DB so client components can link to /profile/:handle.
         const dbUser = await db.user.findUnique({
           where: { id: user.id },
-          select: { handle: true, locale: true },
+          select: { handle: true, locale: true, accountType: true },
         });
         if (dbUser) {
           (session.user as typeof session.user & { handle: string }).handle = dbUser.handle;
           (session.user as typeof session.user & { locale: string }).locale = dbUser.locale;
+          (session.user as typeof session.user & { accountType: string }).accountType = dbUser.accountType;
         }
       }
       return session;

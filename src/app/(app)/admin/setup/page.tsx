@@ -20,6 +20,10 @@ export default async function AdminSetupPage({
     select: { id: true, name: true, slug: true, _count: { select: { groups: true } } },
   });
 
+  // Only OWNER account types or existing tenant owners can access setup.
+  const accountType = (session.user as any).accountType as string | undefined;
+  if (!tenant && accountType !== "OWNER") redirect("/home");
+
   // Already fully set up → back to admin
   if (tenant && tenant._count.groups > 0) redirect("/admin");
 
