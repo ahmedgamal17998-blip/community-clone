@@ -5,6 +5,8 @@ import { listVisibleChannels } from "@/server/channels";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { GroupThemeProvider } from "@/components/group/GroupThemeProvider";
 import { GroupHeader } from "@/components/group/GroupHeader";
+import { GroupAvatar } from "@/components/group/GroupAvatar";
+import { joinGroupAction } from "@/server/groups";
 import { GroupTabs } from "@/components/group/GroupTabs";
 import { GroupRightRail } from "@/components/group/GroupRightRail";
 import { ChannelSidebar } from "@/components/channel/ChannelSidebar";
@@ -41,9 +43,55 @@ export default async function GroupLayout({
   if (myMembership?.state === "BANNED") notFound();
 
   const isActiveMember = myMembership?.state === "ACTIVE";
+  const isPendingMember = myMembership?.state === "REQUESTED";
   const canManage = isActiveMember
     ? hasMinRole(myMembership!.role as Role, "ADMIN")
     : false;
+
+  // Non-members (and REQUESTED members) see a join gate instead of any content.
+  // This prevents peeking at the feed/courses/etc. before joining.
+  if (!isActiveMember) {
+    return (
+      <GroupThemeProvider primaryHsl={group.primaryHsl}>
+        <div className="flex min-h-[calc(100vh-56px)] flex-col items-center justify-center px-4 text-center">
+          <div className="mx-auto w-full max-w-sm space-y-5">
+            {/* Group avatar + name */}
+            <GroupAvatar
+              name={group.name}
+              logoUrl={group.logoUrl}
+              primaryHsl={group.primaryHsl}
+              size="lg"
+            />
+            <div>
+              <h1 className="text-xl font-semibold">{group.name}</h1>
+              {group.description && (
+                <p className="mt-1 text-sm text-muted-foreground">{group.description}</p>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {group._count.memberships} member{group._count.memberships === 1 ? "" : "s"}
+              </p>
+            </div>
+
+            {isPendingMember ? (
+              <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                ⏳ Your request is pending admin approval.
+              </div>
+            ) : (
+              <form action={joinGroupAction}>
+                <input type="hidden" name="groupId" value={group.id} />
+                <button
+                  type="submit"
+                  className="w-full rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  {group.visibility === "PUBLIC" ? "Join group" : "Request to join"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </GroupThemeProvider>
+    );
+  }
 
   // Group-level access gate: a member can be locked or expired by an admin
   // even though their state is ACTIVE. Admins/Owners always bypass.
@@ -178,17 +226,6 @@ export default async function GroupLayout({
             />
           </div>
 
-          {/* Mobile-only join/request bar — only shown to non-members and
-              pending members on small screens where GroupHeader is hidden. */}
-          {(!myMembership || myMembership.state === "REQUESTED") && (
-            <MobileJoinBar
-              groupId={group.id}
-              groupSlug={group.slug}
-              visibility={group.visibility}
-              isPending={myMembership?.state === "REQUESTED"}
-            />
-          )}
-
           <GroupTabs slug={group.slug} canManage={canManage} />
         </div>
       </div>
@@ -291,43 +328,6 @@ export default async function GroupLayout({
           open it without prop-drilling). */}
       {isActiveMember && <PaywallPopupMount />}
     </GroupThemeProvider>
-  );
-}
-
-/** Mobile-only strip with Join / Request to Join button.
- *  Visible only on sm:hidden so it doesn't duplicate the desktop GroupHeader.
- *  Rendered for non-members and REQUESTED-state members only. */
-function MobileJoinBar({
-  groupId,
-  groupSlug,
-  visibility,
-  isPending,
-}: {
-  groupId: string;
-  groupSlug: string;
-  visibility: string;
-  isPending: boolean;
-}) {
-  void groupSlug; // reserved for future "pending" copy that includes group name
-  if (isPending) {
-    return (
-      <div className="flex items-center justify-end py-2 sm:hidden">
-        <span className="inline-flex h-8 items-center rounded-md border border-border bg-muted px-3 text-xs font-medium text-muted-foreground">
-          Request pending…
-        </span>
-      </div>
-    );
-  }
-  return (
-    <form action={joinGroupAction} className="flex items-center justify-end py-2 sm:hidden">
-      <input type="hidden" name="groupId" value={groupId} />
-      <button
-        type="submit"
-        className="inline-flex h-8 items-center rounded-md bg-primary px-4 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-      >
-        {visibility === "PUBLIC" ? "Join group" : "Request to join"}
-      </button>
-    </form>
   );
 }
 
