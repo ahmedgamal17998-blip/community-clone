@@ -27,6 +27,7 @@ export interface TenantContext {
   memberLimit: number;
   groupLimit: number;
   courseLimit: number;
+  subscriptionBaseEnabled: boolean;
 }
 
 /**
@@ -78,6 +79,7 @@ export const getCurrentTenant = cache(
         memberLimit: true,
         groupLimit: true,
         courseLimit: true,
+        subscriptionBaseEnabled: true,
       },
     });
 
@@ -121,6 +123,7 @@ export async function getTenantById(id: string): Promise<TenantContext | null> {
       memberLimit: true,
       groupLimit: true,
       courseLimit: true,
+      subscriptionBaseEnabled: true,
     },
   });
 }

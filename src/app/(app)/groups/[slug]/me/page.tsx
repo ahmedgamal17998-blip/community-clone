@@ -33,22 +33,27 @@ export default async function MemberSelfPage({
         where: { active: true },
         orderBy: { priceCents: "asc" },
       },
+      tenant: { select: { subscriptionBaseEnabled: true } },
     },
   });
   if (!group) notFound();
 
-  // Fetch active payment methods for this group's workspace
-  const rawPaymentMethods = await db.paymentMethod.findMany({
-    where: { tenantId: group.tenantId, active: true },
-    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-    select: {
-      id: true,
-      type: true,
-      label: true,
-      credentialsEnc: true,
-      isDefault: true,
-    },
-  });
+  const subscriptionEnabled = group.tenant?.subscriptionBaseEnabled ?? false;
+
+  // Fetch active payment methods — only needed when subscription is enabled.
+  const rawPaymentMethods = subscriptionEnabled
+    ? await db.paymentMethod.findMany({
+        where: { tenantId: group.tenantId, active: true },
+        orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          type: true,
+          label: true,
+          credentialsEnc: true,
+          isDefault: true,
+        },
+      })
+    : [];
 
   // Decrypt instructions/accountDetails for manual methods (server-side only)
   const paymentMethods = rawPaymentMethods.map((m) => {
@@ -72,14 +77,18 @@ export default async function MemberSelfPage({
   });
   if (!me) notFound();
 
-  const days = await remainingDays({ userId: me.id, groupId: group.id });
+  const days = subscriptionEnabled
+    ? await remainingDays({ userId: me.id, groupId: group.id })
+    : null;
 
   // Multi-plan support: list every active subscription, ordered by next-end.
-  const activeSubs = await db.subscription.findMany({
-    where: { userId: me.id, groupId: group.id, status: "ACTIVE" },
-    orderBy: { currentPeriodEnd: "desc" },
-    include: { plan: true },
-  });
+  const activeSubs = subscriptionEnabled
+    ? await db.subscription.findMany({
+        where: { userId: me.id, groupId: group.id, status: "ACTIVE" },
+        orderBy: { currentPeriodEnd: "desc" },
+        include: { plan: true },
+      })
+    : [];
 
   // Channels the user can access
   const channels = await db.channel.findMany({
@@ -100,41 +109,45 @@ export default async function MemberSelfPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">My subscription</h1>
+      <h1 className="text-2xl font-semibold">My account</h1>
 
-      {/* Payment return banners — shown after redirect back from external checkout */}
-      {searchParams?.paid === "1" && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-700 dark:text-emerald-300">
-          🎉 Payment received! Your subscription will be activated shortly. Refresh in a few seconds if your access hasn&apos;t updated yet.
-        </div>
-      )}
-      {searchParams?.payment_failed === "1" && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          ❌ Payment was not completed. Please try again or choose a different payment method.
-        </div>
-      )}
+      {subscriptionEnabled && (
+        <>
+          {/* Payment return banners — shown after returning from external checkout */}
+          {searchParams?.paid === "1" && (
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-700 dark:text-emerald-300">
+              🎉 Payment received! Your subscription will be activated shortly. Refresh in a few seconds if your access hasn&apos;t updated yet.
+            </div>
+          )}
+          {searchParams?.payment_failed === "1" && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+              ❌ Payment was not completed. Please try again or choose a different payment method.
+            </div>
+          )}
 
-      <SubscriptionCard
-        remainingDays={days}
-        groupId={group.id}
-        paymentMethods={paymentMethods}
-        activeSubs={activeSubs.map((s) => ({
-          id: s.id,
-          planName: s.plan.name,
-          currentPeriodEnd: s.currentPeriodEnd,
-          cancelRequestedAt: s.cancelRequestedAt,
-          hasExternal: s.externalSubscriptionId != null,
-        }))}
-        plans={group.subscriptionPlans.map((p) => ({
-          id: p.id,
-          name: p.name,
-          durationDays: p.durationDays,
-          priceCents: p.priceCents,
-          currency: p.currency,
-          externalProductSlug: p.externalProductSlug,
-          externalProductId: p.externalProductId,
-        }))}
-      />
+          <SubscriptionCard
+            remainingDays={days}
+            groupId={group.id}
+            paymentMethods={paymentMethods}
+            activeSubs={activeSubs.map((s) => ({
+              id: s.id,
+              planName: s.plan.name,
+              currentPeriodEnd: s.currentPeriodEnd,
+              cancelRequestedAt: s.cancelRequestedAt,
+              hasExternal: s.externalSubscriptionId != null,
+            }))}
+            plans={group.subscriptionPlans.map((p) => ({
+              id: p.id,
+              name: p.name,
+              durationDays: p.durationDays,
+              priceCents: p.priceCents,
+              currency: p.currency,
+              externalProductSlug: p.externalProductSlug,
+              externalProductId: p.externalProductId,
+            }))}
+          />
+        </>
+      )}
 
       <AccessibleResources
         groupId={group.id}

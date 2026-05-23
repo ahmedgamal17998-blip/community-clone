@@ -130,8 +130,13 @@ export async function POST(req: NextRequest) {
   try {
     switch (event) {
       case "payment_success":
-      case "renewal_success":
         await handleActivation(payload);
+        break;
+      case "renewal_success":
+        // For renewals we prefer to look up by subscription_id (already stored
+        // from the initial payment) so the correct member is matched even if
+        // the webhook payload email ever drifts.
+        await handleRenewal(payload);
         break;
       case "cancel_requested":
         await handleCancelRequested(payload);
@@ -262,6 +267,45 @@ async function handleHardCancel(payload: WebhookPayload) {
     userId: sub.userId,
     planId: sub.planId,
   });
+}
+
+/**
+ * renewal_success — extend an existing subscription.
+ *
+ * Strategy (preference order):
+ *  1. subscription_id  → look up the existing Subscription row to get the
+ *     userId and planId, then call _activateSubscriptionInternal. This is the
+ *     most reliable path and prevents identity mismatch entirely: the member
+ *     who originally paid is always the one whose access gets renewed.
+ *  2. Fallback → treat identically to payment_success (email lookup). This
+ *     covers edge cases where subscription_id wasn't stored on the first run.
+ */
+async function handleRenewal(payload: WebhookPayload) {
+  if (payload.subscription_id) {
+    const existing = await db.subscription.findFirst({
+      where: { externalSubscriptionId: payload.subscription_id },
+      select: { userId: true, groupId: true, planId: true },
+    });
+
+    if (existing) {
+      // Drive the renewal through the same activation helper so plan-resource
+      // grants are refreshed and the period-end is extended properly.
+      await _activateSubscriptionInternal({
+        groupId:                existing.groupId,
+        userId:                 existing.userId,
+        planId:                 existing.planId,
+        externalSubscriptionId: payload.subscription_id,
+        externalProductId:      payload.product_id != null ? Number(payload.product_id) : null,
+        externalPlanType:       payload.plan ?? null,
+        lastTransactionId:      payload.transaction_id ? String(payload.transaction_id) : null,
+        paidAt:                 payload.date_of_creation ? new Date(payload.date_of_creation) : new Date(),
+      });
+      return;
+    }
+  }
+
+  // Fallback: treat as fresh payment_success (email lookup).
+  await handleActivation(payload);
 }
 
 async function findSubscriptionFromPayload(payload: WebhookPayload) {

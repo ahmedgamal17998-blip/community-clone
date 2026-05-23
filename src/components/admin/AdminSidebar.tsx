@@ -3,6 +3,10 @@
 /**
  * Admin dashboard sidebar — sectioned, iconified, with active highlight.
  * Professional + simple — no clutter.
+ *
+ * subscriptionEnabled: passed from the server layout based on
+ *   tenant.subscriptionBaseEnabled — hides the "Monetization / Plans" section
+ *   when the super-admin hasn't enabled Subscription-base for this tenant.
  */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -23,54 +27,68 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Item = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+type Item    = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+type Section = { title: string; items: Item[] };
 
-// Grouped sections so the sidebar reads as a proper dashboard.
-const SECTIONS: Array<{ title: string; items: Item[] }> = [
-  {
-    title: "",
-    items: [{ href: "", label: "Overview", icon: LayoutDashboard }],
-  },
-  {
-    title: "People",
-    items: [
-      { href: "/members", label: "Members", icon: Users },
-      { href: "/requests", label: "Requests", icon: UserPlus },
-      { href: "/team", label: "Admin Team", icon: ShieldCheck },
-    ],
-  },
-  {
-    title: "Spaces",
-    items: [
-      { href: "/channels", label: "Channels", icon: Hash },
-      { href: "/chats", label: "Group Chats", icon: MessageSquare },
-      { href: "/booking", label: "Bookings", icon: CalendarClock },
-    ],
-  },
-  {
-    title: "Monetization",
-    items: [{ href: "/plans", label: "Plans", icon: CreditCard }],
-  },
-  {
-    title: "Engagement",
-    items: [
-      { href: "/announcements",  label: "Announcements",  icon: Megaphone },
-      { href: "/onboarding",     label: "Onboarding",     icon: Sparkles  },
-      { href: "/notifications",  label: "Notifications",  icon: Bell      },
-    ],
-  },
-  {
-    title: "Brand",
-    items: [
-      { href: "/branding", label: "Branding", icon: Palette },
-      { href: "/settings", label: "Settings", icon: Settings },
-    ],
-  },
-];
+function buildSections(subscriptionEnabled: boolean): Section[] {
+  return [
+    {
+      title: "",
+      items: [{ href: "", label: "Overview", icon: LayoutDashboard }],
+    },
+    {
+      title: "People",
+      items: [
+        { href: "/members", label: "Members",    icon: Users      },
+        { href: "/requests", label: "Requests",  icon: UserPlus   },
+        { href: "/team",     label: "Admin Team", icon: ShieldCheck },
+      ],
+    },
+    {
+      title: "Spaces",
+      items: [
+        { href: "/channels", label: "Channels",    icon: Hash         },
+        { href: "/chats",    label: "Group Chats", icon: MessageSquare },
+        { href: "/booking",  label: "Bookings",    icon: CalendarClock },
+      ],
+    },
+    // Only show Plans when the super-admin has enabled Subscription-base.
+    ...(subscriptionEnabled
+      ? [
+          {
+            title: "Monetization",
+            items: [{ href: "/plans", label: "Plans", icon: CreditCard }],
+          },
+        ]
+      : []),
+    {
+      title: "Engagement",
+      items: [
+        { href: "/announcements", label: "Announcements", icon: Megaphone },
+        { href: "/onboarding",    label: "Onboarding",    icon: Sparkles  },
+        { href: "/notifications", label: "Notifications", icon: Bell      },
+      ],
+    },
+    {
+      title: "Brand",
+      items: [
+        { href: "/branding", label: "Branding", icon: Palette  },
+        { href: "/settings", label: "Settings", icon: Settings },
+      ],
+    },
+  ];
+}
 
-export function AdminSidebar({ groupSlug }: { groupSlug: string }) {
-  const pathname = usePathname();
-  const base = `/groups/${groupSlug}/admin`;
+export function AdminSidebar({
+  groupSlug,
+  subscriptionEnabled = false,
+}: {
+  groupSlug: string;
+  subscriptionEnabled?: boolean;
+}) {
+  const pathname  = usePathname();
+  const base      = `/groups/${groupSlug}/admin`;
+  const sections  = buildSections(subscriptionEnabled);
 
   const isActive = (href: string) => {
     const full = `${base}${href}`;
@@ -80,7 +98,7 @@ export function AdminSidebar({ groupSlug }: { groupSlug: string }) {
 
   return (
     <nav className="rounded-xl border border-border bg-card p-2">
-      {SECTIONS.map((section, i) => (
+      {sections.map((section, i) => (
         <div key={i} className={cn(i > 0 && "mt-3 border-t border-border pt-3")}>
           {section.title && (
             <h3 className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
@@ -90,7 +108,7 @@ export function AdminSidebar({ groupSlug }: { groupSlug: string }) {
           <ul className="space-y-0.5">
             {section.items.map((item) => {
               const active = isActive(item.href);
-              const Icon = item.icon;
+              const Icon   = item.icon;
               return (
                 <li key={item.href}>
                   <Link

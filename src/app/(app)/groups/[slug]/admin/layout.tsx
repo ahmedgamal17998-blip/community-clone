@@ -16,7 +16,7 @@ export default async function AdminLayout({
 
   const group = await db.group.findUnique({
     where: { slug: params.slug },
-    select: { id: true, slug: true, name: true, deletedAt: true },
+    select: { id: true, slug: true, name: true, deletedAt: true, tenantId: true },
   });
   if (!group || group.deletedAt) notFound();
 
@@ -28,10 +28,16 @@ export default async function AdminLayout({
     notFound();
   }
 
+  const tenant = await db.tenant.findUnique({
+    where: { id: group.tenantId },
+    select: { subscriptionBaseEnabled: true },
+  });
+  const subscriptionEnabled = tenant?.subscriptionBaseEnabled ?? false;
+
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-[220px_1fr]">
       <aside className="md:sticky md:top-[13rem] md:self-start md:max-h-[calc(100vh-14rem)] md:overflow-y-auto">
-        <AdminSidebar groupSlug={group.slug} />
+        <AdminSidebar groupSlug={group.slug} subscriptionEnabled={subscriptionEnabled} />
       </aside>
       <div className="min-w-0">{children}</div>
     </div>

@@ -15,9 +15,16 @@ export default async function PlansAdminPage({
 
   const group = await db.group.findUnique({
     where: { slug: params.slug },
-    select: { id: true, slug: true },
+    select: { id: true, slug: true, tenantId: true },
   });
   if (!group) notFound();
+
+  // Plans are only visible when the super-admin has enabled Subscription-base.
+  const tenant = await db.tenant.findUnique({
+    where: { id: group.tenantId },
+    select: { subscriptionBaseEnabled: true },
+  });
+  if (!tenant?.subscriptionBaseEnabled) notFound();
 
   const allowed = await hasCapability({
     userId: session.user.id,
