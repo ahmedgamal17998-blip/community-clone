@@ -30,6 +30,7 @@ const PUBLIC_PATHS = [
   "/",
   "/login",
   "/register",
+  "/start",
   "/verify",
   "/pricing",
 ];
