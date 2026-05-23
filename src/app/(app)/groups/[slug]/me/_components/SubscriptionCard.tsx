@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { CalendarClock, Loader2, CreditCard, AlertCircle, CheckCircle2 } from "lucide-react";
 import { subscribeAction } from "@/server/subscriptions";
-import { CheckoutModal } from "./CheckoutModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,21 +64,23 @@ export function SubscriptionCard({
   activeSubs,
   plans,
   groupId,
+  groupSlug,
   paymentMethods,
 }: {
   remainingDays: number | null;
   activeSubs: ActiveSub[];
   plans: Plan[];
   groupId: string;
+  groupSlug: string;
   paymentMethods: PaymentMethod[];
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [selectedPlan, setSelectedPlan]     = useState(plans[0]?.id ?? "");
   const [selectedMethod, setSelectedMethod] = useState(paymentMethods[0]?.id ?? "");
   const [paymentRef, setPaymentRef]         = useState("");
   const [msg, setMsg] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [cancellingId, setCancellingId]     = useState<string | null>(null);
-  const [checkoutUrl, setCheckoutUrl]       = useState<string | null>(null);
 
   const currentPlan   = plans.find((p) => p.id === selectedPlan);
   const currentMethod = paymentMethods.find((m) => m.id === selectedMethod);
@@ -93,6 +95,16 @@ export function SubscriptionCard({
         type: "error",
         text: "This plan isn't linked to the payment system yet. Ask an admin to set the External Product Slug in admin → Plans.",
       });
+      return;
+    }
+
+    // SUBSCRIPTION_BASE → navigate to the embedded checkout page inside
+    // the community. The checkout page shows the user's locked identity
+    // (from session) and embeds the payment form below it.
+    if (currentMethod.type === "SUBSCRIPTION_BASE") {
+      router.push(
+        `/groups/${groupSlug}/me/checkout?planId=${selectedPlan}&methodId=${selectedMethod}`,
+      );
       return;
     }
 
@@ -111,9 +123,8 @@ export function SubscriptionCard({
       }
 
       if (result.status === "REDIRECT" && result.checkoutUrl) {
-        // Open the payment page in an embedded modal so the user's
-        // session identity (email/name) stays locked — not a full redirect.
-        setCheckoutUrl(result.checkoutUrl);
+        // Non-SUBSCRIPTION_BASE automated gateway (Stripe, Paymob) — navigate away.
+        window.location.href = result.checkoutUrl;
         return;
       }
 
@@ -157,19 +168,6 @@ export function SubscriptionCard({
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <>
-      {/* Embedded checkout overlay — shown instead of navigating away */}
-      {checkoutUrl && (
-        <CheckoutModal
-          checkoutUrl={checkoutUrl}
-          onClose={() => {
-            setCheckoutUrl(null);
-            // Reload so any webhook-activated subscription appears immediately.
-            window.location.reload();
-          }}
-        />
-      )}
-
     <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
 
       {/* Status header */}
@@ -387,6 +385,5 @@ export function SubscriptionCard({
         </div>
       )}
     </div>
-    </>
   );
 }

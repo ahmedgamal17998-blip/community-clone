@@ -128,6 +128,7 @@ export default async function MemberSelfPage({
           <SubscriptionCard
             remainingDays={days}
             groupId={group.id}
+            groupSlug={group.slug}
             paymentMethods={paymentMethods}
             activeSubs={activeSubs.map((s) => ({
               id: s.id,
