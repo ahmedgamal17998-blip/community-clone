@@ -2,13 +2,50 @@
 
 import { useState, useTransition } from "react";
 import { saveOnboardingAction } from "@/server/actions/onboarding";
-import { Plus, Trash2, ChevronDown } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  ChevronDown,
+  ArrowUp,
+  ArrowDown,
+  Hash,
+  Megaphone,
+  Lock,
+  FileText,
+  MessageSquare,
+  Bookmark,
+  Bell,
+  User,
+  X,
+} from "lucide-react";
 import { TOUR_TARGETS, TOUR_TARGET_BY_ID } from "@/lib/tour-targets";
 
-type Step = { target: string; title: string; body: string; order: number };
+type Step = { target: string; title: string; body: string; order: number; icon?: string };
 
 const CUSTOM_VALUE = "__custom__";
 const CENTER_VALUE = "__center__";
+
+/**
+ * Available icons for step cards.
+ * Each entry: { id, label, Icon component }
+ */
+const STEP_ICONS = [
+  { id: "hash",         label: "Channel (general)",      Icon: Hash },
+  { id: "megaphone",    label: "Channel (announcement)",  Icon: Megaphone },
+  { id: "lock",         label: "Channel (private)",       Icon: Lock },
+  { id: "file-text",    label: "Posts",                   Icon: FileText },
+  { id: "message-sq",  label: "Chat",                    Icon: MessageSquare },
+  { id: "bookmark",     label: "Saved",                   Icon: Bookmark },
+  { id: "bell",         label: "Notifications",           Icon: Bell },
+  { id: "user",         label: "Profile",                 Icon: User },
+] as const;
+
+function StepIcon({ id, className }: { id: string; className?: string }) {
+  const found = STEP_ICONS.find((ic) => ic.id === id);
+  if (!found) return null;
+  const { Icon } = found;
+  return <Icon className={className} />;
+}
 
 /**
  * Translate a stored target value (raw selector) into the dropdown selection.
@@ -65,6 +102,26 @@ export function StepsEditor({
   const remove = (i: number) =>
     setSteps((p) => p.filter((_, j) => j !== i).map((s, j) => ({ ...s, order: j })));
 
+  /** Move step at index i up one position. */
+  const moveUp = (i: number) => {
+    if (i === 0) return;
+    setSteps((p) => {
+      const next = [...p];
+      [next[i - 1], next[i]] = [next[i], next[i - 1]];
+      return next.map((s, j) => ({ ...s, order: j }));
+    });
+  };
+
+  /** Move step at index i down one position. */
+  const moveDown = (i: number) => {
+    setSteps((p) => {
+      if (i >= p.length - 1) return p;
+      const next = [...p];
+      [next[i], next[i + 1]] = [next[i + 1], next[i]];
+      return next.map((s, j) => ({ ...s, order: j }));
+    });
+  };
+
   const save = () => {
     setSaved(false);
     startTransition(async () => {
@@ -93,9 +150,12 @@ export function StepsEditor({
           <StepCard
             key={i}
             index={i}
+            total={steps.length}
             step={s}
             onChange={(patch) => update(i, patch)}
             onRemove={() => remove(i)}
+            onMoveUp={() => moveUp(i)}
+            onMoveDown={() => moveDown(i)}
           />
         ))}
 
@@ -125,15 +185,22 @@ export function StepsEditor({
 
 function StepCard({
   index,
+  total,
   step,
   onChange,
   onRemove,
+  onMoveUp,
+  onMoveDown,
 }: {
   index: number;
+  total: number;
   step: Step;
   onChange: (patch: Partial<Step>) => void;
   onRemove: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
 }) {
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const dropdownValue = targetToDropdownValue(step.target);
   const isCustom = dropdownValue === CUSTOM_VALUE;
   const selectedTarget =
@@ -145,8 +212,6 @@ function StepCard({
     if (value === CENTER_VALUE) {
       onChange({ target: "" });
     } else if (value === CUSTOM_VALUE) {
-      // Keep whatever is currently in `target` if it's already a custom
-      // selector; otherwise reset to empty so the user can type one in.
       if (!isCustom) onChange({ target: "" });
     } else {
       const t = TOUR_TARGET_BY_ID[value];
@@ -156,17 +221,104 @@ function StepCard({
 
   return (
     <div className="rounded-xl border bg-card p-3 space-y-3">
+      {/* Header row: step number + reorder arrows + delete */}
       <div className="flex items-center justify-between">
         <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Step {index + 1}
         </div>
-        <button
-          onClick={onRemove}
-          className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          aria-label="Remove"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Move up */}
+          <button
+            onClick={onMoveUp}
+            disabled={index === 0}
+            className="rounded-md p-1 text-muted-foreground hover:bg-muted disabled:opacity-30"
+            aria-label="Move step up"
+            title="Move up"
+          >
+            <ArrowUp className="h-4 w-4" />
+          </button>
+          {/* Move down */}
+          <button
+            onClick={onMoveDown}
+            disabled={index === total - 1}
+            className="rounded-md p-1 text-muted-foreground hover:bg-muted disabled:opacity-30"
+            aria-label="Move step down"
+            title="Move down"
+          >
+            <ArrowDown className="h-4 w-4" />
+          </button>
+          {/* Delete */}
+          <button
+            onClick={onRemove}
+            className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            aria-label="Remove"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Icon picker */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">
+          Icon (optional)
+        </label>
+        <div className="flex items-center gap-2">
+          {/* Preview of selected icon */}
+          <button
+            type="button"
+            onClick={() => setIconPickerOpen((v) => !v)}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-background text-foreground hover:bg-muted"
+            aria-label={step.icon ? "Change icon" : "Pick an icon"}
+            title={step.icon ? "Change icon" : "Pick an icon"}
+          >
+            {step.icon ? (
+              <StepIcon id={step.icon} className="h-4 w-4" />
+            ) : (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
+          </button>
+          <span className="text-xs text-muted-foreground">
+            {step.icon
+              ? STEP_ICONS.find((ic) => ic.id === step.icon)?.label ?? step.icon
+              : "No icon"}
+          </span>
+          {step.icon && (
+            <button
+              type="button"
+              onClick={() => onChange({ icon: undefined })}
+              className="ml-auto rounded-md p-1 text-muted-foreground hover:text-destructive"
+              aria-label="Remove icon"
+              title="Remove icon"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Icon grid */}
+        {iconPickerOpen && (
+          <div className="grid grid-cols-4 gap-1.5 rounded-md border bg-background p-2">
+            {STEP_ICONS.map((ic) => (
+              <button
+                key={ic.id}
+                type="button"
+                onClick={() => {
+                  onChange({ icon: ic.id });
+                  setIconPickerOpen(false);
+                }}
+                title={ic.label}
+                aria-label={ic.label}
+                className={`flex flex-col items-center gap-1 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-accent ${
+                  step.icon === ic.id ? "bg-primary/10 text-primary ring-1 ring-primary" : "text-muted-foreground"
+                }`}
+              >
+                <ic.Icon className="h-4 w-4" />
+                <span className="leading-tight text-center">{ic.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Pick what to highlight */}

@@ -1,11 +1,44 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, ChevronLeft, X } from "lucide-react";
+import {
+  ChevronRight,
+  ChevronLeft,
+  X,
+  Hash,
+  Megaphone,
+  Lock,
+  FileText,
+  MessageSquare,
+  Bookmark,
+  Bell,
+  User,
+} from "lucide-react";
 import { markOnboardingCompleteAction } from "@/server/actions/onboarding";
 import { cn } from "@/lib/utils";
 
-type Step = { target: string; title: string; body: string; order: number };
+type Step = { target: string; title: string; body: string; order: number; icon?: string };
+
+const STEP_ICON_MAP: Record<string, React.ElementType> = {
+  "hash":        Hash,
+  "megaphone":   Megaphone,
+  "lock":        Lock,
+  "file-text":   FileText,
+  "message-sq":  MessageSquare,
+  "bookmark":    Bookmark,
+  "bell":        Bell,
+  "user":        User,
+};
+
+function StepIconDisplay({ id }: { id: string }) {
+  const Icon = STEP_ICON_MAP[id];
+  if (!Icon) return null;
+  return (
+    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+      <Icon className="h-5 w-5" />
+    </span>
+  );
+}
 
 type Coords = {
   /** Card top in viewport pixels. */
@@ -251,13 +284,16 @@ export function OnboardingTour({
           ) : null}
 
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-xs font-semibold uppercase tracking-wide text-primary">
-                Step {idx + 1} of {sorted.length}
+            <div className="flex items-start gap-3 min-w-0">
+              {cur.icon && <StepIconDisplay id={cur.icon} />}
+              <div className="min-w-0">
+                <div className="text-xs font-semibold uppercase tracking-wide text-primary">
+                  Step {idx + 1} of {sorted.length}
+                </div>
+                <h3 className="mt-1 text-base font-semibold text-foreground">
+                  {cur.title}
+                </h3>
               </div>
-              <h3 className="mt-1 text-base font-semibold text-foreground">
-                {cur.title}
-              </h3>
             </div>
             <button
               onClick={finish}

@@ -34,7 +34,11 @@ export default async function ChannelLayout({
     },
     select: { role: true, state: true },
   });
-  if (!membership || membership.state !== "ACTIVE") notFound();
+  // Non-active members (REQUESTED / no membership): redirect to the group
+  // page so they see the join gate or pending message — never a raw 404.
+  if (!membership || membership.state !== "ACTIVE") {
+    redirect(`/groups/${params.slug}`);
+  }
 
   if (channel.kind === "PRIVATE") {
     const isAdmin = hasMinRole(membership.role as Role, "ADMIN");
@@ -51,7 +55,9 @@ export default async function ChannelLayout({
       resourceType: "CHANNEL",
       resourceId: channel.id,
     });
-    if (!allowed) notFound();
+    // Not allowed → redirect to the member's subscription page so they
+    // can subscribe / see the upgrade CTA, rather than getting a raw 404.
+    if (!allowed) redirect(`/groups/${params.slug}/me`);
   }
 
   const KindIcon =

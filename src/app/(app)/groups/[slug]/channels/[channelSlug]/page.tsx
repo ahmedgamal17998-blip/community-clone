@@ -31,7 +31,7 @@ export default async function ChannelPostsPage({
     },
     select: { role: true, state: true },
   });
-  if (!membership || membership.state !== "ACTIVE") notFound();
+  if (!membership || membership.state !== "ACTIVE") redirect(`/groups/${params.slug}`);
 
   const isAdmin = hasMinRole(membership.role as Role, "ADMIN");
 

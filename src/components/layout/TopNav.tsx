@@ -95,7 +95,9 @@ export async function TopNav() {
           <LocaleToggle />
           {session?.user ? (
             <>
-              <NotificationBell viewerId={session.user.id} />
+              <span data-tour="nav-notifications">
+                <NotificationBell viewerId={session.user.id} />
+              </span>
               <Button
                 asChild
                 variant="ghost"
@@ -103,6 +105,7 @@ export async function TopNav() {
                 aria-label="Saved"
                 title="Saved"
                 className="h-8 w-8 sm:h-9 sm:w-9"
+                data-tour="nav-saved"
               >
                 <Link href="/saved">
                   <Bookmark className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -119,13 +122,15 @@ export async function TopNav() {
                 <Grid3x3 className="h-5 w-5" />
               </Button>
               <ChatButton label={t("chat")} />
-              <UserMenu
-                name={session.user.name ?? null}
-                email={session.user.email ?? null}
-                image={session.user.image ?? null}
-                handle={session.user.handle}
-                currentGroup={currentGroup}
-              />
+              <span data-tour="nav-profile">
+                <UserMenu
+                  name={session.user.name ?? null}
+                  email={session.user.email ?? null}
+                  image={session.user.image ?? null}
+                  handle={session.user.handle}
+                  currentGroup={currentGroup}
+                />
+              </span>
             </>
           ) : (
             <Button asChild size="sm">

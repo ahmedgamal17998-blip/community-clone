@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 export async function saveOnboardingAction(params: {
   groupId: string;
   enabled: boolean;
-  steps: Array<{ target: string; title: string; body: string; order: number }>;
+  steps: Array<{ target: string; title: string; body: string; order: number; icon?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");

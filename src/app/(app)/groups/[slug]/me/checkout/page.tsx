@@ -8,8 +8,13 @@
  * Flow:
  *  1. Validate session + group membership
  *  2. Fetch plan + payment-method credentials server-side
- *  3. Build the Subscription-base checkout URL (with email/name pre-filled)
+ *  3. Build the subsc checkout URL, mint a short-lived SSO token, pass
+ *     it as ?sso=<token> so subsc can pre-fill + lock the identity fields.
  *  4. Render: order summary card + locked identity card + payment iframe
+ *
+ * SSO pattern mirrors Booky ↔ community-clone (src/lib/booky-sso.ts).
+ * When PAYMENT_SSO_SECRET is not set the token is simply omitted and the
+ * form loads without pre-fill (graceful degradation).
  */
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -17,6 +22,7 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { decryptJson } from "@/lib/encryption";
 import type { SubscriptionBaseCredentials } from "@/server/payment-methods";
+import { signPaymentSsoToken } from "@/lib/payment-sso";
 import { ArrowLeft, Lock, User, Mail } from "lucide-react";
 import { CheckoutIframe } from "./_components/CheckoutIframe";
 
@@ -106,12 +112,29 @@ export default async function CheckoutPage({
     : `/checkout/product/${plan.externalProductId}`;
   const checkoutUrl = new URL(`${creds.baseUrl.replace(/\/$/, "")}${checkoutPath}`);
 
-  // Pre-fill from session — user can see these on OUR page (locked),
-  // and the payment system will have them as defaults in the form.
+  // Always pass plain params as fallback (subsc reads them if SSO is absent).
   if (user.email) checkoutUrl.searchParams.set("email", user.email);
   if (user.name)  checkoutUrl.searchParams.set("name",  user.name);
   if (user.phone) checkoutUrl.searchParams.set("phone", user.phone);
   if (plan.externalPlanType) checkoutUrl.searchParams.set("plan", plan.externalPlanType);
+
+  // ── SSO token — pre-fills AND locks fields server-side in subsc ─────────
+  // When PAYMENT_SSO_SECRET is configured on both sides, subsc verifies the
+  // HMAC, pre-fills name/email from the verified payload, and makes the
+  // fields read-only so the member can't change their identity.
+  try {
+    const ssoToken = signPaymentSsoToken({
+      sub:      session.user.id,
+      name:     user.name  ?? "",
+      email:    user.email ?? "",
+      phone:    user.phone ?? undefined,
+      planSlug: plan.externalProductSlug ?? String(plan.externalProductId ?? planId),
+      groupId:  group.id,
+    });
+    checkoutUrl.searchParams.set("sso", ssoToken);
+  } catch {
+    // PAYMENT_SSO_SECRET not set — proceed without SSO (form won't be locked).
+  }
 
   const priceLabel    = formatPrice(plan.priceCents, plan.currency);
   const durationLabel = plan.durationDays >= 365

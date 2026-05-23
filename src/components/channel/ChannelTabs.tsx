@@ -22,13 +22,14 @@ export function ChannelTabs({
 
   const base = `/groups/${groupSlug}/channels/${channelSlug}`;
   const tabs = [
-    { href: base, label: t("posts"), match: (p: string) => p === base },
+    { href: base, label: t("posts"), match: (p: string) => p === base, tour: "channel-tab-posts" },
     ...(chatEnabled
       ? [
           {
             href: `${base}/chat`,
             label: t("chat"),
             match: (p: string) => p.startsWith(`${base}/chat`),
+            tour: "channel-tab-chat",
           },
         ]
       : []),
@@ -42,6 +43,7 @@ export function ChannelTabs({
           <Link
             key={tab.href}
             href={tab.href}
+            data-tour={tab.tour}
             className={cn(
               "relative inline-flex shrink-0 items-center px-3 py-2 text-sm transition-colors",
               active

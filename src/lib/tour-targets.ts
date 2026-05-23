@@ -97,6 +97,40 @@ export const TOUR_TARGETS: TourTarget[] = [
     hint: "The members / online panel on the right.",
     selector: '[data-tour="right-rail"]',
   },
+
+  // ── Channel tabs ─────────────────────────────────────────────────────────
+  {
+    id: "channel-tab-posts",
+    label: "Channel — Posts tab",
+    hint: "The Posts tab inside a channel view.",
+    selector: '[data-tour="channel-tab-posts"]',
+  },
+  {
+    id: "channel-tab-chat",
+    label: "Channel — Chat tab",
+    hint: "The Chat tab inside a channel view.",
+    selector: '[data-tour="channel-tab-chat"]',
+  },
+
+  // ── Top navigation bar ───────────────────────────────────────────────────
+  {
+    id: "nav-saved",
+    label: "Saved / Bookmark (top nav)",
+    hint: "The bookmark icon in the top navigation bar.",
+    selector: '[data-tour="nav-saved"]',
+  },
+  {
+    id: "nav-notifications",
+    label: "Notifications bell (top nav)",
+    hint: "The bell icon that shows unread notifications.",
+    selector: '[data-tour="nav-notifications"]',
+  },
+  {
+    id: "nav-profile",
+    label: "Profile / avatar (top nav)",
+    hint: "The user avatar button that opens the profile menu.",
+    selector: '[data-tour="nav-profile"]',
+  },
 ];
 
 /** Lookup by id — handy if the editor wants to re-display a friendly label. */
