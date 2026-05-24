@@ -144,7 +144,7 @@ export default async function MemberSelfPage({
               priceCents: p.priceCents,
               currency: p.currency,
               externalProductSlug: p.externalProductSlug,
-              externalProductId: p.externalProductId,
+              externalProductId: p.externalProductId != null ? String(p.externalProductId) : null,
             }))}
           />
         </>
