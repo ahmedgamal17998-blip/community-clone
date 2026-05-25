@@ -1,8 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/server/auth";
-import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { hasAccess } from "@/server/access";
+import { getChannelWithContext } from "@/lib/channel-queries";
 import { ChannelTabs } from "@/components/channel/ChannelTabs";
 import { Hash, Lock, Megaphone } from "lucide-react";
 
@@ -16,24 +16,18 @@ export default async function ChannelLayout({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  // Resolve group + channel together.
-  const channel = await db.channel.findFirst({
-    where: { slug: params.channelSlug, group: { slug: params.slug } },
-    include: {
-      group: { select: { id: true, slug: true } },
-      accesses: { where: { userId: session.user.id }, select: { id: true } },
-    },
-  });
+  // Memoized query: channel + group + user's access grants + membership in
+  // one round-trip. React cache() deduplicates this between layout and page
+  // so the DB is only hit once even though both components call this helper.
+  const channel = await getChannelWithContext(
+    params.channelSlug,
+    params.slug,
+    session.user.id,
+  );
   if (!channel || channel.archived) notFound();
 
-  // Visibility gate — ACTIVE member required; PRIVATE additionally needs a
-  // ChannelAccess grant (unless the user is ADMIN+).
-  const membership = await db.groupMembership.findUnique({
-    where: {
-      groupId_userId: { groupId: channel.group.id, userId: session.user.id },
-    },
-    select: { role: true, state: true },
-  });
+  const membership = channel.group.memberships[0] ?? null;
+
   // Non-active members (REQUESTED / no membership): redirect to the group
   // page so they see the join gate or pending message — never a raw 404.
   if (!membership || membership.state !== "ACTIVE") {
@@ -43,7 +37,9 @@ export default async function ChannelLayout({
   if (channel.kind === "PRIVATE") {
     const isAdmin = hasMinRole(membership.role as Role, "ADMIN");
     const hasGrant = channel.accesses.length > 0;
-    if (!isAdmin && !hasGrant) notFound();
+    // Don't 404 — redirect active members to the group so they see the
+    // channel list and understand why this channel isn't available to them.
+    if (!isAdmin && !hasGrant) redirect(`/groups/${params.slug}`);
   }
 
   // Per-member explicit DENY (set in admin → AccessMatrix). Admins bypass.

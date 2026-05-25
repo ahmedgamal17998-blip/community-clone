@@ -4,6 +4,7 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { hasCapability } from "@/server/capabilities";
+import { getChannelWithContext } from "@/lib/channel-queries";
 import { listChannelPosts, buildPostReactions, buildPollData } from "@/server/posts";
 import { PostCard } from "@/components/post/PostCard";
 import { FeedClient } from "@/components/post/FeedClient";
@@ -19,18 +20,15 @@ export default async function ChannelPostsPage({
   if (!session?.user) redirect("/login");
   const tPosts = await getTranslations("posts");
 
-  const channel = await db.channel.findFirst({
-    where: { slug: params.channelSlug, group: { slug: params.slug } },
-    select: { id: true, kind: true, groupId: true },
-  });
+  // Re-uses the cached result from layout.tsx — zero extra DB queries here.
+  const channel = await getChannelWithContext(
+    params.channelSlug,
+    params.slug,
+    session.user.id,
+  );
   if (!channel) notFound();
 
-  const membership = await db.groupMembership.findUnique({
-    where: {
-      groupId_userId: { groupId: channel.groupId, userId: session.user.id },
-    },
-    select: { role: true, state: true },
-  });
+  const membership = channel.group.memberships[0] ?? null;
   if (!membership || membership.state !== "ACTIVE") redirect(`/groups/${params.slug}`);
 
   const isAdmin = hasMinRole(membership.role as Role, "ADMIN");
