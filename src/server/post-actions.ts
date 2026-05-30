@@ -7,6 +7,7 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { hasMinRole, type Role } from "@/server/permissions";
 import { encodeMedia } from "@/server/posts";
+import type { MediaFile, MediaPayload } from "@/server/posts";
 import { notifyMentions } from "@/server/notifications";
 import { addPoints } from "@/server/points";
 
@@ -157,15 +158,40 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
   }
 
   // ── Merge media ─────────────────────────────────────────────────────────
-  let uploaded: string[] = [];
+  let uploadedImages: string[] = [];
   try {
     const raw = formData.get("uploadedImageUrls");
-    if (typeof raw === "string" && raw) uploaded = JSON.parse(raw);
-    if (!Array.isArray(uploaded)) uploaded = [];
-  } catch {
-    uploaded = [];
-  }
-  const mergedMedia = [...parsed.data.mediaUrls, ...uploaded];
+    if (typeof raw === "string" && raw) uploadedImages = JSON.parse(raw);
+    if (!Array.isArray(uploadedImages)) uploadedImages = [];
+  } catch { uploadedImages = []; }
+
+  let uploadedVideos: string[] = [];
+  try {
+    const raw = formData.get("uploadedVideoUrls");
+    if (typeof raw === "string" && raw) uploadedVideos = JSON.parse(raw);
+    if (!Array.isArray(uploadedVideos)) uploadedVideos = [];
+  } catch { uploadedVideos = []; }
+
+  let uploadedFiles: MediaFile[] = [];
+  try {
+    const raw = formData.get("uploadedFileData");
+    if (typeof raw === "string" && raw) uploadedFiles = JSON.parse(raw);
+    if (!Array.isArray(uploadedFiles)) uploadedFiles = [];
+  } catch { uploadedFiles = []; }
+
+  let videoEmbeds: string[] = [];
+  try {
+    const raw = formData.get("videoEmbeds");
+    if (typeof raw === "string" && raw) videoEmbeds = JSON.parse(raw);
+    if (!Array.isArray(videoEmbeds)) videoEmbeds = [];
+  } catch { videoEmbeds = []; }
+
+  const mediaPayload: MediaPayload = {
+    images: [...parsed.data.mediaUrls, ...uploadedImages],
+    videos: uploadedVideos,
+    files: uploadedFiles,
+    embeds: videoEmbeds,
+  };
 
   const hasPoll =
     !!parsed.data.pollQuestion && parsed.data.pollOptions.length >= 2;
@@ -194,7 +220,7 @@ export async function createPostAction(_prev: unknown, formData: FormData) {
         authorId: session.user.id,
         title: parsed.data.title,
         body: parsed.data.body,
-        mediaUrls: encodeMedia(mergedMedia),
+        mediaUrls: encodeMedia(mediaPayload),
         ...(hasPoll
           ? {
               poll: {
@@ -314,12 +340,47 @@ export async function editPostAction(_prev: unknown, formData: FormData) {
     return { ok: false as const, error: "Forbidden" };
   }
 
+  let editUploadedImages: string[] = [];
+  try {
+    const raw = formData.get("uploadedImageUrls");
+    if (typeof raw === "string" && raw) editUploadedImages = JSON.parse(raw);
+    if (!Array.isArray(editUploadedImages)) editUploadedImages = [];
+  } catch { editUploadedImages = []; }
+
+  let editUploadedVideos: string[] = [];
+  try {
+    const raw = formData.get("uploadedVideoUrls");
+    if (typeof raw === "string" && raw) editUploadedVideos = JSON.parse(raw);
+    if (!Array.isArray(editUploadedVideos)) editUploadedVideos = [];
+  } catch { editUploadedVideos = []; }
+
+  let editUploadedFiles: MediaFile[] = [];
+  try {
+    const raw = formData.get("uploadedFileData");
+    if (typeof raw === "string" && raw) editUploadedFiles = JSON.parse(raw);
+    if (!Array.isArray(editUploadedFiles)) editUploadedFiles = [];
+  } catch { editUploadedFiles = []; }
+
+  let editVideoEmbeds: string[] = [];
+  try {
+    const raw = formData.get("videoEmbeds");
+    if (typeof raw === "string" && raw) editVideoEmbeds = JSON.parse(raw);
+    if (!Array.isArray(editVideoEmbeds)) editVideoEmbeds = [];
+  } catch { editVideoEmbeds = []; }
+
+  const editMediaPayload: MediaPayload = {
+    images: [...parsed.data.mediaUrls, ...editUploadedImages],
+    videos: editUploadedVideos,
+    files: editUploadedFiles,
+    embeds: editVideoEmbeds,
+  };
+
   await db.post.update({
     where: { id: post.id },
     data: {
       title: parsed.data.title,
       body: parsed.data.body,
-      mediaUrls: encodeMedia(parsed.data.mediaUrls),
+      mediaUrls: encodeMedia(editMediaPayload),
       editedAt: new Date(),
     },
   });

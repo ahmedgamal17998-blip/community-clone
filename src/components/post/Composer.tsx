@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { createPostAction } from "@/server/post-actions";
 import { cn } from "@/lib/utils";
 import { RichTextEditor } from "@/components/editor/RichTextEditor";
-import { ImageUploader } from "@/components/post/ImageUploader";
+import { MediaUploader, type UploadedMedia } from "@/components/post/MediaUploader";
 
 type State = { ok: boolean; error?: string; postId?: string } | null;
 
@@ -57,8 +57,10 @@ export function Composer({ channelId, compact = true, groupSlug, crossPostChanne
   const [pollOpen, setPollOpen] = useState(false);
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
   const [body, setBody] = useState("");
-  // M24: device image uploads
-  const [images, setImages] = useState<string[]>([]);
+  // M24: device media uploads
+  const [uploaded, setUploaded] = useState<UploadedMedia>({ images: [], videos: [], files: [] });
+  const [embeds, setEmbeds] = useState<string[]>([]);
+  const [embedInput, setEmbedInput] = useState("");
   const [justPosted, setJustPosted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -97,7 +99,9 @@ export function Composer({ channelId, compact = true, groupSlug, crossPostChanne
         setPollOpen(false);
         setPollOptions(["", ""]);
         setBody("");
-        setImages([]);
+        setUploaded({ images: [], videos: [], files: [] });
+        setEmbeds([]);
+        setEmbedInput("");
         // Reset cross-post selection back to just the current channel.
         setSelectedChannels(new Set([channelId]));
         setPickerOpen(false);
@@ -129,6 +133,12 @@ export function Composer({ channelId, compact = true, groupSlug, crossPostChanne
 
   function updatePollOption(idx: number, value: string) {
     setPollOptions((prev) => prev.map((v, i) => (i === idx ? value : v)));
+  }
+
+  function addEmbed() {
+    const url = embedInput.trim();
+    if (url && !embeds.includes(url)) setEmbeds((e) => [...e, url]);
+    setEmbedInput("");
   }
 
   if (!expanded) {
@@ -290,30 +300,67 @@ export function Composer({ channelId, compact = true, groupSlug, crossPostChanne
         className="border-0 bg-transparent shadow-none focus-within:ring-0"
       />
 
-      {/* Media section — M24: device upload + URL fallback */}
+      {/* Media section */}
       {mediaOpen ? (
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-muted-foreground">
-            {t("mediaLabel")}
-          </label>
-          <ImageUploader value={images} onChange={setImages} max={4} />
+        <div className="space-y-3">
+          <label className="text-xs font-medium text-muted-foreground">Media</label>
+          <MediaUploader value={uploaded} onChange={setUploaded} maxImages={4} />
           <Textarea
             name="mediaUrls"
             rows={2}
             placeholder={t("mediaPlaceholder")}
             className="text-xs"
           />
-          {/* Hidden field syncs uploaded URLs into form payload (server merges these with mediaUrls textarea) */}
-          <input
-            type="hidden"
-            name="uploadedImageUrls"
-            value={JSON.stringify(images)}
-          />
+          {/* Video embed input */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">
+              Video link (YouTube, Vimeo, Loom)
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={embedInput}
+                onChange={(e) => setEmbedInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); addEmbed(); }
+                }}
+                placeholder="https://youtube.com/watch?v=..."
+                className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <button
+                type="button"
+                onClick={addEmbed}
+                className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent"
+              >
+                Add
+              </button>
+            </div>
+            {embeds.map((url, i) => (
+              <div key={i} className="flex items-center gap-2 rounded-md bg-muted px-2 py-1 text-xs">
+                <span className="flex-1 truncate text-muted-foreground">{url}</span>
+                <button
+                  type="button"
+                  onClick={() => setEmbeds((e) => e.filter((_, j) => j !== i))}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+          {/* Hidden fields for form submission */}
+          <input type="hidden" name="uploadedImageUrls" value={JSON.stringify(uploaded.images)} />
+          <input type="hidden" name="uploadedVideoUrls" value={JSON.stringify(uploaded.videos)} />
+          <input type="hidden" name="uploadedFileData" value={JSON.stringify(uploaded.files)} />
+          <input type="hidden" name="videoEmbeds" value={JSON.stringify(embeds)} />
         </div>
       ) : (
         <>
           <input type="hidden" name="mediaUrls" value="" />
           <input type="hidden" name="uploadedImageUrls" value="[]" />
+          <input type="hidden" name="uploadedVideoUrls" value="[]" />
+          <input type="hidden" name="uploadedFileData" value="[]" />
+          <input type="hidden" name="videoEmbeds" value="[]" />
         </>
       )}
 

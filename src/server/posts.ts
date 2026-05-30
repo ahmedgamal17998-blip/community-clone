@@ -17,19 +17,39 @@ import { SUPPORTED_EMOJIS, type ReactionSummary } from "@/server/comments";
 
 export const PAGE_SIZE = 20;
 
-export type PostMedia = string[];
+export type MediaFile = { url: string; name: string; size: number; mimeType: string };
 
-export function decodeMedia(json: string): PostMedia {
+export type MediaPayload = {
+  images: string[];
+  videos: string[];
+  files: MediaFile[];
+  embeds: string[];
+};
+
+const _emptyMedia: MediaPayload = { images: [], videos: [], files: [], embeds: [] };
+
+export function decodeMedia(json: string): MediaPayload {
   try {
     const v = JSON.parse(json);
-    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+    if (Array.isArray(v)) {
+      return { ..._emptyMedia, images: v.filter((x) => typeof x === "string") };
+    }
+    if (v && typeof v === "object") {
+      return {
+        images: Array.isArray(v.images) ? v.images.filter(Boolean) : [],
+        videos: Array.isArray(v.videos) ? v.videos.filter(Boolean) : [],
+        files: Array.isArray(v.files) ? v.files : [],
+        embeds: Array.isArray(v.embeds) ? v.embeds.filter(Boolean) : [],
+      };
+    }
+    return _emptyMedia;
   } catch {
-    return [];
+    return _emptyMedia;
   }
 }
 
-export function encodeMedia(urls: PostMedia): string {
-  return JSON.stringify(urls.filter(Boolean));
+export function encodeMedia(payload: MediaPayload): string {
+  return JSON.stringify(payload);
 }
 
 // ─── Poll data shapes ────────────────────────────────────────────────────────
@@ -158,7 +178,7 @@ export type SerializedPost = {
   id: string;
   title: string | null;
   body: string;
-  mediaUrls: string[];
+  mediaUrls: MediaPayload;
   pinned: boolean;
   createdAt: string;
   editedAt: string | null;

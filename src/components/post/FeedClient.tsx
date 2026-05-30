@@ -142,14 +142,14 @@ export function FeedClient({ scope, initialCursor, hideChannelCrumb, viewerId }:
             {p.body}
           </div>
 
-          {p.mediaUrls.length > 0 ? (
+          {p.mediaUrls.images.length > 0 ? (
             <div
               className={cn(
                 "mt-3 grid gap-2",
-                p.mediaUrls.length === 1 ? "grid-cols-1" : "grid-cols-2",
+                p.mediaUrls.images.length === 1 ? "grid-cols-1" : "grid-cols-2",
               )}
             >
-              {p.mediaUrls.slice(0, 4).map((url, i) => (
+              {p.mediaUrls.images.slice(0, 4).map((url, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   key={`${url}-${i}`}

@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
-import { Pin } from "lucide-react";
+import { Pin, FileText, Download } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { initialsFrom } from "@/lib/initials";
 import { decodeMedia } from "@/server/posts";
 import { formatRelative } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { PostActionsMenu } from "@/components/post/PostActionsMenu";
+import { VideoEmbed } from "@/components/post/VideoEmbed";
 import { PostEngagementArea } from "@/components/post/PostEngagementArea";
 import { PollBlock } from "@/components/post/PollBlock";
 import { RichTextRenderer } from "@/components/editor/RichTextRenderer";
@@ -146,6 +147,11 @@ export async function PostCard({ post, viewerId, viewerCanModerate, hideChannelC
               pinned={post.pinned}
               canPin={viewerCanModerate}
               canDelete={canManage}
+              canEdit={canManage}
+              initialTitle={post.title}
+              initialBody={post.body}
+              initialMedia={media}
+              groupSlug={post.channel.group.slug}
             />
           ) : null}
         </header>
@@ -158,15 +164,15 @@ export async function PostCard({ post, viewerId, viewerCanModerate, hideChannelC
         {/* Body */}
         <RichTextRenderer content={post.body} className="mt-2 text-sm leading-relaxed" />
 
-        {/* Media grid */}
-        {media.length > 0 ? (
+        {/* Image grid */}
+        {media.images.length > 0 ? (
           <div
             className={cn(
               "mt-3 grid gap-2 overflow-hidden rounded-xl",
-              media.length === 1 ? "grid-cols-1" : "grid-cols-2",
+              media.images.length === 1 ? "grid-cols-1" : "grid-cols-2",
             )}
           >
-            {media.slice(0, 4).map((url, i) => (
+            {media.images.slice(0, 4).map((url, i) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={`${url}-${i}`}
@@ -178,6 +184,32 @@ export async function PostCard({ post, viewerId, viewerCanModerate, hideChannelC
             ))}
           </div>
         ) : null}
+
+        {/* Uploaded videos */}
+        {media.videos.map((url, i) => (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <video key={i} src={url} controls className="mt-3 w-full rounded-xl" />
+        ))}
+
+        {/* File attachments */}
+        {media.files.map((f, i) => (
+          <a
+            key={i}
+            href={f.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm transition-colors hover:bg-muted"
+          >
+            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="flex-1 truncate">{f.name}</span>
+            <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </a>
+        ))}
+
+        {/* Video embeds (YouTube, Vimeo, Loom) */}
+        {media.embeds.map((url, i) => (
+          <VideoEmbed key={i} url={url} />
+        ))}
 
         {/* Poll */}
         {post.poll ? <PollBlock poll={post.poll} /> : null}
