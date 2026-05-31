@@ -42,7 +42,10 @@ function stripDangerousTags(html: string): string {
 function toPlainText(content: string): string {
   if (!content?.trim()) return "";
 
-  if (content.trimStart().startsWith("{")) {
+  const trimmed = content.trimStart();
+  const looksLikeJson = trimmed.startsWith("{") || trimmed.startsWith("[");
+
+  if (looksLikeJson) {
     try {
       // Recursively walk TipTap doc JSON to collect text nodes.
       type TipTapNode = { type?: string; text?: string; content?: TipTapNode[] };
@@ -55,7 +58,21 @@ function toPlainText(content: string): string {
       };
       return walk(JSON.parse(content) as TipTapNode).trim();
     } catch {
-      /* fall through */
+      // Malformed JSON: best-effort regex extraction of "text":"..." values
+      // so we never EVER leak raw JSON braces / keys to the rendered page.
+      const matches = content.match(/"text"\s*:\s*"((?:\\.|[^"\\])*)"/g) ?? [];
+      const extracted = matches
+        .map((m) => {
+          const v = m.match(/"text"\s*:\s*"((?:\\.|[^"\\])*)"/);
+          try {
+            return v?.[1] ? JSON.parse(`"${v[1]}"`) : "";
+          } catch {
+            return v?.[1] ?? "";
+          }
+        })
+        .join(" ")
+        .trim();
+      return extracted; // empty string if nothing extracted — better than raw JSON
     }
   }
 
