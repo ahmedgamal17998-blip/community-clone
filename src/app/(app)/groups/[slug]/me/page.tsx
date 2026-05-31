@@ -145,6 +145,12 @@ export default async function MemberSelfPage({
               currency: p.currency,
               externalProductSlug: p.externalProductSlug,
               externalProductId: p.externalProductId != null ? String(p.externalProductId) : null,
+              features: Array.isArray(p.features)
+                ? (p.features as unknown[]).filter(
+                    (x): x is string => typeof x === "string",
+                  )
+                : [],
+              highlightBadge: p.highlightBadge ?? null,
             }))}
           />
         </>

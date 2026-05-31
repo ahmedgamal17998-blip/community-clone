@@ -19,6 +19,8 @@ type Plan = {
   externalProductId: number | null;
   externalProductSlug: string | null;
   externalPlanType: string | null;
+  features: unknown; // Json from Prisma — string[] when present
+  highlightBadge: string | null;
 };
 
 type Channel = { id: string; slug: string; name: string; tier: string; kind: string };
@@ -198,6 +200,12 @@ function PlanMappingEditor({ groupId, plan }: { groupId: string; plan: Plan }) {
   const [name, setName] = useState(plan.name);
   const [days, setDays] = useState<number>(plan.durationDays);
   const [price, setPrice] = useState<number>(plan.priceCents / 100);
+  // Marketing fields (M33: features + badge on member card)
+  const initialFeatures = Array.isArray(plan.features)
+    ? (plan.features as unknown[]).filter((x): x is string => typeof x === "string")
+    : [];
+  const [features, setFeatures] = useState<string>(initialFeatures.join("\n"));
+  const [highlightBadge, setHighlightBadge] = useState<string>(plan.highlightBadge ?? "");
   // Payment-system mapping
   const [productId, setProductId] = useState<string>(
     plan.externalProductId != null ? String(plan.externalProductId) : "",
@@ -221,6 +229,8 @@ function PlanMappingEditor({ groupId, plan }: { groupId: string; plan: Plan }) {
         externalProductId: productId ? Number(productId) : null,
         externalProductSlug: productSlug || null,
         externalPlanType: planType || null,
+        features: features.split("\n").map((f) => f.trim()).filter(Boolean),
+        highlightBadge: highlightBadge.trim() || null,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
@@ -281,6 +291,46 @@ function PlanMappingEditor({ groupId, plan }: { groupId: string; plan: Plan }) {
           If Paymob bills monthly (30 days), don't set this to 60 — members
           would get 2 months access for 1 month payment.
         </p>
+      </div>
+
+      {/* ─── Marketing details (features + badge) ─── */}
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Marketing details
+        </p>
+        <p className="mb-3 text-[11px] text-muted-foreground">
+          These show on the member-facing plan card under the price.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+              Features (one per line)
+            </label>
+            <textarea
+              value={features}
+              onChange={(e) => setFeatures(e.target.value)}
+              rows={4}
+              placeholder={"Access to all live cohorts\nPrivate Discord channel\nWeekly Q&A sessions"}
+              className={inputCls + " resize-y font-mono text-xs"}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">
+              Highlight badge
+            </label>
+            <input
+              type="text"
+              value={highlightBadge}
+              onChange={(e) => setHighlightBadge(e.target.value)}
+              maxLength={32}
+              placeholder="e.g. Most Popular"
+              className={inputCls}
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Leave empty for a regular card.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* ─── Payment-system mapping ─── */}

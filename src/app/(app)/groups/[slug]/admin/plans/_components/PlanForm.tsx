@@ -34,6 +34,8 @@ export function PlanForm({ groupId }: { groupId: string }) {
   const [price, setPrice] = useState(29);
   const [currency, setCurrency] = useState("egp");
   const [description, setDescription] = useState("");
+  const [features, setFeatures] = useState("");
+  const [highlightBadge, setHighlightBadge] = useState("");
   const [extProductId, setExtProductId] = useState<string>("");
   const [extProductSlug, setExtProductSlug] = useState<string>("");
   const [extPlanType, setExtPlanType] = useState<string>("");
@@ -54,9 +56,13 @@ export function PlanForm({ groupId }: { groupId: string }) {
         externalProductId: extProductId ? Number(extProductId) : null,
         externalProductSlug: extProductSlug || null,
         externalPlanType: extPlanType || null,
+        features: features.split("\n").map((f) => f.trim()).filter(Boolean),
+        highlightBadge: highlightBadge.trim() || null,
       });
       setName("");
       setDescription("");
+      setFeatures("");
+      setHighlightBadge("");
       setExtProductId("");
       setExtProductSlug("");
       setExtPlanType("");
@@ -145,12 +151,48 @@ export function PlanForm({ groupId }: { groupId: string }) {
           Description <span className="font-normal">(optional)</span>
         </label>
         <textarea
-          placeholder="What does this plan unlock for the member?"
+          placeholder="One-line tagline shown above the features."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
           className={inputBase + " resize-y"}
         />
+      </div>
+
+      {/* Plan features — bullet list shown on the member card */}
+      <div>
+        <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+          Features <span className="font-normal">(one per line)</span>
+        </label>
+        <textarea
+          placeholder={"Access to all live cohorts\nPrivate Discord channel\nWeekly Q&A sessions"}
+          value={features}
+          onChange={(e) => setFeatures(e.target.value)}
+          rows={4}
+          className={inputBase + " resize-y font-mono text-xs"}
+        />
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Each line becomes a bullet with a green ✓ on the plan card.
+        </p>
+      </div>
+
+      {/* Highlight badge (e.g. Most Popular) */}
+      <div>
+        <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+          Highlight badge <span className="font-normal">(optional)</span>
+        </label>
+        <input
+          type="text"
+          placeholder="e.g. Most Popular, Best Value"
+          value={highlightBadge}
+          onChange={(e) => setHighlightBadge(e.target.value)}
+          maxLength={32}
+          className={inputBase}
+        />
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          When set, this plan stands out with a ribbon + accent border on the
+          member-facing card.
+        </p>
       </div>
 
       {/* Payment-system mapping */}

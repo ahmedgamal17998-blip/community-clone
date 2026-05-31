@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Loader2, CreditCard, AlertCircle, CheckCircle2 } from "lucide-react";
+import { CalendarClock, Loader2, CreditCard, AlertCircle, CheckCircle2, Check, Sparkles } from "lucide-react";
 import { subscribeAction } from "@/server/subscriptions";
+import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,10 @@ type Plan = {
   currency: string;
   externalProductSlug: string | null;
   externalProductId: string | null;
+  /** Marketing bullets shown on the card (admin-editable). */
+  features: string[];
+  /** Optional ribbon label like "Most Popular". */
+  highlightBadge: string | null;
 };
 
 type PaymentMethod = {
@@ -231,33 +236,74 @@ export function SubscriptionCard({
           <p className="mt-6 mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {hasActive ? "Add another plan" : "Choose a plan"}
           </p>
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {plans.map((p) => (
-              <label
-                key={p.id}
-                className={`relative cursor-pointer rounded-xl border p-4 transition ${
-                  selectedPlan === p.id
-                    ? "border-primary ring-2 ring-primary/20"
-                    : "hover:bg-muted/30"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="plan"
-                  value={p.id}
-                  checked={selectedPlan === p.id}
-                  onChange={() => { setSelectedPlan(p.id); setMsg(null); }}
-                  className="hidden"
-                />
-                <div className="font-semibold">{p.name}</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {formatPrice(p.priceCents, p.currency)}
-                  <span className="ms-1 text-sm font-normal text-muted-foreground">
-                    / {p.durationDays}d
-                  </span>
-                </div>
-              </label>
-            ))}
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+            {plans.map((p) => {
+              const isSelected = selectedPlan === p.id;
+              const isHighlighted = !!p.highlightBadge;
+              return (
+                <label
+                  key={p.id}
+                  className={cn(
+                    "relative flex cursor-pointer flex-col rounded-2xl border p-5 transition-all",
+                    isSelected
+                      ? "border-primary shadow-md ring-2 ring-primary/20"
+                      : isHighlighted
+                      ? "border-primary/50 shadow-sm hover:border-primary hover:shadow-md"
+                      : "border-border hover:border-primary/40 hover:bg-muted/20",
+                    isHighlighted && !isSelected && "ring-1 ring-primary/10",
+                  )}
+                >
+                  {/* Highlight ribbon */}
+                  {p.highlightBadge && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-primary-foreground shadow-sm">
+                        <Sparkles className="h-3 w-3" />
+                        {p.highlightBadge}
+                      </span>
+                    </div>
+                  )}
+
+                  <input
+                    type="radio"
+                    name="plan"
+                    value={p.id}
+                    checked={isSelected}
+                    onChange={() => { setSelectedPlan(p.id); setMsg(null); }}
+                    className="sr-only"
+                  />
+
+                  {/* Title + price */}
+                  <div className="mb-3">
+                    <div className="text-sm font-bold uppercase tracking-wide text-foreground">
+                      {p.name}
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-1">
+                      <span className="text-3xl font-extrabold text-foreground">
+                        {formatPrice(p.priceCents, p.currency)}
+                      </span>
+                      <span className="text-sm font-medium text-muted-foreground">
+                        / {p.durationDays}d
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Features */}
+                  {p.features.length > 0 && (
+                    <ul className="mt-1 space-y-2 border-t border-border pt-3">
+                      {p.features.map((feature, i) => (
+                        <li key={i} className="flex items-start gap-2 text-[13px] leading-snug">
+                          <Check
+                            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-600 dark:text-green-400"
+                            strokeWidth={3}
+                          />
+                          <span className="text-foreground/90">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </label>
+              );
+            })}
           </div>
 
           {/* ── Step 2: Payment method selection ── */}

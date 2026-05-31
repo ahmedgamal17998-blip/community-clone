@@ -1418,6 +1418,14 @@ model SubscriptionPlan {
   // / default-track / pending fallback.
   mappedTrackId String?
 
+  // ─── Marketing-facing details ────────────────────────────────────────
+  // `features` is an admin-editable array of bullet-point strings shown
+  // on the plan card (member-facing). One string per perk, e.g.
+  // ["Access to all live cohorts", "Private Discord channel"].
+  // `highlightBadge` shows a ribbon on the card (e.g. "Most Popular").
+  features        Json?    // string[] — each item is one bullet
+  highlightBadge  String?  // e.g. "Most Popular", "Best Value"
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -25,6 +25,8 @@ export async function createPlanAction(params: {
   externalProductId?: number | null;
   externalProductSlug?: string | null;
   externalPlanType?: string | null;
+  features?: string[];
+  highlightBadge?: string | null;
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
@@ -33,6 +35,10 @@ export async function createPlanAction(params: {
     groupId: params.groupId,
     capability: "SUBS_MANAGE",
   });
+
+  const cleanFeatures = (params.features ?? [])
+    .map((f) => f.trim())
+    .filter(Boolean);
 
   const plan = await db.subscriptionPlan.create({
     data: {
@@ -46,6 +52,8 @@ export async function createPlanAction(params: {
       externalProductId: params.externalProductId ?? null,
       externalProductSlug: params.externalProductSlug || null,
       externalPlanType: params.externalPlanType || null,
+      features: cleanFeatures.length > 0 ? cleanFeatures : undefined,
+      highlightBadge: params.highlightBadge?.trim() || null,
     },
   });
 
@@ -64,6 +72,8 @@ export async function updatePlanAction(params: {
   externalProductId?: number | null;
   externalProductSlug?: string | null;
   externalPlanType?: string | null;
+  features?: string[];
+  highlightBadge?: string | null;
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("UNAUTHENTICATED");
@@ -89,6 +99,12 @@ export async function updatePlanAction(params: {
       }),
       ...(params.externalPlanType !== undefined && {
         externalPlanType: params.externalPlanType || null,
+      }),
+      ...(params.features !== undefined && {
+        features: params.features.map((f) => f.trim()).filter(Boolean),
+      }),
+      ...(params.highlightBadge !== undefined && {
+        highlightBadge: params.highlightBadge?.trim() || null,
       }),
     },
   });
