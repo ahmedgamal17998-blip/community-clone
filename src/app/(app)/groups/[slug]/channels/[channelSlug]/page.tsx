@@ -10,6 +10,10 @@ import { PostCard } from "@/components/post/PostCard";
 import { FeedClient } from "@/components/post/FeedClient";
 import { Composer } from "@/components/post/Composer";
 
+// Bypass Vercel edge / CDN cache — see GroupDiscussionPage for the why.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // Channel Posts tab — single-channel feed + composer.
 export default async function ChannelPostsPage({
   params,

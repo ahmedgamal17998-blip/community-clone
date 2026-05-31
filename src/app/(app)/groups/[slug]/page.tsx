@@ -7,6 +7,12 @@ import { listGroupFeed, buildPostReactions, buildPollData } from "@/server/posts
 import { PostCard } from "@/components/post/PostCard";
 import { FeedClient } from "@/components/post/FeedClient";
 
+// Bypass Vercel edge / CDN cache — posts mutate frequently and we never
+// want a stale rendering of post bodies (the raw-JSON bug was caused by
+// edge-cached HTML from an older RichTextRenderer build).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // Discussion tab — group feed across every channel the viewer can see.
 export default async function GroupDiscussionPage({
   params,
