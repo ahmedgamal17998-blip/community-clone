@@ -311,6 +311,7 @@ export function RichTextEditor({
     extensions,
     content: getInitialContent(),
     editable: !disabled,
+    immediatelyRender: false,
     onUpdate: ({ editor }) => {
       onChange?.(
         JSON.stringify(editor.getJSON()),
