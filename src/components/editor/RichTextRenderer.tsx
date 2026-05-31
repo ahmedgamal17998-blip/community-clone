@@ -6,14 +6,20 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Mention from "@tiptap/extension-mention";
+import { TextStyle } from "@tiptap/extension-text-style";
+import { Color } from "@tiptap/extension-color";
 import { cn } from "@/lib/utils";
 
 // Extensions used for client-side rich-text rendering.
 // NOTE: only instantiated in the browser — generateHTML calls window APIs.
+// Must mirror the editor's extension list so all marks (bold, color, etc.)
+// are recognised during HTML generation.
 const renderExtensions = [
   StarterKit.configure({ codeBlock: false }),
   Link.configure({ openOnClick: false }),
   Image,
+  TextStyle,
+  Color,
   Mention.configure({
     HTMLAttributes: { class: "mention" },
   }),
@@ -114,6 +120,7 @@ export function RichTextRenderer({ content, className }: Props) {
   if (richHtml) {
     return (
       <div
+        dir="auto"
         className={baseClass}
         dangerouslySetInnerHTML={{ __html: richHtml }}
       />
@@ -124,7 +131,7 @@ export function RichTextRenderer({ content, className }: Props) {
   const plain = toPlainText(content);
   if (!plain) return null;
   return (
-    <div className={baseClass}>
+    <div dir="auto" className={baseClass}>
       {plain.split("\n").map((line, i) => (
         <p key={i}>{line || <br />}</p>
       ))}

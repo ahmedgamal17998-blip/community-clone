@@ -321,6 +321,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: "outline-none min-h-[inherit] px-3 py-2",
+        dir: "auto",
       },
     },
   });

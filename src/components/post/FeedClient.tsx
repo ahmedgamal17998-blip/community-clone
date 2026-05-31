@@ -22,6 +22,7 @@ import { formatRelative } from "@/lib/relative-time";
 import { cn } from "@/lib/utils";
 import { ReactionBar } from "@/components/post/ReactionBar";
 import { PollBlock } from "@/components/post/PollBlock";
+import { RichTextRenderer } from "@/components/editor/RichTextRenderer";
 import type { SerializedPost } from "@/server/posts";
 
 type Props = {
@@ -138,9 +139,7 @@ export function FeedClient({ scope, initialCursor, hideChannelCrumb, viewerId }:
             <h2 className="mt-3 text-lg font-semibold leading-snug">{p.title}</h2>
           ) : null}
 
-          <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">
-            {p.body}
-          </div>
+          <RichTextRenderer content={p.body} className="mt-2 text-sm leading-relaxed" />
 
           {p.mediaUrls.images.length > 0 ? (
             <div
