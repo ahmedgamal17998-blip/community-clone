@@ -214,6 +214,11 @@ export function RichTextEditor({
   const extensions = [
     StarterKit.configure({
       codeBlock: false,
+      // TipTap v3 StarterKit bundles a Link extension; we disable it so the
+      // configured Link below is the only one registered (avoids the
+      // "Duplicate extension names found: ['link']" warning that spammed
+      // logs on every edit/render).
+      link: false,
     }),
     Placeholder.configure({
       placeholder: placeholder ?? "Write something…",

@@ -15,7 +15,10 @@ import { cn } from "@/lib/utils";
 // Must mirror the editor's extension list so all marks (bold, color, etc.)
 // are recognised during HTML generation.
 const renderExtensions = [
-  StarterKit.configure({ codeBlock: false }),
+  // StarterKit includes Link in v3; disable it so we can register our own
+  // configured Link below without "Duplicate extension names" warnings on
+  // every render.
+  StarterKit.configure({ codeBlock: false, link: false }),
   Link.configure({ openOnClick: false }),
   Image,
   TextStyle,
