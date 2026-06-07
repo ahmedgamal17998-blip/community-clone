@@ -51,14 +51,23 @@ export async function requestPasswordResetAction(
   await db.verificationToken.deleteMany({ where: { identifier } });
   await db.verificationToken.create({ data: { identifier, token, expires } });
 
-  const base =
+  // AUTH_URL is set by NextAuth v5 / the VPS .env ("https://nadi.salezprint.com").
+  // Fall back through other common names so local dev still works.
+  const rawBase =
+    process.env.AUTH_URL ??
     process.env.NEXTAUTH_URL ??
     process.env.APP_URL ??
     "http://localhost:3000";
+  // Strip surrounding quotes that some .env editors add, e.g. AUTH_URL="https://..."
+  const base = rawBase.replace(/^["']|["']$/g, "").replace(/\/$/, "");
   const resetUrl = `${base}/reset-password?token=${token}`;
 
-  const hasResend = Boolean(process.env.AUTH_RESEND_KEY);
-  if (!hasResend) {
+  const resendKey =
+    process.env.AUTH_RESEND_KEY ??
+    process.env.RESEND_API_KEY ??
+    "";
+
+  if (!resendKey) {
     // Dev fallback — print link to console (no email sent)
     // eslint-disable-next-line no-console
     console.log(
@@ -67,7 +76,7 @@ export async function requestPasswordResetAction(
     return { ok: true };
   }
 
-  const resend = new Resend(process.env.AUTH_RESEND_KEY);
+  const resend = new Resend(resendKey);
   const { error } = await resend.emails.send({
     from: process.env.EMAIL_FROM ?? "Nadi <onboarding@resend.dev>",
     to: email,
