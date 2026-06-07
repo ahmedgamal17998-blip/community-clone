@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 type Item    = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 type Section = { title: string; items: Item[] };
 
-function buildSections(subscriptionEnabled: boolean): Section[] {
+function buildSections(subscriptionEnabled: boolean, isOwner: boolean): Section[] {
   return [
     {
       title: "",
@@ -39,9 +39,10 @@ function buildSections(subscriptionEnabled: boolean): Section[] {
     {
       title: "People",
       items: [
-        { href: "/members", label: "Members",    icon: Users      },
-        { href: "/requests", label: "Requests",  icon: UserPlus   },
-        { href: "/team",     label: "Admin Team", icon: ShieldCheck },
+        { href: "/members",  label: "Members",    icon: Users       },
+        { href: "/requests", label: "Requests",   icon: UserPlus    },
+        // Only OWNER-role admins can manage the admin team
+        ...(isOwner ? [{ href: "/team", label: "Admin Team", icon: ShieldCheck }] : []),
       ],
     },
     {
@@ -82,13 +83,15 @@ function buildSections(subscriptionEnabled: boolean): Section[] {
 export function AdminSidebar({
   groupSlug,
   subscriptionEnabled = false,
+  isOwner = false,
 }: {
   groupSlug: string;
   subscriptionEnabled?: boolean;
+  isOwner?: boolean;
 }) {
   const pathname  = usePathname();
   const base      = `/groups/${groupSlug}/admin`;
-  const sections  = buildSections(subscriptionEnabled);
+  const sections  = buildSections(subscriptionEnabled, isOwner);
 
   const isActive = (href: string) => {
     const full = `${base}${href}`;
