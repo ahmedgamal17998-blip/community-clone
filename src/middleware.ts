@@ -33,6 +33,8 @@ const PUBLIC_PATHS = [
   "/start",
   "/verify",
   "/pricing",
+  "/forgot-password",
+  "/reset-password",
 ];
 
 const PUBLIC_PREFIXES = [
