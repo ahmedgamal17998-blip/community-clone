@@ -84,7 +84,12 @@ export async function requestPasswordResetAction(
     html: resetPasswordEmail({ url: resetUrl, email }),
     text: `Reset your Nadi password: ${resetUrl}`,
   });
-  if (error) throw new Error(`Resend error: ${error.message}`);
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error(`[reset-password] Resend error for ${email}: ${error.message}`);
+    // Still return ok — don't reveal email/domain issues to the user
+    return { ok: true };
+  }
 
   return { ok: true };
 }
