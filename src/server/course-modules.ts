@@ -103,6 +103,8 @@ export async function getCourseOutline(params: {
       orderBy: { position: "asc" },
       include: {
         lessons: {
+          // Non-admins only see published lessons at the DB level.
+          where: params.isAdmin ? {} : { published: true },
           orderBy: [{ position: "asc" }, { createdAt: "asc" }],
         },
       },
@@ -110,7 +112,11 @@ export async function getCourseOutline(params: {
     // Lessons not yet attached to a module (legacy or in-flight). We render
     // them under a synthetic "Lessons" module at the end.
     db.lesson.findMany({
-      where: { courseId: params.courseId, moduleId: null },
+      where: {
+        courseId: params.courseId,
+        moduleId: null,
+        ...(params.isAdmin ? {} : { published: true }),
+      },
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     }),
     db.lessonProgress.findMany({

@@ -155,10 +155,13 @@ export async function getCourse(params: {
   const doneMap = new Map<string, boolean>();
   for (const p of progress) doneMap.set(p.lessonId, !!p.completedAt);
 
-  const lessons = course.lessons.map((l) => ({
-    ...l,
-    completed: doneMap.get(l.id) ?? false,
-  }));
+  // Hide draft (unpublished) lessons from non-admin viewers entirely.
+  const lessons = course.lessons
+    .filter((l) => isAdmin || l.published)
+    .map((l) => ({
+      ...l,
+      completed: doneMap.get(l.id) ?? false,
+    }));
 
   const total = lessons.length;
   const done = lessons.filter((l) => l.completed).length;
