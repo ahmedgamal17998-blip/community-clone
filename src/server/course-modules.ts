@@ -159,6 +159,9 @@ export async function getCourseOutline(params: {
   ];
 
   for (const m of allModules) {
+    // Draft (unpublished) modules are completely hidden from non-admin viewers.
+    if (!m.published && !params.isAdmin) continue;
+
     // Module-level release
     const moduleRelease = params.isAdmin
       ? ({ state: "available" } as ReleaseState)
@@ -174,6 +177,9 @@ export async function getCourseOutline(params: {
     const lessons: LessonRow[] = [];
 
     for (const l of m.lessons) {
+      // Draft (unpublished) lessons are completely hidden from non-admin viewers.
+      if (!l.published && !params.isAdmin) continue;
+
       const completed = doneMap.get(l.id) ?? false;
 
       // A lesson is gated by:
