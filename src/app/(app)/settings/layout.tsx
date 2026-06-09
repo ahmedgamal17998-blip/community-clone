@@ -19,40 +19,42 @@ export default async function SettingsLayout({
   if (!session?.user) redirect("/login");
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-5xl gap-8 px-4 py-8">
-      {/* Sidebar */}
-      <aside className="hidden w-48 shrink-0 md:block">
-        <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Settings
-        </p>
-        <nav className="space-y-0.5">
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="block rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
-      {/* Mobile nav */}
-      <div className="mb-6 flex gap-2 overflow-x-auto md:hidden">
+    <div className="mx-auto max-w-5xl px-4 py-6 md:py-8">
+      {/* Mobile nav — horizontal scrollable pills, above content */}
+      <div className="mb-5 flex gap-2 overflow-x-auto pb-1 md:hidden">
         {NAV_ITEMS.map((item) => (
           <Link
             key={item.href}
             href={item.href}
-            className="shrink-0 rounded-full border px-3 py-1 text-sm text-muted-foreground hover:bg-accent"
+            className="shrink-0 rounded-full border border-border bg-card px-4 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             {item.label}
           </Link>
         ))}
       </div>
 
-      {/* Content */}
-      <main className="min-w-0 flex-1">{children}</main>
+      {/* Desktop: sidebar + content side by side */}
+      <div className="flex min-h-screen gap-8">
+        <aside className="hidden w-48 shrink-0 md:block">
+          <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Settings
+          </p>
+          <nav className="space-y-0.5">
+            {NAV_ITEMS.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="block rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </aside>
+
+        {/* Content */}
+        <main className="min-w-0 flex-1">{children}</main>
+      </div>
     </div>
   );
 }
