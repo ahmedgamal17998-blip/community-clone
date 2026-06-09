@@ -11,6 +11,7 @@ import { VideoEmbed } from "@/components/post/VideoEmbed";
 import { PostEngagementArea } from "@/components/post/PostEngagementArea";
 import { PollBlock } from "@/components/post/PollBlock";
 import { RichTextRenderer } from "@/components/editor/RichTextRenderer";
+import { CollapsibleBody } from "@/components/post/CollapsibleBody";
 import { getPostComments } from "@/server/comments";
 import { db } from "@/server/db";
 import type { ReactionSummary } from "@/server/comments";
@@ -162,7 +163,9 @@ export async function PostCard({ post, viewerId, viewerCanModerate, hideChannelC
         ) : null}
 
         {/* Body */}
-        <RichTextRenderer content={post.body} className="mt-2 text-sm leading-relaxed" />
+        <CollapsibleBody className="mt-2 text-sm leading-relaxed">
+          <RichTextRenderer content={post.body} />
+        </CollapsibleBody>
 
         {/* Image grid */}
         {media.images.length > 0 ? (

@@ -69,15 +69,7 @@ export async function GroupRightRail({
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : null}
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logoUrl}
-              alt=""
-              className="absolute left-4 top-1/2 z-10 h-10 w-10 -translate-y-1/2 rounded-full border-2 border-white/60 object-cover shadow"
-            />
-          ) : null}
-          <span className="relative z-10 ml-14 truncate text-sm font-bold text-white drop-shadow">
+          <span className="relative z-10 ml-2 truncate text-sm font-bold text-white drop-shadow">
             {name}
           </span>
         </div>
