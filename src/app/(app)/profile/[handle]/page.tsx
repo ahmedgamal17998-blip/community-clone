@@ -37,14 +37,14 @@ export default async function ProfilePage({ params }: { params: { handle: string
 
   return (
     <section className="mx-auto max-w-2xl">
-      <div className="rounded-xl border border-border bg-card p-6">
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
         <div className="flex items-start gap-4">
-          <Avatar className="h-20 w-20">
+          <Avatar className="h-16 w-16 sm:h-20 sm:w-20 shrink-0">
             {user.image ? <AvatarImage src={user.image} alt={user.name ?? ""} /> : null}
             <AvatarFallback className="text-xl">{initialsFrom(user.name)}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight">{user.name}</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">{user.name}</h1>
             <p className="text-sm text-muted-foreground">@{user.handle}</p>
             {user.bio ? (
               <p className="mt-3 whitespace-pre-wrap text-sm text-foreground dir-auto">{user.bio}</p>
@@ -74,11 +74,11 @@ export default async function ProfilePage({ params }: { params: { handle: string
             </dl>
           </div>
           {isMe ? (
-            <Button asChild variant="outline" size="sm">
+            <Button asChild variant="outline" size="sm" className="shrink-0 self-start">
               <Link href="/settings/profile">{t("editTitle")}</Link>
             </Button>
           ) : session?.user ? (
-            <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-row sm:flex-col items-start sm:items-end gap-2 shrink-0">
               <MessageUserButton userId={user.id} />
               {user.availability ? (
                 <Button asChild size="sm">

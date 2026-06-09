@@ -242,7 +242,7 @@ export function Composer({ channelId, compact = true, groupSlug, crossPostChanne
                   className="fixed inset-0 z-30"
                   onClick={() => setPickerOpen(false)}
                 />
-                <div className="absolute left-0 top-full z-40 mt-1 max-h-72 w-64 overflow-y-auto rounded-xl border border-border bg-card py-1 shadow-xl">
+                <div className="absolute left-0 top-full z-40 mt-1 max-h-72 w-64 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-border bg-card py-1 shadow-xl">
                   {(crossPostChannels ?? []).map((c) => {
                     const checked = selectedChannels.has(c.id);
                     return (

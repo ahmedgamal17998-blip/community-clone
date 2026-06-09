@@ -227,7 +227,7 @@ export function NotificationBell({ viewerId }: { viewerId?: string }) {
             ) : null}
           </Button>
         </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[360px] max-h-[520px] overflow-y-auto p-0">
+      <DropdownMenuContent align="end" className="w-[min(360px,90vw)] max-h-[520px] overflow-y-auto p-0">
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <div className="text-sm font-semibold">Notifications</div>
           <button

@@ -90,25 +90,28 @@ export async function TopNav() {
         </div>
 
         <div className="ms-auto flex shrink-0 items-center gap-0 sm:gap-1">
-          {/* Theme + locale toggles — visible on mobile too, just compact. */}
-          <ThemeToggle />
-          <LocaleToggle />
+          {/* Theme + locale toggles — desktop only (UserMenu has them on mobile). */}
+          <div className="hidden sm:flex items-center gap-0">
+            <ThemeToggle />
+            <LocaleToggle />
+          </div>
           {session?.user ? (
             <>
               <span data-tour="nav-notifications">
                 <NotificationBell viewerId={session.user.id} />
               </span>
+              {/* Saved — desktop only */}
               <Button
                 asChild
                 variant="ghost"
                 size="icon"
                 aria-label="Saved"
                 title="Saved"
-                className="h-8 w-8 sm:h-9 sm:w-9"
+                className="hidden sm:inline-flex h-9 w-9"
                 data-tour="nav-saved"
               >
                 <Link href="/saved">
-                  <Bookmark className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <Bookmark className="h-5 w-5" />
                 </Link>
               </Button>
               {/* Apps grid — desktop only, low priority on mobile. */}

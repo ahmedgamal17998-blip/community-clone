@@ -153,7 +153,7 @@ export default async function GroupMembersPage({
             name="q"
             defaultValue={q}
             placeholder="Search members…"
-            className="h-9 w-64 rounded-md border border-border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+            className="h-9 w-full sm:w-64 rounded-md border border-border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-primary/40"
           />
           <button
             type="submit"

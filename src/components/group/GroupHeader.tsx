@@ -67,12 +67,12 @@ export async function GroupHeader({ group, myMembership }: Props) {
         ) : null}
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         {canManage ? (
           <Button asChild variant="outline" size="sm" className="gap-1.5">
             <Link href={`/groups/${group.slug}/admin`}>
               <LayoutDashboard className="h-4 w-4" />
-              <span>Admin Dashboard</span>
+              <span className="hidden sm:inline">Admin Dashboard</span>
             </Link>
           </Button>
         ) : null}
