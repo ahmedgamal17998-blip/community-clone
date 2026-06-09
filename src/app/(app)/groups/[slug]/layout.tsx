@@ -310,7 +310,7 @@ export default async function GroupLayout({
 
       {/* M21: onboarding tour (loaded async) */}
       {isActiveMember && myMembership && !myMembership.onboardingCompletedAt && (
-        <OnboardingMount groupId={group.id} />
+        <OnboardingMount groupId={group.id} groupSlug={group.slug} />
       )}
 
       {/* M26: admin announcements (loaded async) */}
@@ -331,7 +331,7 @@ export default async function GroupLayout({
   );
 }
 
-async function OnboardingMount({ groupId }: { groupId: string }) {
+async function OnboardingMount({ groupId, groupSlug }: { groupId: string; groupSlug: string }) {
   const config = await db.onboardingConfig.findUnique({ where: { groupId } });
   if (!config?.enabled) return null;
   let steps: Array<{ target: string; title: string; body: string; order: number }> = [];
@@ -341,7 +341,23 @@ async function OnboardingMount({ groupId }: { groupId: string }) {
     steps = [];
   }
   if (steps.length === 0) return null;
-  return <OnboardingTour groupId={groupId} steps={steps} />;
+
+  // Find the first public channel so the tour can navigate to it when
+  // a step targets a channel-level element (Posts tab, Chat tab).
+  const firstChannel = await db.channel.findFirst({
+    where: { group: { slug: groupSlug }, kind: "PUBLIC", archived: false },
+    orderBy: { position: "asc" },
+    select: { slug: true },
+  });
+
+  return (
+    <OnboardingTour
+      groupId={groupId}
+      groupSlug={groupSlug}
+      firstChannelSlug={firstChannel?.slug}
+      steps={steps}
+    />
+  );
 }
 
 async function AnnouncementsMount({

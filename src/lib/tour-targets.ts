@@ -23,6 +23,14 @@ export type TourTarget = {
   hint: string;
   /** Actual CSS selector used at runtime to find the element. */
   selector: string;
+  /**
+   * Which page the element lives on. The tour runtime navigates here
+   * automatically if the element is not found in the current DOM.
+   *   "discussion" → group root  (/groups/<slug>)
+   *   "channel"    → first channel  (/groups/<slug>/channels/<firstChannelSlug>)
+   *   undefined    → always in DOM (top-nav, group tabs, etc.)
+   */
+  requiresPage?: "discussion" | "channel";
 };
 
 export const TOUR_TARGETS: TourTarget[] = [
@@ -84,18 +92,21 @@ export const TOUR_TARGETS: TourTarget[] = [
     label: "Channels sidebar",
     hint: "The list of channels on the left of the Discussion page.",
     selector: '[data-tour="channels-list"]',
+    requiresPage: "discussion",
   },
   {
     id: "composer",
     label: "Post composer",
     hint: '"Write something…" box at the top of the feed.',
     selector: '[data-tour="composer"]',
+    requiresPage: "discussion",
   },
   {
     id: "right-rail",
     label: "Right rail",
     hint: "The members / online panel on the right.",
     selector: '[data-tour="right-rail"]',
+    requiresPage: "discussion",
   },
 
   // ── Channel tabs ─────────────────────────────────────────────────────────
@@ -104,12 +115,14 @@ export const TOUR_TARGETS: TourTarget[] = [
     label: "Channel — Posts tab",
     hint: "The Posts tab inside a channel view.",
     selector: '[data-tour="channel-tab-posts"]',
+    requiresPage: "channel",
   },
   {
     id: "channel-tab-chat",
     label: "Channel — Chat tab",
     hint: "The Chat tab inside a channel view.",
     selector: '[data-tour="channel-tab-chat"]',
+    requiresPage: "channel",
   },
 
   // ── Top navigation bar ───────────────────────────────────────────────────

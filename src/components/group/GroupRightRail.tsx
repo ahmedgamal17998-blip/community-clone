@@ -57,7 +57,7 @@ export async function GroupRightRail({
       <div className="overflow-hidden rounded-xl bg-card shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_rgba(0,0,0,0.04)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.3),0_0_0_1px_rgba(255,255,255,0.06)]">
         {/* Cover banner: image when set, otherwise the gradient fallback */}
         <div
-          className="relative flex h-24 items-end px-4 pb-3"
+          className="relative h-24"
           style={coverUrl ? undefined : gradientStyle}
           aria-hidden
         >
@@ -69,9 +69,6 @@ export async function GroupRightRail({
               className="absolute inset-0 h-full w-full object-cover"
             />
           ) : null}
-          <span className="relative z-10 ml-2 truncate text-sm font-bold text-white drop-shadow">
-            {name}
-          </span>
         </div>
 
         {/* Stats row */}

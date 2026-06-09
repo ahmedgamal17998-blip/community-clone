@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import {
   ChevronRight,
   ChevronLeft,
@@ -15,6 +16,7 @@ import {
   User,
 } from "lucide-react";
 import { markOnboardingCompleteAction } from "@/server/actions/onboarding";
+import { TOUR_TARGET_BY_ID } from "@/lib/tour-targets";
 import { cn } from "@/lib/utils";
 
 type Step = { target: string; title: string; body: string; order: number; icon?: string };
@@ -70,11 +72,17 @@ const VIEWPORT_PADDING = 16;
  */
 export function OnboardingTour({
   groupId,
+  groupSlug,
+  firstChannelSlug,
   steps,
 }: {
   groupId: string;
+  groupSlug: string;
+  firstChannelSlug?: string;
   steps: Step[];
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(true);
   const [idx, setIdx] = useState(0);
   const [coords, setCoords] = useState<Coords>({
@@ -185,8 +193,37 @@ export function OnboardingTour({
       return true;
     };
 
+    // If the element isn't found, check if this target requires a specific
+    // page and navigate there automatically before retrying.
+    const navigateIfNeeded = (): boolean => {
+      if (!cur.target) return false;
+      // Find the target's requiresPage by matching the selector
+      const tourTarget = Object.values(TOUR_TARGET_BY_ID).find(
+        (t) => t.selector === cur.target,
+      );
+      if (!tourTarget?.requiresPage) return false;
+
+      const base = `/groups/${groupSlug}`;
+      const groupRoot = base;
+      const channelRoot = firstChannelSlug
+        ? `${base}/channels/${firstChannelSlug}`
+        : base;
+
+      const targetPath =
+        tourTarget.requiresPage === "channel" ? channelRoot : groupRoot;
+
+      // Only navigate if we're not already on the right page
+      if (!pathname.startsWith(targetPath) && !(tourTarget.requiresPage === "discussion" && (pathname === groupRoot || pathname.startsWith(`${base}/channels`)))) {
+        router.push(targetPath);
+        return true; // navigating — retry will be triggered by pathname change
+      }
+      return false;
+    };
+
     if (!tryFind()) {
-      retryTimer = setTimeout(() => tryFind(), 300);
+      // Try navigating to the correct page first, then retry after navigation
+      const navigated = navigateIfNeeded();
+      retryTimer = setTimeout(() => tryFind(), navigated ? 800 : 300);
     }
 
     const onScrollOrResize = () => computePlacement();
