@@ -5,8 +5,6 @@ import { auth } from "@/server/auth";
 const NAV_ITEMS = [
   { href: "/settings/profile",       label: "Profile" },
   { href: "/settings/notifications",  label: "Notifications" },
-  { href: "/settings/availability",   label: "Availability" },
-  { href: "/settings/google",         label: "Google Calendar" },
   { href: "/settings/devices",        label: "Devices & Sessions" },
 ];
 
