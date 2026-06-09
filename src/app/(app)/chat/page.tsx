@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MessageCircle, Plus } from "lucide-react";
 import { auth } from "@/server/auth";
+import { BackButton } from "@/components/layout/BackButton";
 import { db } from "@/server/db";
 import { listInboxThreads } from "@/server/chat";
 import { hasCapability } from "@/server/capabilities";
@@ -49,7 +50,10 @@ export default async function ChatInboxPage() {
   return (
     <section className="mx-auto max-w-3xl space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Chat</h1>
+        <div className="flex items-center gap-2">
+          <BackButton />
+          <h1 className="text-xl font-semibold">Chat</h1>
+        </div>
         {canCreateGroupChat && (
           <Button asChild size="sm" variant="outline">
             <Link href="/chat/new" className="gap-1">

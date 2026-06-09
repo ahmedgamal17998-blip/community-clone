@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Bookmark } from "lucide-react";
 import { auth } from "@/server/auth";
+import { BackButton } from "@/components/layout/BackButton";
 import { db } from "@/server/db";
 import { buildPostReactions, buildPollData } from "@/server/posts";
 import { PostCard } from "@/components/post/PostCard";
@@ -58,6 +59,7 @@ export default async function SavedPostsPage() {
   return (
     <section className="mx-auto max-w-2xl space-y-4">
       <header className="flex items-center gap-3">
+        <BackButton />
         <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
           <Bookmark className="h-4 w-4" />
         </div>
