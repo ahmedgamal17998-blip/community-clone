@@ -77,7 +77,20 @@ export function PostEngagementArea({
   const [modalOpen, setModalOpen] = useState(false);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Long-press on mobile opens the picker (Facebook-style)
+  function onLikeTouchStart() {
+    longPressTimer.current = setTimeout(() => {
+      setPickerOpen(true);
+    }, 500);
+  }
+  function onLikeTouchEnd() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
 
   // ── UI state ────────────────────────────────────────────────────────────
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -157,9 +170,16 @@ export function PostEngagementArea({
   }
 
   function handleLikeClick() {
-    // On touch devices: tap toggles the picker (then tap an emoji to react)
     if (isTouchDevice()) {
-      setPickerOpen((v) => !v);
+      // Facebook behaviour on touch:
+      // • No reaction yet  → tap = 👍 immediately
+      // • Already reacted  → tap = remove that reaction
+      // (Long-press opens the picker — handled by onLongPress below)
+      if (viewerReaction) {
+        handleToggle(viewerReaction); // remove
+      } else {
+        handleToggle("👍"); // quick-like
+      }
       return;
     }
     if (pickerOpen) return;
@@ -227,6 +247,9 @@ export function PostEngagementArea({
             onMouseEnter={onLikeMouseEnter}
             onMouseLeave={onLikeMouseLeave}
             onClick={handleLikeClick}
+            onTouchStart={onLikeTouchStart}
+            onTouchEnd={onLikeTouchEnd}
+            onTouchMove={onLikeTouchEnd}
             className={cn(
               "flex w-full items-center justify-center gap-1.5 rounded-md px-1 py-1.5 text-sm font-semibold transition-colors hover:bg-accent",
               viewerReaction ? "text-primary" : "text-muted-foreground",
