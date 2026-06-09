@@ -77,11 +77,11 @@ function prefFor(type: NotificationType, prefs: PrefsRow): Channel {
 }
 
 const DEFAULT_PREFS: PrefsRow = {
-  mention: "BOTH",
-  commentOnPost: "BOTH",
-  replyOnComment: "BOTH",
+  mention: "IN_APP",
+  commentOnPost: "IN_APP",
+  replyOnComment: "IN_APP",
   reactionOnPost: "IN_APP",
-  membershipApproved: "BOTH",
+  membershipApproved: "IN_APP",
   inviteAccepted: "IN_APP",
 };
 
@@ -193,7 +193,8 @@ export async function createNotification(input: CreateNotificationInput) {
   if (channel === "OFF") return null;
 
   const wantsInApp = channel === "IN_APP" || channel === "BOTH";
-  const wantsEmail = channel === "EMAIL" || channel === "BOTH";
+  // Email notifications disabled — all notifications are in-app only.
+  const wantsEmail = false;
 
   let created = null;
   if (wantsInApp) {

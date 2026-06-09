@@ -13,11 +13,9 @@ const EVENT_TYPES = [
   { key: "inviteAccepted", label: "Invite accepted" },
 ] as const;
 
-const CHANNELS = ["IN_APP", "EMAIL", "BOTH", "OFF"] as const;
+const CHANNELS = ["IN_APP", "OFF"] as const;
 const CHANNEL_LABELS: Record<(typeof CHANNELS)[number], string> = {
   IN_APP: "In-App",
-  EMAIL: "Email",
-  BOTH: "Both",
   OFF: "Off",
 };
 
