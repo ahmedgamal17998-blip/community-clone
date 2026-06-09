@@ -78,20 +78,6 @@ export function PostEngagementArea({
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
 
-  // Clamp the picker so it never overflows the viewport edges
-  useEffect(() => {
-    if (!pickerOpen || !pickerRef.current) return;
-    const el = pickerRef.current;
-    el.style.translate = ""; // reset
-    const rect = el.getBoundingClientRect();
-    const overflowRight = rect.right - window.innerWidth + 8;
-    const overflowLeft = 8 - rect.left;
-    if (overflowRight > 0) {
-      el.style.translate = `-${overflowRight}px 0`;
-    } else if (overflowLeft > 0) {
-      el.style.translate = `${overflowLeft}px 0`;
-    }
-  }, [pickerOpen]);
 
   // ── UI state ────────────────────────────────────────────────────────────
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -260,7 +246,7 @@ export function PostEngagementArea({
               ref={pickerRef}
               onMouseEnter={onPickerMouseEnter}
               onMouseLeave={onPickerMouseLeave}
-              className="absolute bottom-full start-0 z-30 mb-2 flex items-center gap-0.5 rounded-full border border-border bg-popover px-2 py-1.5 shadow-xl"
+              className="absolute bottom-full start-0 z-30 mb-2 flex flex-col-reverse items-center gap-0.5 rounded-full border border-border bg-popover px-1.5 py-2 shadow-xl sm:flex-row sm:rounded-full sm:px-2 sm:py-1.5"
               style={{ animation: "fbReactPop 0.18s cubic-bezier(0.175,0.885,0.32,1.4) both" }}
             >
               {EMOJI_LIST.map((emoji) => {
