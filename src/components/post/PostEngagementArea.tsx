@@ -11,7 +11,7 @@
  *  5. ReactionsModal        (overlay, tabbed by emoji)
  */
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useRef, useTransition, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { ThumbsUp, MessageCircle, Share2, Bookmark, X } from "lucide-react";
 import { toggleReactionAction } from "@/server/reaction-actions";
@@ -77,6 +77,21 @@ export function PostEngagementArea({
   const [modalOpen, setModalOpen] = useState(false);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Clamp the picker so it never overflows the viewport edges
+  useEffect(() => {
+    if (!pickerOpen || !pickerRef.current) return;
+    const el = pickerRef.current;
+    el.style.translate = ""; // reset
+    const rect = el.getBoundingClientRect();
+    const overflowRight = rect.right - window.innerWidth + 8;
+    const overflowLeft = 8 - rect.left;
+    if (overflowRight > 0) {
+      el.style.translate = `-${overflowRight}px 0`;
+    } else if (overflowLeft > 0) {
+      el.style.translate = `${overflowLeft}px 0`;
+    }
+  }, [pickerOpen]);
 
   // ── UI state ────────────────────────────────────────────────────────────
   const [commentsOpen, setCommentsOpen] = useState(false);
