@@ -215,7 +215,7 @@ export default async function GroupEventsPage({ params, searchParams }: Props) {
             {group.name} · Events
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ViewToggle view={view} date={date} />
           {bookingButton ? (
             <BookSessionsButton

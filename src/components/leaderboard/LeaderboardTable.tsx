@@ -67,16 +67,16 @@ function PodiumCard({
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-2 rounded-2xl border border-border p-4 text-center transition-colors",
+        "flex flex-col items-center gap-1.5 rounded-2xl border border-border p-2 sm:p-4 text-center transition-colors",
         cfg.bg,
         cfg.glow,
-        prominent && "py-6",
+        prominent && "sm:py-6",
         isMe && "ring-2 ring-primary/40",
       )}
     >
       {/* medal icon */}
       <Icon
-        className={cn("h-5 w-5", cfg.text, prominent && "h-6 w-6")}
+        className={cn("h-4 w-4 sm:h-5 sm:w-5", cfg.text, prominent && "sm:h-6 sm:w-6")}
         strokeWidth={2}
       />
 
@@ -84,9 +84,9 @@ function PodiumCard({
       <div className="relative">
         <Avatar
           className={cn(
-            "ring-4",
+            "ring-2 sm:ring-4",
             cfg.ring,
-            prominent ? "h-20 w-20" : "h-14 w-14",
+            prominent ? "h-14 w-14 sm:h-20 sm:w-20" : "h-10 w-10 sm:h-14 sm:w-14",
           )}
         >
           {row.user.image ? (
@@ -109,24 +109,24 @@ function PodiumCard({
       </div>
 
       {/* name */}
-      <div className="mt-1 min-w-0 w-full">
+      <div className="mt-0.5 min-w-0 w-full">
         <Link
           href={`/profile/${row.user.handle}`}
           className={cn(
-            "block truncate font-semibold leading-snug hover:underline",
-            prominent ? "text-base" : "text-sm",
+            "block truncate font-semibold leading-snug hover:underline text-xs sm:text-sm",
+            prominent && "sm:text-base",
           )}
         >
           {row.user.name ?? `@${row.user.handle}`}
         </Link>
-        <p className="truncate text-xs text-muted-foreground">
+        <p className="truncate text-[10px] sm:text-xs text-muted-foreground">
           @{row.user.handle}
         </p>
       </div>
 
       {/* level badge */}
-      <span className={cn("text-[11px] font-semibold", LEVEL_COLOR[lvl.level])}>
-        Lv.{lvl.level} · {lvl.label}
+      <span className={cn("text-[10px] sm:text-[11px] font-semibold", LEVEL_COLOR[lvl.level])}>
+        Lv.{lvl.level}
       </span>
 
       {/* points */}
@@ -134,11 +134,11 @@ function PodiumCard({
         className={cn(
           "font-bold tabular-nums leading-none",
           cfg.text,
-          prominent ? "text-2xl" : "text-lg",
+          prominent ? "text-lg sm:text-2xl" : "text-base sm:text-lg",
         )}
       >
         {row.points.toLocaleString()}
-        <span className="ml-1 text-xs font-normal text-muted-foreground">
+        <span className="ml-0.5 text-[10px] sm:text-xs font-normal text-muted-foreground">
           pts
         </span>
       </div>

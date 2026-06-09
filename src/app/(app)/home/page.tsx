@@ -36,26 +36,26 @@ export default async function HomePage() {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             {tg("yourGroups")}
           </h2>
-          <div className="flex gap-2">
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/groups" className="gap-2">
-                <Compass className="h-4 w-4" />
-                {tg("discover")}
+          <div className="flex gap-1.5 sm:gap-2">
+            <Button asChild variant="ghost" size="sm" className="px-2 sm:px-3">
+              <Link href="/groups" className="gap-1.5">
+                <Compass className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">{tg("discover")}</span>
               </Link>
             </Button>
             {hasTenant && (
-              <Button asChild variant="outline" size="sm">
-                <Link href="/admin" className="gap-2">
-                  <LayoutDashboard className="h-4 w-4" />
-                  Dashboard
+              <Button asChild variant="outline" size="sm" className="px-2 sm:px-3">
+                <Link href="/admin" className="gap-1.5">
+                  <LayoutDashboard className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">Dashboard</span>
                 </Link>
               </Button>
             )}
             {canCreate && (
-              <Button asChild size="sm">
-                <Link href={hasTenant ? "/groups/new" : "/create"} className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  {tg("create")}
+              <Button asChild size="sm" className="px-2 sm:px-3">
+                <Link href={hasTenant ? "/groups/new" : "/create"} className="gap-1.5">
+                  <Plus className="h-4 w-4 shrink-0" />
+                  <span className="hidden sm:inline">{tg("create")}</span>
                 </Link>
               </Button>
             )}

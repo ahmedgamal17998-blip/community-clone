@@ -126,12 +126,18 @@ export function PostEngagementArea({
   }
 
   // ── Hover picker logic ──────────────────────────────────────────────────
+  function isTouchDevice() {
+    return typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
+  }
+
   function onLikeMouseEnter() {
+    if (isTouchDevice()) return; // touch handled by click
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     hoverTimerRef.current = setTimeout(() => setPickerOpen(true), 400);
   }
 
   function onLikeMouseLeave() {
+    if (isTouchDevice()) return;
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     // Delay close so mouse can move into picker
     hoverTimerRef.current = setTimeout(() => {
@@ -140,14 +146,21 @@ export function PostEngagementArea({
   }
 
   function onPickerMouseEnter() {
+    if (isTouchDevice()) return;
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
   }
 
   function onPickerMouseLeave() {
+    if (isTouchDevice()) return;
     setPickerOpen(false);
   }
 
   function handleLikeClick() {
+    // On touch devices: tap toggles the picker (then tap an emoji to react)
+    if (isTouchDevice()) {
+      setPickerOpen((v) => !v);
+      return;
+    }
     if (pickerOpen) return;
     handleToggle("👍");
   }
@@ -226,7 +239,7 @@ export function PostEngagementArea({
             <span>{viewerReaction ? (EMOJI_LABELS[viewerReaction] ?? "Like") : "Like"}</span>
           </button>
 
-          {/* Hover reactions picker */}
+          {/* Reactions picker — hover on desktop, tap-toggle on mobile */}
           {pickerOpen && (
             <div
               ref={pickerRef}
@@ -242,7 +255,7 @@ export function PostEngagementArea({
                     key={emoji}
                     type="button"
                     title={EMOJI_LABELS[emoji]}
-                    onClick={() => handleToggle(emoji)}
+                    onClick={() => { handleToggle(emoji); setPickerOpen(false); }}
                     className={cn(
                       "flex h-9 w-9 items-center justify-center rounded-full text-xl transition-all duration-150",
                       "hover:scale-[1.35] hover:bg-accent",
